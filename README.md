@@ -1,6 +1,6 @@
 # Alex robot
 
-Developing software and control for a humanoid robot.
+Developing software and control for IHMC Alex humanoid robot.
 
 ![](images/alex.png)
 
