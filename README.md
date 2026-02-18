@@ -9,18 +9,10 @@ Developing software and control for a humanoid robot.
 
 ## Scenes
 
-Get scenes from https://github.com/allenai/molmospaces. Clone repo. 
+Alex scenes are in dir `alex-scenes/`. Load `scene_alex_v1_full_body_mjx_room1.xml` to see Alex in a room.
 
-Download scenes as described"
+Room scenes from https://github.com/allenai/molmospaces.
 
-```
-# python commands:
-from molmo_spaces.utils.lazy_loading_utils import install_scene_with_objects_and_grasps_from_path
-from molmo_spaces.molmo_spaces_constants import get_scenes 
-install_scene_with_objects_and_grasps_from_path(get_scenes("ithor", "train")["train"][1])
-```
-
-Scenes were copied to dir `scenes/ithor` and `scenes/objects`.
 
 
 ## Run
