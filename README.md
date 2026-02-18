@@ -21,6 +21,12 @@ Room scenes from https://github.com/allenai/molmospaces.
 
 You can run alex model by dragging / dropping [this file](scenes/alex-scenes/scene_alex_v1_full_body_mjx_room1.xml) into MuJoCo. Or any file in that directory `scenes/alex-scenes/`
 
+OR you can run with:
+
+`python -m mujoco.viewer --mjcf Alex-robot/scenes/alex-scenes/scene_alex_v1_full_body_mjx_ec1.xml`
+
+You will get this:
+
 ![](images/alex-room1.png)
 
 
