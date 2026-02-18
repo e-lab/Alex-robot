@@ -23,3 +23,6 @@ You can run alex model by dragging / dropping [this file](scenes/alex-scenes/sce
 
 
 
+## References
+
+[IHMC Alex](https://www.ihmc.us/news20251119/) 
