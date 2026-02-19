@@ -1,7 +1,7 @@
 <mujoco model="alex_v1_floorplan1_scene">
     <option timestep="0.005"/>
-    <include file="../ithor/FloorPlan1_physics.xml"/>
     <include file="../../alex-models/alex_V1_description/mjcf/alex_v1_full_body_mjx.xml"/>
+    <include file="../ithor/FloorPlan1_physics.xml"/>
 
     <statistic center="0 0 0.1" extent="0.8"/>
 
