@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""Train Alex to stand using PPO in MuJoCo.
+"""Train Alex to stand upright using PPO in MuJoCo.
 
-This script trains on:
-  scenes/alex-scenes/scene_alex_v1_full_body_mjx.xml
-
-Key feature:
-  Random small arm/hand actuator disturbances are injected during rollouts
-  so the policy learns to maintain balance despite perturbations.
+By default this uses the same scene XML referenced by:
+  scenes/alex-scenes/scene-alex-stand.py
 """
 
 from __future__ import annotations
@@ -75,6 +71,7 @@ class AlexStandEnv:
         hand_disturbance_scale: float = 0.06,
         hand_disturbance_smooth: float = 0.85,
         noise_scale: float = 0.01,
+        control_profile: str = "full",
     ):
         self.model = mujoco.MjModel.from_xml_path(mjcf_path)
         self.data = mujoco.MjData(self.model)
@@ -96,10 +93,6 @@ class AlexStandEnv:
         self.act_mid = 0.5 * (self.act_low + self.act_high)
         self.act_amp = 0.5 * (self.act_high - self.act_low)
 
-        self.home_kf = mujoco.mj_name2id(
-            self.model, mujoco.mjtObj.mjOBJ_KEY, "home"
-        )
-
         self.pelvis_body = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, "pelvis_link"
         )
@@ -107,17 +100,21 @@ class AlexStandEnv:
             raise RuntimeError("Body 'pelvis_link' not found in model.")
 
         self.arm_ids = self._find_arm_actuators()
+        self.active_ids = self._select_active_actuators(control_profile)
+        self.action_dim = int(self.active_ids.shape[0])
+        self.disturbance_ids = np.intersect1d(self.arm_ids, self.active_ids)
         self.arm_noise = np.zeros(self.nu, dtype=np.float64)
-        self.fall_z_min = 0.65
+        self.base_qpos = np.array([0.0, 0.0, 0.98, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        self.fall_z_min = 0.55
         self.fall_upright_min = 0.45
-        self.start_z_min = 0.65
+        self.start_z_min = 0.55
         self.start_z_target = 0.70
         self.last_start_z = float("nan")
         self.last_start_adjusted = False
 
-        # Observation: qpos + qvel + previous action
-        self.obs_dim = self.nq + self.nv + self.nu
-        self.prev_action = np.zeros(self.nu, dtype=np.float64)
+        # Observation: qpos + qvel + previous action (active actuator subset only).
+        self.obs_dim = self.nq + self.nv + self.action_dim
+        self.prev_action = np.zeros(self.action_dim, dtype=np.float64)
 
     def _find_arm_actuators(self) -> np.ndarray:
         ids = []
@@ -128,6 +125,32 @@ class AlexStandEnv:
             if any(k in name for k in ("shoulder", "elbow", "wrist", "neck")):
                 ids.append(i)
         return np.asarray(ids, dtype=np.int32)
+
+    def _select_active_actuators(self, profile: str) -> np.ndarray:
+        if profile == "full":
+            return np.arange(self.nu, dtype=np.int32)
+
+        if profile == "balance":
+            # Torso + both legs/feet + arm swings (shoulder pitch only).
+            names = {
+                "spine_z",
+                "left_hip_x", "left_hip_y", "left_hip_z", "left_knee", "left_ankle_x", "left_ankle_y",
+                "right_hip_x", "right_hip_y", "right_hip_z", "right_knee", "right_ankle_x", "right_ankle_y",
+                "left_shoulder_y", "right_shoulder_y",
+            }
+            ids = []
+            found = set()
+            for i in range(self.nu):
+                n = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i)
+                if n in names:
+                    ids.append(i)
+                    found.add(n)
+            missing = names - found
+            if missing:
+                raise RuntimeError(f"Missing actuators for balance profile: {sorted(missing)}")
+            return np.asarray(ids, dtype=np.int32)
+
+        raise ValueError(f"Unknown control_profile: {profile}")
 
     def _pelvis_z(self) -> float:
         return float(self.data.xpos[self.pelvis_body, 2])
@@ -146,19 +169,25 @@ class AlexStandEnv:
             ]
         ).astype(np.float32)
 
+    def _set_stand_pose(self) -> None:
+        # Match the stand scene script: floating base at nominal standing height,
+        # joints initialized near neutral.
+        self.data.qpos[:7] = self.base_qpos
+        self.data.qpos[7:] = 0.0
+        self.data.qvel[:] = 0.0
+
     def reset(self) -> np.ndarray:
         self.t = 0
         self.arm_noise.fill(0.0)
         self.prev_action.fill(0.0)
 
-        if self.home_kf >= 0:
-            mujoco.mj_resetDataKeyframe(self.model, self.data, self.home_kf)
-        else:
-            mujoco.mj_resetData(self.model, self.data)
+        mujoco.mj_resetData(self.model, self.data)
+        self._set_stand_pose()
 
         # Add small reset noise to joint states (keep base pose mostly intact).
         self.data.qpos[7:] += self.noise_scale * np.random.randn(self.nq - 7)
         self.data.qvel[:] = self.noise_scale * np.random.randn(self.nv)
+        self.data.qvel[:6] = 0.0
         mujoco.mj_forward(self.model, self.data)
         start_z = self._pelvis_z()
         self.last_start_adjusted = False
@@ -173,16 +202,20 @@ class AlexStandEnv:
 
     def step(self, action: np.ndarray):
         action = np.asarray(action, dtype=np.float64)
+        if action.shape[0] != self.action_dim:
+            raise ValueError(f"Expected action_dim={self.action_dim}, got {action.shape[0]}")
         action = np.clip(action, -1.0, 1.0)
-        ctrl = self.act_mid + action * self.act_amp
+        ctrl = self.act_mid.copy()
+        ctrl[self.active_ids] = self.act_mid[self.active_ids] + action * self.act_amp[self.active_ids]
 
         # Smooth random arm disturbances.
-        eps = np.random.randn(self.arm_ids.shape[0]) * self.hand_disturbance_scale
-        self.arm_noise[self.arm_ids] = (
-            self.hand_disturbance_smooth * self.arm_noise[self.arm_ids]
-            + (1.0 - self.hand_disturbance_smooth) * eps
-        )
-        ctrl[self.arm_ids] += self.arm_noise[self.arm_ids]
+        if self.disturbance_ids.size > 0:
+            eps = np.random.randn(self.disturbance_ids.shape[0]) * self.hand_disturbance_scale
+            self.arm_noise[self.disturbance_ids] = (
+                self.hand_disturbance_smooth * self.arm_noise[self.disturbance_ids]
+                + (1.0 - self.hand_disturbance_smooth) * eps
+            )
+            ctrl[self.disturbance_ids] += self.arm_noise[self.disturbance_ids]
         ctrl = np.clip(ctrl, self.act_low, self.act_high)
 
         self.data.ctrl[:] = ctrl
@@ -195,7 +228,7 @@ class AlexStandEnv:
         z = self._pelvis_z()
         up = self._pelvis_upright()
         qvel_norm = float(np.linalg.norm(self.data.qvel))
-        arm_disturb_mag = float(np.linalg.norm(self.arm_noise[self.arm_ids]))
+        arm_disturb_mag = float(np.linalg.norm(self.arm_noise[self.disturbance_ids]))
 
         # Standing reward with disturbance robustness.
         reward = (
@@ -305,10 +338,11 @@ def train(args):
         episode_steps=args.episode_steps,
         frame_skip=args.frame_skip,
         hand_disturbance_scale=args.hand_disturbance_scale,
+        control_profile=args.control_profile,
     )
     obs_rms = RunningNorm(env.obs_dim)
 
-    model = ActorCritic(env.obs_dim, env.nu, hidden=args.hidden).to(device)
+    model = ActorCritic(env.obs_dim, env.action_dim, hidden=args.hidden).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -345,7 +379,7 @@ def train(args):
 
     while global_step < cfg.total_steps:
         obs_buf = np.zeros((cfg.rollout_steps, env.obs_dim), dtype=np.float32)
-        act_buf = np.zeros((cfg.rollout_steps, env.nu), dtype=np.float32)
+        act_buf = np.zeros((cfg.rollout_steps, env.action_dim), dtype=np.float32)
         logp_buf = np.zeros(cfg.rollout_steps, dtype=np.float32)
         rew_buf = np.zeros(cfg.rollout_steps, dtype=np.float32)
         done_buf = np.zeros(cfg.rollout_steps, dtype=np.float32)
@@ -481,6 +515,7 @@ def parse_args():
         "--scene",
         type=str,
         default="scenes/alex-scenes/scene_alex_v1_full_body_mjx.xml",
+        help="Scene XML used by training (same default XML used by scene-alex-stand.py).",
     )
     parser.add_argument("--outdir", type=str, default="training/checkpoints")
     parser.add_argument("--seed", type=int, default=42)
@@ -493,7 +528,19 @@ def parse_args():
     parser.add_argument("--hidden", type=int, default=256)
     parser.add_argument("--episode-steps", type=int, default=1000)
     parser.add_argument("--frame-skip", type=int, default=5)
-    parser.add_argument("--hand-disturbance-scale", type=float, default=0.06)
+    parser.add_argument(
+        "--hand-disturbance-scale",
+        type=float,
+        default=0.03,
+        help="Arm/hand disturbance magnitude during training.",
+    )
+    parser.add_argument(
+        "--control-profile",
+        type=str,
+        default="balance",
+        choices=["full", "balance"],
+        help="Actuator subset: full=all 27 actuators, balance=torso+legs/feet+arm swings.",
+    )
     parser.add_argument("--save-every", type=int, default=150_000)
     parser.add_argument("--log-every-episodes", type=int, default=1000)
     parser.add_argument("--render", action="store_true")
