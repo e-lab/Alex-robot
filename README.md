@@ -30,6 +30,14 @@ You will get this:
 ![](images/alex-room1.png)
 
 
+### train to stand
+
+`python training/alex-stand-ppo.py --timesteps 10000000 --n-envs 8`
+
+Demo with:
+
+`mjpython training/alex-stand-ppo.py --eval training/rl_models/best/best_model --episodes 20`
+
 ## References
 
 [IHMC Alex](https://www.ihmc.us/news20251119/) 
