@@ -1,0 +1,47 @@
+<mujoco model="alex_v1 training scene">
+    <option timestep="0.005"/>
+    <include file="../../alex-models/alex_V1_description/mjcf/alex_v1_full_body_train.xml"/>
+
+    <statistic center="0 0 0.1" extent="0.8"/>
+
+    <visual>
+        <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+        <rgba haze="0.15 0.25 0.35 1"/>
+        <global azimuth="120" elevation="-20"/>
+    </visual>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+        <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+            markrgb="0.8 0.8 0.8" width="300" height="300"/>
+        <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+    </asset>
+
+    <!-- Additional contact exclusions missing from the base model.
+         Without these, thigh/pelvis and upper-arm/forearm geoms interpenetrate
+         at reset, creating explosive contact forces that launch the robot. -->
+    <contact>
+        <exclude body1="pelvis_link"   body2="left_thigh"/>
+        <exclude body1="pelvis_link"   body2="right_thigh"/>
+        <exclude body1="left_shoulder_z"  body2="left_wrist_z"/>
+        <exclude body1="right_shoulder_z" body2="right_wrist_z"/>
+    </contact>
+
+    <worldbody>
+        <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+        <camera name="default" pos="0.846 -1.465 0.916" xyaxes="0.866 0.500 0.000 -0.171 0.296 0.940"/>
+        <geom
+            name="floor"
+            size="0 0 0.05"
+            type="plane"
+            material="groundplane"
+            contype="1"
+            conaffinity="1"
+            priority="1"
+            friction="1.0 0.05 0.01"
+            condim="3"
+            solref="0.015 1"
+            solimp="0.9 0.99 0.003"/>
+    </worldbody>
+
+</mujoco>
