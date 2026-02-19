@@ -7,16 +7,16 @@
 
     <default>
         <default class="alex">
-            <joint damping="15" frictionloss="0.0"/>
-            <position inheritrange="2" dampratio="2"/>
+            <joint damping="2" frictionloss="0.3"/>
+            <position inheritrange="2"/>
             <default class="alex/spine">
                 <joint axis="0 0 1" range="-0.5235987756 0.5235987756"/>
-                <position forcerange="-90 90" kp="30"/>
+                <position forcerange="-150 150" kp="112"/>
             </default>
             <default class="alex/hip">
                 <default class="alex/hip/x">
                     <joint axis="1 0 0" armature="0.004085"/>
-                    <position forcerange="-90 90" kp="30"/>
+                    <position forcerange="-150 150" kp="112"/>
                     <default class="alex/hip/x/left">
                         <joint range="-0.3490658504 0.872664626"/>
                     </default>
@@ -26,11 +26,11 @@
                 </default>
                 <default class="alex/hip/y">
                     <joint axis="0 1 0" range="-2.61799 0.785398" armature="0.01026"/>
-                    <position forcerange="-120 120" kp="40"/>
+                    <position forcerange="-200 200" kp="150"/>
                 </default>
                 <default class="alex/hip/z">
                     <joint axis="0 0 1" armature="0.00124"/>
-                    <position forcerange="-40 40" kp="20"/>
+                    <position forcerange="-60 60" kp="45"/>
                     <default class="alex/hip/z/left">
                         <joint range="-0.3490658504 1.0472"/>
                     </default>
@@ -41,27 +41,27 @@
             </default>
             <default class="alex/knee">
                 <joint axis="0 1 0" range="0.0 2.445206282" armature="0.01026"/>
-                <position forcerange="-120 120" kp="40"/>
+                <position forcerange="-200 200" kp="150"/>
             </default>
             <default class="alex/ankle">
                 <joint armature="0.002301"/>
                 <default class="alex/ankle/x">
                     <joint axis="1 0 0" range="-1.0472 0.523599"/>
-                    <position forcerange="-60 60" kp="25"/>
+                    <position forcerange="-90 90" kp="67"/>
                 </default>
                 <default class="alex/ankle/y">
                     <joint axis="0 1 0" range="-0.436332 0.436332"/>
-                    <position forcerange="-100 100" kp="35"/>
+                    <position forcerange="-180 180" kp="135"/>
                 </default>
             </default>
             <default class="alex/shoulder">
                 <default class="alex/shoulder/y">
                     <joint axis="0 1 0" range="-3.141592 1.22173" armature="0.01"/>
-                    <position forcerange="-80 80" kp="28"/>
+                    <position forcerange="-150 150" kp="112.5"/>
                 </default>
                 <default class="alex/shoulder/x">
                     <joint axis="1 0 0" armature="0.01"/>
-                    <position forcerange="-60 60" kp="22"/>
+                    <position forcerange="-100 100" kp="75"/>
                     <default class="alex/shoulder/x/left">
                         <joint range="-0.349066 2.79253"/>
                     </default>
@@ -71,7 +71,7 @@
                 </default>
                 <default class="alex/shoulder/z">
                     <joint axis="0 0 1" armature="0.01"/>
-                    <position forcerange="-50 50" kp="18"/>
+                    <position forcerange="-80 80" kp="60"/>
                     <default class="alex/shoulder/z/left">
                         <joint range="-1.91986 1.22173"/>
                     </default>
@@ -82,10 +82,10 @@
             </default>
             <default class="alex/elbow">
                 <joint axis="0 1 0" range="-2.35619 0.174532925" armature="0.01"/>
-                <position forcerange="-45 45" kp="16"/>
+                <position forcerange="-80 80" kp="60"/>
             </default>
             <default class="alex/wrist">
-                <position forcerange="-12 12" kp="6"/>
+                <position forcerange="-20 20" kp="15"/>
                 <default class="alex/wrist/z">
                     <joint axis="0 0 1" range="-2.61799 2.61799" armature="0.01"/>
                 </default>
@@ -100,7 +100,7 @@
                 </default>
             </default>
             <default class="alex/neck">
-                <position forcerange="-12 12" kp="6"/>
+                <position forcerange="-20 20" kp="15"/>
                 <default class="alex/neck/z">
                     <joint axis="0 0 1" range="-1.5708 1.5708" armature="0.01"/>
                 </default>
@@ -185,7 +185,7 @@
             <default class="alex/collision">
                 <geom group="3" contype="1" conaffinity="1" rgba="0 1 0 0.4"/>
                 <default class="alex/collision/thigh">
-                    <geom type="capsule" euler="0 -0.25 0" size="0.095 0.11" condim="3" friction="0.9 0.05 0.01" solref="0.015 1" solimp="0.9 0.99 0.003"/>
+                    <geom type="capsule" euler="0 -0.25 0" size="0.095 0.11" condim="1" friction="0.8"/>
                 </default>
                 <default class="alex/collision/foot">
                     <geom type="box" size="0.0985 0.045 0.01" pos="0.045 0.0 -0.0625" condim="3" friction="1.0 0.05 0.01" solref="0.015 1" solimp="0.9 0.99 0.003"/>
@@ -254,7 +254,7 @@
                 pos="-0.08256965 0.00003644 -0.03242784"
                 mass="7.161"
                 fullinertia="0.02977256988 0.03911256674 0.04671200364 0.00000354246 0.00058151866 0.00002715104"
-             />
+                />
             <freejoint/>
             <geom mesh="pelvis" material="gray" class="alex/visual"/>
             <geom name="pelvis_collision" class="alex/collision/pelvis"/>
@@ -264,7 +264,7 @@
                     pos="0.04350911	0.08708606 -0.03525761"
                     mass="2.332078"
                     fullinertia="0.00469288 0.00517742 0.00554081 -0.00059599 0.00013313 0.00048434"
-                />
+                    />
                 <joint name="left_hip_x" class="alex/hip/x/left"/>
                 <geom mesh="left_hip_x" material="gray" class="alex/visual"/>
                 <site name="imu_left_hip" class="alex/imu/hip/left"/>
@@ -273,7 +273,7 @@
                         pos="0.04549595	-0.00525571	-0.00937454"
                         mass="0.74972192"
                         fullinertia="0.00301724 0.00328402 0.00292463 -0.00015575 0.00074098 -0.00040842"
-                    />
+                        />
                     <joint name="left_hip_z" class="alex/hip/z/left"/>
                     <geom mesh="left_hip_z" material="gray" class="alex/visual"/>
                     <body name="left_thigh" pos="0.1045	-0.0573	-0.0525">
@@ -281,7 +281,7 @@
                             pos="0.01417302 0.03268781 -0.10548314"
                             mass="8.286"
                             fullinertia="0.09293216 0.09767341 0.02812998 0.00035382 0.00924622 -0.0043387"
-                        />
+                            />
                         <joint name="left_hip_y" class="alex/hip/y"/>
                         <geom mesh="left_thigh" material="gray" class="alex/visual"/>
                         <geom name="left_thigh_collision" pos="0.015 0.025 -0.125" class="alex/collision/thigh"/>
@@ -291,7 +291,7 @@
                                 pos="0.03807965	-0.00108105	-0.12410027"
                                 mass="6.3405718"
                                 fullinertia="0.08822008 0.091628 0.01569249 -0.00053613 -0.00634659 0.00004183"
-                            />
+                                />
                             <joint name="left_knee_y" class="alex/knee"/>
                             <geom mesh="left_shin" material="gray" class="alex/visual"/>
                             <geom name="left_shin_collision" class="alex/collision/shin"/>
@@ -301,7 +301,7 @@
                                     pos="2.94E-07 2.22E-07 -0.00462997"
                                     mass="0.05045632"
                                     fullinertia="2.12239132463e-05 1.17836327346e-06 7.91376398006e-06 4.99870769421e-06 1.29588542506e-05 3.05224469886e-06"
-                                />
+                                    />
                                 <joint name="left_ankle_y" class="alex/ankle/y"/>
                                 <geom mesh="left_ankle" material="gray" class="alex/visual"/>
                                 <body name="left_foot" pos="0 0 -0.012">
@@ -309,7 +309,7 @@
                                         pos="0.03793372	-0.00000219	-0.0443663"
                                         mass="1.28831268"
                                         fullinertia="0.0013169 0.00385838 0.00406674 0.00001054 0.00036437 -0.00000573"
-                                    />
+                                        />
                                     <joint name="left_ankle_x" class="alex/ankle/x"/>
                                     <geom mesh="left_foot" material="gray" class="alex/visual"/>
                                     <geom name="left_foot_collision" class="alex/collision/foot"/>
@@ -326,7 +326,6 @@
                     pos="0.04351957	-0.08688935	-0.03525357"
                     mass="2.33123426"
                     fullinertia="0.00468506 0.00517303 0.00553045 0.00061027 0.0001309 -0.00047425"/>
-                />
                 <joint name="right_hip_x" class="alex/hip/x/right"/>
                 <geom mesh="right_hip_x" material="gray" class="alex/visual"/>
                 <site name="imu_right_hip" class="alex/imu/hip/right"/>
@@ -335,7 +334,7 @@
                         pos="0.04549274 0.00525784 -0.00937505"
                         mass="0.77280715"
                         fullinertia="0.00317639 0.0034518 0.00313243 0.00005807 0.00080598 0.00047441"
-                    />
+                        />
                     <joint name="right_hip_z" class="alex/hip/z/right"/>
                     <geom mesh="right_hip_z" material="gray" class="alex/visual"/>
                     <body name="right_thigh" pos="0.1045 0.0573 -0.0525">
@@ -343,7 +342,7 @@
                             pos="0.01411846 -0.03282392 -0.10542795"
                             mass="8.27617423"
                             fullinertia="0.09281503 0.09743827 0.02800443 -0.00024328 0.00917054 0.00423839"
-                        />
+                            />
                         <joint name="right_hip_y" class="alex/hip/y"/>
                         <geom mesh="right_thigh" material="gray" class="alex/visual"/>
                         <geom name="right_thigh_collision" pos="0.015 -0.025 -0.125" class="alex/collision/thigh"/>
@@ -353,7 +352,7 @@
                                 pos="0.03807648	0.00113375 -0.12408765"
                                 mass="6.33633928"
                                 fullinertia="0.08730216 0.090578 0.01566017 0.00053892 -0.0066006 0.00029428"
-                            />
+                                />
                             <joint name="right_knee_y" class="alex/knee"/>
                             <geom mesh="right_shin" material="gray" class="alex/visual"/>
                             <geom name="right_shin_collision" class="alex/collision/shin"/>
@@ -363,7 +362,7 @@
                                     pos="2.94E-07 2.22E-07 -0.00462997"
                                     mass="0.05045632"
                                     fullinertia="2.12239132463e-05 1.17836327346e-06 7.91376398006e-06 4.99870769421e-06 1.29588542506e-05 3.05224469886e-06"
-                                />
+                                    />
                                 <joint name="right_ankle_y" class="alex/ankle/y"/>
                                 <geom mesh="right_ankle" material="gray" class="alex/visual"/>
                                 <body name="right_foot" pos="0 0 -0.012">
@@ -371,7 +370,7 @@
                                         pos="0.03793372	-0.00000219	-0.0443663"
                                         mass="1.28831268"
                                         fullinertia="0.0013169 0.00385838 0.00406674 0.00001054 0.00036437 -0.00000573"
-                                    />
+                                        />
                                     <joint name="right_ankle_x" class="alex/ankle/x"/>
                                     <geom mesh="right_foot" material="gray" class="alex/visual"/>
                                     <geom name="right_foot_collision" class="alex/collision/foot"/>
@@ -388,7 +387,7 @@
                     pos="-0.014 0.001 0.326"
                     mass="11.478322779"
                     fullinertia="0.1764967124 0.1237602 0.1109598365 0.00002329659 0.00830355822 0.00072436338"
-                />
+                    />
                 <joint name="spine_z" class="alex/spine"/>
                 <geom mesh="torso" pos="0.0 0.0 0.105063" material="gray" class="alex/visual"/>
                 <geom name="torso_collision" class="alex/collision/torso"/>
@@ -398,7 +397,7 @@
                         pos="-0.00264 0.12135 -0.006824"
                         mass="3.0331992"
                         fullinertia="0.01114656 0.00699715 0.0099942 0.00024166 0.0001507 0.00308767"
-                    />
+                        />
                     <joint name="left_shoulder_y" class="alex/shoulder/y"/>
                     <geom mesh="left_shoulder_y" material="gray" class="alex/visual"/>
                     <site name="imu_left_shoulder_y" class="alex/imu/shoulder_y/left"/>
@@ -407,7 +406,7 @@
                             pos="0.01053 0.02124 -0.1052690"
                             mass="1.16160776"
                             fullinertia="0.00786831 0.00727049 0.0018045 0.00016417 -0.00075696 0.00099239"
-                        />
+                            />
                         <joint name="left_shoulder_x" class="alex/shoulder/x/left"/>
                         <geom mesh="left_shoulder_x" material="gray" class="alex/visual"/>
                         <body name="left_shoulder_z" pos="0.0 0.035 0.0" euler="0.0 0.0 0.0">
@@ -415,7 +414,7 @@
                                 pos="0.00510403 0.00274 -0.21745"
                                 mass="3.134"
                                 fullinertia="0.02661157 0.02633278 0.00308445 0.00000297 0.00147256 0.00039997"
-                            />
+                                />
                             <joint name="left_shoulder_z" class="alex/shoulder/z/left"/>
                             <geom mesh="left_shoulder_z" pos="0.0 0.0 0.0867" material="gray" class="alex/visual"/>
                             <geom name="left_upper_arm_collision" class="alex/collision/upper_arm"/>
@@ -424,16 +423,16 @@
                                 <inertial 
                                     pos="-0.01180322 -0.0035763 -0.04946747"
                                     mass="0.45"
-                                    fullinertia="0.000890273322609 0.000262527943231 0.000245493320344 0.000452238762279 0.00036833946076 0.000131850113305"
-                                />
+                                    fullinertia="0.000890273241784 0.000262527800896 0.000245493270197 0.000452238869537 0.000368339524424 0.00013185002882"
+                                    />
                                 <joint name="left_elbow_y" class="alex/elbow"/>
                                 <geom mesh="left_elbow_y" material="gray" class="alex/visual"/>
                                 <body name="left_wrist_z" pos="-0.015 0.0 0.0" euler="0.0 0.0 0.0">
                                     <inertial 
                                         pos="-0.00263832 -0.00050534 -0.13018376"
                                         mass="1.547"
-                                        fullinertia="0.00464271897018 0.00175435649119 0.000232666272392 0.0028539344336 0.00103931313574 0.000638879027574"
-                                    />
+                                        fullinertia="0.00464271728288 0.00175435235119 0.00023266084023 0.00285393685706 0.00103931401829 0.000638879570088"
+                                        />
                                     <joint name="left_wrist_z" class="alex/wrist/z"/>
                                     <geom mesh="left_wrist_z" material="gray" class="alex/visual"/>
                                     <geom name="left_forearm_collision" class="alex/collision/forearm"/>
@@ -443,7 +442,7 @@
                                             pos="0.00004053 0.01038395 0.00035532"
                                             mass="0.909"
                                             fullinertia="0.000652053013072 0.000159003865637 0.000177185453439 0.000319270117963 0.000337486856275 0.000162655621336"
-                                        />
+                                            />
                                         <joint name="left_wrist_x" class="alex/wrist/x/left"/>
                                         <geom mesh="left_wrist_x" material="gray" class="alex/visual"/>
                                         <body name="left_gripper" pos="0.0 0.013 -0.031" euler="0.0 0.0 0.0">
@@ -451,7 +450,7 @@
                                                 pos="-0.000217 -0.000349 0.009761"
                                                 mass="0.251"
                                                 fullinertia="8.82672027084e-05 3.09484319687e-05 7.61072854977e-06 5.18316320154e-05 2.16363464714e-05 1.1619853382e-05"
-                                            />
+                                                />
                                             <geom mesh="left_gripper" quat="0.707 0.0 0.707 0.0" material="gray" class="alex/visual"/>
                                         </body>
                                     </body>
@@ -465,7 +464,7 @@
                         pos="0.00626571 0.0059834 0.15148116"
                         mass="1.03172573"
                         fullinertia="0.00611354 0.00602503 0.0009799 -0.00005224 -0.00058532 -0.00028073"
-                    />
+                        />
                     <joint name="neck_z" class="alex/neck/z"/>
                     <geom type="cylinder" size="0.05 0.05" material="gray" class="alex/visual"/>
                     <body name="head" pos="0.025 0.01 0.189597" euler="0.0 0.0 0.0">
@@ -473,7 +472,7 @@
                             pos="0.0407664 -0.00396678 0.007163"
                             mass="1.27065932"
                             fullinertia="0.00424227 0.00501825 0.00451978 -0.00008839 0.00054485 -0.00010863"
-                        />
+                            />
                         <joint name="neck_y" class="alex/neck/y"/>
                         <geom mesh="head" material="gray" class="alex/visual"/>
                         <geom name="head_collision" class="alex/collision/head"/>
@@ -485,7 +484,7 @@
                         pos="-0.00264 -0.12135 -0.006824"
                         mass="3.00752318"
                         fullinertia="0.01107924 0.00695098 0.00991808 -0.00026479 -0.00015595 -0.00308767"
-                    />
+                        />
                     <joint name="right_shoulder_y" class="alex/shoulder/y"/>
                     <geom mesh="right_shoulder_y" material="gray" class="alex/visual"/>
                     <site name="imu_right_shoulder_y" class="alex/imu/shoulder_y/right"/>
@@ -494,7 +493,7 @@
                             pos="0.01053 -0.02124 -0.1052690"
                             mass="1.1615873"
                             fullinertia="0.00786905 0.00727111 0.00180465 -0.00016408 -0.00075601 -0.00099114"
-                        />
+                            />
                         <joint name="right_shoulder_x" class="alex/shoulder/x/right"/>
                         <geom mesh="right_shoulder_x" material="gray" class="alex/visual"/>
                         <body name="right_shoulder_z" pos="0.0 -0.035 0.0" euler="0.0 0.0 0.0">
@@ -502,7 +501,7 @@
                                 pos="0.00524 -0.00274 -0.21745"
                                 mass="3.10111287"
                                 fullinertia="0.0262817 0.02606342 0.00304834 0.00000996 0.0015423 -0.0004047"
-                            />
+                                />
                             <joint name="right_shoulder_z" class="alex/shoulder/z/right"/>
                             <geom mesh="right_shoulder_z" pos="0.0 0.0 0.0867" material="gray" class="alex/visual"/>
                             <geom name="right_upper_arm_collision" class="alex/collision/upper_arm"/>
@@ -511,16 +510,16 @@
                                 <inertial 
                                     pos="-0.0127 0.006913 -0.048421"
                                     mass="0.45"
-                                    fullinertia="0.000793896909782 0.000241167167856 7.26749531617e-05 0.000437562250114 0.000240198794338 0.000132387555967"
-                                />
+                                    fullinertia="0.000793896879259 0.000241167083575 7.26748524931e-05 0.00043756229267 0.000240198817699 0.000132387568843"
+                                    />
                                 <joint name="right_elbow_y" class="alex/elbow"/>
                                 <geom mesh="right_elbow_y" material="gray" class="alex/visual"/>
                                 <body name="right_wrist_z" pos="-0.015 0.0 0.0" euler="0.0 0.0 0.0">
                                     <inertial 
                                         pos="-0.002616 0.000462 -0.13019"
                                         mass="1.547"
-                                        fullinertia="0.00463517710143 0.0017462893106 0.000326962893475 0.00283603955559 0.00106507026882 0.000621529203594"
-                                    />
+                                        fullinertia="0.00463517542084 0.001746285842 0.000326962427525 0.00283604196999 0.00106507115374 0.000621527932295"
+                                        />
                                     <joint name="right_wrist_z" class="alex/wrist/z"/>
                                     <geom mesh="right_wrist_z" material="gray" class="alex/visual"/>
                                     <geom name="right_forearm_collision" class="alex/collision/forearm"/>
@@ -529,8 +528,8 @@
                                         <inertial 
                                             pos="-0.0000481 -0.012143 0.000196"
                                             mass="0.909"
-                                            fullinertia="0.000750844428188 0.000192455851706 0.000211204822858 0.000365160386553 0.000385723769355 0.000173662847053"
-                                        />
+                                            fullinertia="0.000750844385968 0.000192455812265 0.00021120477793 0.000365160427359 0.000385723812908 0.000173662804958"
+                                            />
                                         <joint name="right_wrist_x" class="alex/wrist/x/right"/>
                                         <geom mesh="right_wrist_x" material="gray" class="alex/visual"/>
                                         <body name="right_gripper" pos="0.0 -0.013 -0.031" euler="0.0 0.0 0.0">
@@ -538,7 +537,7 @@
                                                 pos="-0.000217 -0.000349 0.009761"
                                                 mass="0.251"
                                                 fullinertia="8.82672027084e-05 3.09484319687e-05 7.61072854977e-06 5.18316320154e-05 2.16363464714e-05 1.1619853382e-05"
-                                            />
+                                                />
                                             <geom mesh="right_gripper" quat="0.707 0.0 0.707 0.0" material="gray" class="alex/visual"/>
                                         </body>
                                     </body>

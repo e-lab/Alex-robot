@@ -108,6 +108,12 @@ class AlexStandEnv:
 
         self.arm_ids = self._find_arm_actuators()
         self.arm_noise = np.zeros(self.nu, dtype=np.float64)
+        self.fall_z_min = 0.65
+        self.fall_upright_min = 0.45
+        self.start_z_min = 0.65
+        self.start_z_target = 0.70
+        self.last_start_z = float("nan")
+        self.last_start_adjusted = False
 
         # Observation: qpos + qvel + previous action
         self.obs_dim = self.nq + self.nv + self.nu
@@ -154,6 +160,15 @@ class AlexStandEnv:
         self.data.qpos[7:] += self.noise_scale * np.random.randn(self.nq - 7)
         self.data.qvel[:] = self.noise_scale * np.random.randn(self.nv)
         mujoco.mj_forward(self.model, self.data)
+        start_z = self._pelvis_z()
+        self.last_start_adjusted = False
+        if start_z < self.start_z_min and self.nq >= 3:
+            # Lift floating base so episodes always start above the fall threshold.
+            self.data.qpos[2] += self.start_z_target - start_z
+            self.data.qvel[:] = 0.0
+            mujoco.mj_forward(self.model, self.data)
+            self.last_start_adjusted = True
+        self.last_start_z = self._pelvis_z()
         return self._obs()
 
     def step(self, action: np.ndarray):
@@ -192,7 +207,8 @@ class AlexStandEnv:
             - 0.01 * arm_disturb_mag
         )
 
-        fallen = (z < 0.65) or (up < 0.45) or (not np.isfinite(self.data.qpos).all())
+        finite_qpos = bool(np.isfinite(self.data.qpos).all())
+        fallen = (z < self.fall_z_min) or (up < self.fall_upright_min) or (not finite_qpos)
         timeout = self.t >= self.episode_steps
         done = bool(fallen or timeout)
 
@@ -204,6 +220,9 @@ class AlexStandEnv:
             "upright": up,
             "fallen": fallen,
             "timeout": timeout,
+            "finite_qpos": finite_qpos,
+            "fall_z_min": self.fall_z_min,
+            "fall_upright_min": self.fall_upright_min,
         }
         return self._obs(), float(reward), done, info
 
@@ -364,8 +383,27 @@ def train(args):
 
             if done:
                 episode_count += 1
-                if bool(info.get("timeout", False)) and not bool(info.get("fallen", True)):
+                standing_success = bool(info.get("timeout", False)) and not bool(
+                    info.get("fallen", True)
+                )
+                if standing_success:
                     success_count += 1
+                # print(
+                #     f"episode={episode_count} "
+                #     f"start_pelvis_z={env.last_start_z:.3f} "
+                #     f"start_ok={int(env.last_start_z >= env.start_z_min)} "
+                #     f"start_adjusted={int(env.last_start_adjusted)} "
+                #     f"standing_success={int(standing_success)} "
+                #     f"standing_condition=(timeout==True and fallen==False) "
+                #     f"fallen_checks=(pelvis_z<{info.get('fall_z_min', 0.65):.2f} "
+                #     f"or upright<{info.get('fall_upright_min', 0.45):.2f} "
+                #     f"or finite_qpos==False) "
+                #     f"values=(pelvis_z={info.get('pelvis_z', float('nan')):.3f}, "
+                #     f"upright={info.get('upright', float('nan')):.3f}, "
+                #     f"timeout={int(bool(info.get('timeout', False)))}, "
+                #     f"fallen={int(bool(info.get('fallen', True)))}, "
+                #     f"finite_qpos={int(bool(info.get('finite_qpos', True)))})"
+                # )
                 if episode_count % args.log_every_episodes == 0:
                     print(f"episodes={episode_count} standing_success={success_count}")
                 obs = env.reset()
@@ -456,7 +494,7 @@ def parse_args():
     parser.add_argument("--episode-steps", type=int, default=1000)
     parser.add_argument("--frame-skip", type=int, default=5)
     parser.add_argument("--hand-disturbance-scale", type=float, default=0.06)
-    parser.add_argument("--save-every", type=int, default=50_000)
+    parser.add_argument("--save-every", type=int, default=150_000)
     parser.add_argument("--log-every-episodes", type=int, default=1000)
     parser.add_argument("--render", action="store_true")
     return parser.parse_args()

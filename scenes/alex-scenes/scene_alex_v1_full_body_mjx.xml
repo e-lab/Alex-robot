@@ -1,7 +1,7 @@
 <mujoco model="alex_v1 scene">
     <include file="../../alex-models/alex_V1_description/mjcf/alex_v1_full_body_mjx.xml"/>
 
-    <option
+    <!-- <option
         timestep="0.002"
         integrator="implicitfast"
         cone="elliptic"
@@ -10,7 +10,7 @@
         ls_iterations="25"
         noslip_iterations="4">
         <flag contact="enable" warmstart="enable" multiccd="enable" eulerdamp="enable"/>
-    </option>
+    </option> -->
 
     <statistic center="0 0 0.1" extent="0.8"/>
 

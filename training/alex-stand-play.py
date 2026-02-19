@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import sys
 import time
 
 import mujoco
@@ -111,7 +113,12 @@ class AlexPlayEnv:
 
 
 def load_ckpt(path: str, device: torch.device):
-    ckpt = torch.load(path, map_location=device)
+    # PyTorch 2.6 defaults to weights_only=True, which can fail on older
+    # checkpoints that contain NumPy objects in metadata.
+    try:
+        ckpt = torch.load(path, map_location=device, weights_only=False)
+    except TypeError:
+        ckpt = torch.load(path, map_location=device)
     if "model" not in ckpt:
         raise RuntimeError(f"Checkpoint missing 'model' key: {path}")
     obs_mean = ckpt.get("obs_mean")
@@ -126,6 +133,20 @@ def normalize_obs(obs: np.ndarray, obs_mean, obs_var):
 
 
 def run(args):
+    # On macOS, passive viewer requires mjpython. Re-exec automatically when
+    # the user requested a viewer run from plain python.
+    if not args.no_viewer and sys.platform == "darwin":
+        exe_name = os.path.basename(sys.executable).lower()
+        reexec_done = os.environ.get("ALEX_MJPY_REEXEC", "0") == "1"
+        if "mjpython" not in exe_name and not reexec_done:
+            mjpython = shutil.which("mjpython")
+            if mjpython is not None:
+                env = os.environ.copy()
+                env["ALEX_MJPY_REEXEC"] = "1"
+                os.execve(
+                    mjpython, [mjpython, os.path.abspath(__file__), *sys.argv[1:]], env
+                )
+
     scene = args.scene
     if not os.path.isabs(scene):
         scene = os.path.join(repo_root_from_script(), scene)
@@ -158,17 +179,25 @@ def run(args):
         print("no_viewer rollout complete")
         return
 
-    with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
-        while viewer.is_running():
-            obs = env.obs()
-            obs = normalize_obs(obs, obs_mean, obs_var).astype(np.float32)
-            obs_t = torch.from_numpy(obs).unsqueeze(0).to(device)
-            with torch.no_grad():
-                mean, _, _ = model.forward(obs_t)
-            action = mean.squeeze(0).cpu().numpy()
-            env.step(action)
-            viewer.sync()
-            time.sleep(max(0.0, env.dt - 0.001))
+    try:
+        with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
+            while viewer.is_running():
+                obs = env.obs()
+                obs = normalize_obs(obs, obs_mean, obs_var).astype(np.float32)
+                obs_t = torch.from_numpy(obs).unsqueeze(0).to(device)
+                with torch.no_grad():
+                    mean, _, _ = model.forward(obs_t)
+                action = mean.squeeze(0).cpu().numpy()
+                env.step(action)
+                viewer.sync()
+                time.sleep(max(0.0, env.dt - 0.001))
+    except RuntimeError as e:
+        if "requires that the Python script be run under `mjpython`" in str(e):
+            raise RuntimeError(
+                "Viewer on macOS requires mjpython. Run:\n"
+                f"  mjpython {os.path.abspath(__file__)} {' '.join(sys.argv[1:])}"
+            ) from e
+        raise
 
 
 def parse_args():
