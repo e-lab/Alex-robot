@@ -1,9 +1,9 @@
 <mujoco model="alex_v1_full_body">
     <compiler angle="radian" eulerseq="XYZ" meshdir="." autolimits="true" balanceinertia="true"/>
 
-    <option iterations="3" ls_iterations="5" timestep="0.002" integrator="Euler">
+    <!-- <option iterations="3" ls_iterations="5" timestep="0.002" integrator="Euler">
         <flag eulerdamp="disable"/>
-    </option>
+    </option> -->
 
     <default>
         <default class="alex">
