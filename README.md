@@ -5,14 +5,16 @@ Developing software and control for IHMC Alex humanoid robot.
 ![](images/alex.png)
 
 
-
-
 ## Scenes
 
 Alex scenes are in dir `alex-scenes/`. Load `scene_alex_v1_full_body_mjx_room1.xml` to see Alex in a room.
 
 Room scenes from https://github.com/allenai/molmospaces.
 
+
+## Install
+
+`pip install mujoco gymnasium stable_baselines3 tensorboard`
 
 
 ## Run

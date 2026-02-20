@@ -19,3 +19,13 @@ Demo:
 TensorBoard:
 
 `tensorboard --logdir training/alex-stand/rl_models/tensorboard`
+
+
+## Alex Stand IHMC IsaacLab
+
+A few routines trained by IHMC on IsaacLab.
+
+`https://github.com/ihmcrobotics/alex/tree/develop/src/main/resources/rl_models`
+
+We want to see if we can make these models work here in MuJoCo also.
+
