@@ -1,10 +1,2 @@
 .DS_Store
-/training/checkpoints
-*.pyc
-/training/rl_models/checkpoints
-/training/rl_models/tensorboard
-/training/rl_models/eval_logs
-training/rl_models/alex_stand_final.zip
-training/rl_models/best/best_model.zip
-training/rl_models/vec_normalize_final.pkl
-/training/alex-stand/rl_models
+
