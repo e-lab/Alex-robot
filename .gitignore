@@ -7,3 +7,4 @@
 training/rl_models/alex_stand_final.zip
 training/rl_models/best/best_model.zip
 training/rl_models/vec_normalize_final.pkl
+/training/alex-stand/rl_models

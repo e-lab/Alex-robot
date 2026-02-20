@@ -10,14 +10,14 @@ Dependencies:
     pip install stable-baselines3[extra] gymnasium mujoco torch
 
 Training:
-    python training/alex-stand-ppo.py
+    python training/alex-stand/alex-stand-ppo.py
 
 Evaluate a saved model:
-    python training/alex-stand-ppo.py --eval rl_models/best/best_model \
+    python training/alex-stand/alex-stand-ppo.py --eval rl_models/best/best_model \
         --vec-norm rl_models/vec_normalize_final.pkl
 
 TensorBoard:
-    tensorboard --logdir training/rl_models/tensorboard
+    tensorboard --logdir training/alex-stand/rl_models/tensorboard
 """
 from __future__ import annotations
 
@@ -32,9 +32,10 @@ from gymnasium import spaces
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-REPO_ROOT  = Path(__file__).resolve().parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT  = Path(__file__).resolve().parents[2]
 SCENE_XML  = REPO_ROOT / "scenes/alex-scenes/scene_alex_v1_train.xml"
-MODELS_DIR = Path(__file__).resolve().parent / "rl_models"
+MODELS_DIR = SCRIPT_DIR / "rl_models"
 
 # ─── Stand-prep reference pose ────────────────────────────────────────────────
 
@@ -65,14 +66,33 @@ UPRIGHT_MIN_COS = 0.30   # terminate if tilted > ~73°  (gives agent more room t
 MAX_STEPS       = 1000   # max steps per episode  (5 s at 5 ms/step)
 ACTION_SCALE    = 0.30   # max joint deviation from stand pose (rad)
 
+# Joints the policy is allowed to actively control.
+# Everything else is held fixed at the stand-prep reference pose.
+ACTIVE_JOINTS: set[str] = {
+    # Core balance joints
+    "spine_z",
+    "left_knee",        "right_knee",
+    "left_ankle_y",     "right_ankle_y",
+    "left_ankle_x",     "right_ankle_x",
+    "left_hip_y",       "right_hip_y",
+    # "left_hip_x",       "right_hip_x",
+    # "left_hip_z",       "right_hip_z",
+    # Shoulders only (no elbows / wrists)
+    "left_shoulder_x",  "right_shoulder_x",
+    "left_shoulder_y",  "right_shoulder_y",
+    "left_shoulder_z",  "right_shoulder_z",
+}
+
 # Reward weights
-W_HEIGHT   = 5.0
-W_UPRIGHT  = 3.0
-W_ALIVE    = 1.0
-W_CTRL     = 0.05
-W_LIN_VEL  = 0.10
-W_POSE     = 0.50
-W_SMOOTH   = 0.10
+W_HEIGHT    = 5.0
+W_UPRIGHT   = 3.0
+W_ALIVE     = 1.0
+W_CTRL      = 0.05
+W_LIN_VEL   = 0.20   # was 0.10 — slightly stronger drift penalty
+W_POSE      = 0.50
+W_SMOOTH    = 0.50   # was 0.10 — strongly penalise action jerks
+W_ANG_VEL   = 0.20   # NEW: penalise torso angular velocity (rocking/twisting)
+W_JOINT_VEL = 0.05   # NEW: penalise fast joint movements (shaking)
 FALL_PENALTY = 10.0
 
 
@@ -99,6 +119,65 @@ def _quat_mul(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
         w1*y2 - x1*z2 + y1*w2 + z1*x2,
         w1*z2 + x1*y2 - y1*x2 + z1*w2,
     ])
+
+
+def _legacy_path_aliases(rel_path: Path) -> list[Path]:
+    """
+    Backward-compatible aliases for historical rl_models locations.
+    """
+    parts = rel_path.parts
+    aliases: list[Path] = []
+
+    if len(parts) >= 2 and parts[0] == "training" and parts[1] == "rl_models":
+        aliases.append(Path("training/alex-stand/rl_models", *parts[2:]))
+    if len(parts) >= 1 and parts[0] == "rl_models":
+        aliases.append(Path("training/alex-stand/rl_models", *parts[1:]))
+
+    return aliases
+
+
+def _resolve_artifact_path(
+    path_str: str,
+    *,
+    add_zip_suffix: bool = False,
+) -> Path:
+    """
+    Resolve a model/stats path robustly from common run locations.
+    """
+    raw_path = Path(path_str).expanduser()
+    candidates: list[Path] = []
+
+    raw_variants = [raw_path]
+    if add_zip_suffix and raw_path.suffix == "":
+        raw_variants.append(raw_path.with_suffix(".zip"))
+
+    search_bases = [Path.cwd(), SCRIPT_DIR, REPO_ROOT]
+    for variant in raw_variants:
+        if variant.is_absolute():
+            candidates.append(variant)
+            continue
+
+        rel_variants = [variant, *_legacy_path_aliases(variant)]
+        for rel in rel_variants:
+            candidates.append(rel)
+            for base in search_bases:
+                candidates.append(base / rel)
+
+    seen: set[Path] = set()
+    deduped: list[Path] = []
+    for cand in candidates:
+        if cand not in seen:
+            seen.add(cand)
+            deduped.append(cand)
+
+    for cand in deduped:
+        if cand.exists():
+            return cand.resolve()
+
+    tried = "\n".join(f"  - {p}" for p in deduped)
+    raise FileNotFoundError(
+        f"Could not find path for '{path_str}'. Tried:\n{tried}"
+    )
 
 
 def _find_floor_height(model: mujoco.MjModel, data: mujoco.MjData,
@@ -183,6 +262,11 @@ class AlexStandEnv(gym.Env):
             self._vadr[a] = self._model.jnt_dofadr[j]
 
         self._name2id: dict[str, int] = {n: i for i, n in enumerate(self._act_names)}
+
+        # ── Active-joint mask: policy only drives these joints ────────────────
+        self._active_mask = np.array(
+            [n in ACTIVE_JOINTS for n in self._act_names], dtype=bool
+        )
 
         # ── Stand-prep reference and correct initial height ───────────────────
         self._stand_joint_q = np.zeros(nu, dtype=np.float64)
@@ -276,14 +360,22 @@ class AlexStandEnv(gym.Env):
         q_err = float(np.mean(
             (self._data.qpos[self._qadr] - self._stand_joint_q) ** 2
         ))
-        r_pose   = -W_POSE * q_err
-        r_smooth = -W_SMOOTH * float(np.dot(action - self._prev_action,
-                                             action - self._prev_action))
+        r_pose     = -W_POSE * q_err
+        r_smooth   = -W_SMOOTH * float(np.dot(action - self._prev_action,
+                                               action - self._prev_action))
+        # Penalise torso rocking/twisting (angular velocity of the pelvis)
+        r_ang_vel  = -W_ANG_VEL  * float(np.dot(self._data.qvel[3:6],
+                                                  self._data.qvel[3:6]))
+        # Penalise fast joint movements (oscillation / shaking)
+        joint_vel  = self._data.qvel[6:]
+        r_jvel     = -W_JOINT_VEL * float(np.dot(joint_vel, joint_vel))
 
-        total = r_height + r_upright + r_alive + r_ctrl + r_linvel + r_pose + r_smooth
+        total = (r_height + r_upright + r_alive + r_ctrl + r_linvel
+                 + r_pose + r_smooth + r_ang_vel + r_jvel)
         return float(total), dict(
             r_height=r_height, r_upright=r_upright, r_alive=r_alive,
             r_ctrl=r_ctrl, r_linvel=r_linvel, r_pose=r_pose, r_smooth=r_smooth,
+            r_ang_vel=r_ang_vel, r_jvel=r_jvel,
             pelvis_z=pelvis_z, upright=upright,
         )
 
@@ -320,6 +412,9 @@ class AlexStandEnv(gym.Env):
 
     def step(self, action: np.ndarray):
         action = np.clip(np.asarray(action, dtype=np.float32), -1.0, 1.0)
+
+        # Zero out inactive joints — they stay fixed at stand-prep reference
+        action = action * self._active_mask
 
         # Map action [-1,1] → desired joint positions around stand pose
         q_des = self._stand_joint_q + action * ACTION_SCALE
@@ -467,17 +562,23 @@ def evaluate(
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-    env     = AlexStandEnv(render_mode="human", random_init=False)
+    resolved_model_path = _resolve_artifact_path(model_path, add_zip_suffix=True)
+    resolved_vec_norm_path: Optional[Path] = None
+    if vec_norm_path:
+        try:
+            resolved_vec_norm_path = _resolve_artifact_path(vec_norm_path)
+        except FileNotFoundError:
+            print("No VecNormalize stats — observations will not be normalised.")
+
+    env     = AlexStandEnv(render_mode="human", random_init=True)
     vec_env = DummyVecEnv([lambda: env])
 
-    if vec_norm_path and Path(vec_norm_path).exists():
-        vec_env = VecNormalize.load(vec_norm_path, vec_env)
+    if resolved_vec_norm_path is not None:
+        vec_env = VecNormalize.load(str(resolved_vec_norm_path), vec_env)
         vec_env.training    = False
         vec_env.norm_reward = False
-    else:
-        print("No VecNormalize stats — observations will not be normalised.")
 
-    model = PPO.load(model_path, env=vec_env)
+    model = PPO.load(str(resolved_model_path), env=vec_env)
     dt    = env._model.opt.timestep
 
     for ep in range(1, n_episodes + 1):
