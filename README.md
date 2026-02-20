@@ -14,7 +14,7 @@ Room scenes from https://github.com/allenai/molmospaces.
 
 ## Install
 
-`pip install mujoco gymnasium stable_baselines3 tensorboard`
+`pip install mujoco gymnasium stable_baselines`
 
 
 ## Run

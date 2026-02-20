@@ -63,7 +63,7 @@ STAND_PREP_TARGET: dict[str, float] = {
 # ─── Task config ──────────────────────────────────────────────────────────────
 
 UPRIGHT_MIN_COS = 0.30   # terminate if tilted > ~73°  (gives agent more room to learn)
-MAX_STEPS       = 1000   # max steps per episode  (5 s at 5 ms/step)
+MAX_STEPS       = 5000   # max steps per episode  (5 s at 5 ms/step)
 ACTION_SCALE    = 0.30   # max joint deviation from stand pose (rad)
 
 # Joints the policy is allowed to actively control.

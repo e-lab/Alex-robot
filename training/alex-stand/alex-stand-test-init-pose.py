@@ -2,9 +2,7 @@
 """Visual and numeric check for Alex stand-prep mapping in MuJoCo.
 
 Usage:
-  python3 test1.py
-  python3 test1.py --scene scenes/alex-scenes/scene_alex_v1_full_body_mjx.xml
-  python3 test1.py --no-viewer
+  mjpython training/alex-stand/alex-stand-test-init-pose.py 
 """
 
 from __future__ import annotations
@@ -52,7 +50,7 @@ STAND_PREP_TARGET = {
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parent
+    return Path(__file__).resolve().parents[2]
 
 
 def resolve_scene_path(scene: str) -> str:
