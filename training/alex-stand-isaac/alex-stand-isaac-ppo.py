@@ -72,35 +72,60 @@ MAX_DELAY_STEPS = math.ceil(MAX_DELAY_DT  / SIM_DT)   # = 2
 
 ACTION_SCALE = 0.30   # rad — policy output in [-1,1] maps to ±0.3 rad
 
-# ── Initial pose — from isaacsimlab/alex_stand_env_cfg.py ─────────────────────
-# bent-knee standing pose (deeper squat for GPU-parallel training stability)
+# ── Reference poses ────────────────────────────────────────────────────────────
+# Select with --pose {isaaclab|original|zero} at the command line.
 
-STAND_PREP_TARGET: dict[str, float] = {
-    # Legs
+# "isaaclab": bent-knee stance from isaacsimlab/alex_stand_env_cfg.py.
+# Matches GPU-parallel training config but is harder to learn from scratch.
+POSE_ISAACLAB: dict[str, float] = {
     "left_hip_x":    0.00,   "right_hip_x":   0.00,
     "left_hip_y":   -0.772,  "right_hip_y":  -0.772,   # ≈ −44°
     "left_hip_z":    0.00,   "right_hip_z":   0.00,
     "left_knee":     1.419,  "right_knee":    1.419,    # ≈ +81°
     "left_ankle_y": -0.634,  "right_ankle_y": -0.634,   # ≈ −36°
     "left_ankle_x":  0.00,   "right_ankle_x":  0.00,
-    # Torso
     "spine_z":  0.00,  "neck_z":  0.00,  "neck_y":  0.00,
-    # Arms — slightly folded to lower CoM
     "left_shoulder_y":   0.15,  "right_shoulder_y":  0.15,
     "left_shoulder_z":   0.05,  "right_shoulder_z": -0.05,
     "left_shoulder_x":   0.05,  "right_shoulder_x": -0.05,
     "left_elbow":       -0.50,  "right_elbow":      -0.50,
-    # Wrists / grippers (present in full-body MJCF)
     "left_wrist_x":  0.00,  "right_wrist_x":  0.00,
     "left_wrist_z":  0.00,  "right_wrist_z":  0.00,
 }
+
+# "original": near-upright stance from training/alex-stand/alex-stand-ppo.py.
+# Easier for single-machine training; policy converges faster.
+POSE_ORIGINAL: dict[str, float] = {
+    "spine_z":      0.00,
+    "neck_y":       0.00,   "neck_z":       0.00,
+    "left_hip_z":   0.00,   "right_hip_z":  0.00,
+    "left_hip_x":   0.05,   "right_hip_x": -0.05,
+    "left_hip_y":   0.05,   "right_hip_y":  0.05,
+    "left_knee":    0.10,   "right_knee":   0.10,
+    "left_ankle_y":-0.03,   "right_ankle_y":-0.03,
+    "left_ankle_x": 0.00,   "right_ankle_x": 0.00,
+    "left_shoulder_x":  0.20,  "right_shoulder_x": -0.20,
+    "left_shoulder_z": -0.20,  "right_shoulder_z":  0.20,
+    "left_shoulder_y":  0.30,  "right_shoulder_y":  0.30,
+    "left_elbow":  -0.80,   "right_elbow":  -0.80,
+    "left_wrist_x": 0.00,   "right_wrist_x": 0.00,
+    "left_wrist_z": 0.00,   "right_wrist_z": 0.00,
+}
+
+# "zero": all joints at 0 — useful for quick sanity tests.
+POSE_ZERO: dict[str, float] = {}
+
+POSES = {"isaaclab": POSE_ISAACLAB, "original": POSE_ORIGINAL, "zero": POSE_ZERO}
+
+# Default pose used when constructing the env without a --pose flag.
+STAND_PREP_TARGET = POSE_ISAACLAB
 
 # ── Task parameters ────────────────────────────────────────────────────────────
 
 EPISODE_LENGTH_S  = 20.0
 MAX_STEPS         = int(EPISODE_LENGTH_S / CONTROL_DT)   # = 1000 control steps
 PELVIS_Z_MIN      = 0.35    # catastrophic fall floor (m)
-UPRIGHT_MIN_COS   = -0.1    # terminate if cos(tilt) < this (> 96° tilt)
+UPRIGHT_MIN_COS   = 0.30    # terminate if cos(tilt) < 0.30 (≈73°), same as original
 
 # Height command range — from isaacsimlab/alex_stand_env_cfg.py
 TARGET_HEIGHT_DEFAULT = 0.93
@@ -123,7 +148,9 @@ W_JOINT_HIP_YAW  = -1.50   # joint_mean_deviation_hip           (w=-1.5)
 W_ANKLE_TORQUE   = -2e-5   # ankle_roll_torques_l2              (w=-2e-5)
 W_FOOT_SLIDE     = -0.50   # foot_sliding (penalise sliding vel when contacting floor)
 W_UNDESIRED_CONT = -0.10   # undesired_contacts (thigh/shin)    (w=-0.1)
-FALL_PENALTY      = -200.0  # death term                         (w=-200)
+# IsaacLab's death=-200 is calibrated for GPU-normalized rewards.
+# With SB3 VecNormalize and ~2-5 per-step rewards, use -10 (same as original).
+FALL_PENALTY      = -10.0
 
 # Exponential reward shape parameters (matching IsaacLab std params)
 HEIGHT_STD        = 0.05   # track_lin_pos_z_exp std
@@ -131,14 +158,18 @@ ORIENTATION_STD   = 0.20   # flat_orientation_exp std
 
 # ── Domain randomisation — from isaacsimlab/alex_stand_env_cfg.py ─────────────
 
-JOINT_RESET_RANGE   = 0.70   # ±0.7 rad joint position noise on reset
-BASE_RESET_XY       = 0.50   # ±0.5 m lateral base position noise
-BASE_RESET_YAW      = math.pi  # ±π full yaw randomisation
-MASS_RAND_KG        = 2.0    # ±2 kg on torso body
-PUSH_INTERVAL_MIN   = 2.0    # s (minimum time between push events)
-PUSH_INTERVAL_MAX   = 4.0    # s (maximum time between push events)
-PUSH_VEL_XY         = 0.7    # m/s max push x/y
-PUSH_VEL_YAW        = 0.2    # rad/s max push yaw
+# IsaacLab uses ±0.7 rad / ±0.5 m / ±π yaw — safe with 4096 GPU envs because
+# the agent sees enough good resets to learn.  With 8 CPU envs these ranges
+# cause almost every early episode to start in an unrecoverable state.
+# Defaults are set to "easy" values; override with --rand-joints / --rand-xy.
+JOINT_RESET_RANGE   = 0.05   # ±0.05 rad  (IsaacLab: 0.70)
+BASE_RESET_XY       = 0.05   # ±0.05 m    (IsaacLab: 0.50)
+BASE_RESET_YAW      = 0.10   # ±0.10 rad  (IsaacLab: π)
+MASS_RAND_KG        = 2.0    # ±2 kg on torso body (unchanged)
+PUSH_INTERVAL_MIN   = 2.0    # s between pushes
+PUSH_INTERVAL_MAX   = 4.0    # s between pushes
+PUSH_VEL_XY         = 0.7    # m/s (unchanged)
+PUSH_VEL_YAW        = 0.2    # rad/s (unchanged)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -259,10 +290,17 @@ class AlexStandIsaacEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 50}
 
     def __init__(self, render_mode: Optional[str] = None,
-                 random_init: bool = True) -> None:
+                 random_init: bool = True,
+                 pose: str = "isaaclab",
+                 enable_push: bool = False) -> None:
         super().__init__()
         self.render_mode = render_mode
         self.random_init = random_init
+        self._enable_push = enable_push
+
+        if pose not in POSES:
+            raise ValueError(f"Unknown pose '{pose}'. Choose from: {list(POSES)}")
+        self._pose_name = pose
 
         MODELS_DIR.mkdir(exist_ok=True)
 
@@ -282,15 +320,16 @@ class AlexStandIsaacEnv(gym.Env):
             self._vadr[a] = self._model.jnt_dofadr[j]
         self._name2id: dict[str, int] = {n: i for i, n in enumerate(self._act_names)}
 
-        # ── Stand-prep reference ───────────────────────────────────────────────
+        # ── Stand-prep reference (selected by --pose) ─────────────────────────
+        _pose_dict = POSES[self._pose_name]
         self._stand_joint_q = np.zeros(nu, dtype=np.float64)
-        for name, q in STAND_PREP_TARGET.items():
+        for name, q in _pose_dict.items():
             if name in self._name2id:
                 self._stand_joint_q[self._name2id[name]] = q
 
         # ── Auto-calibrate initial pelvis height ──────────────────────────────
         self._pelvis_z_init = _find_floor_height(
-            self._model, self._data, STAND_PREP_TARGET,
+            self._model, self._data, _pose_dict,
             self._name2id, self._qadr,
         )
 
@@ -298,7 +337,7 @@ class AlexStandIsaacEnv(gym.Env):
         self._stand_qpos = np.zeros(self._model.nq, dtype=np.float64)
         self._stand_qpos[2] = self._pelvis_z_init
         self._stand_qpos[3] = 1.0   # quaternion w
-        for name, q in STAND_PREP_TARGET.items():
+        for name, q in _pose_dict.items():
             if name in self._name2id:
                 self._stand_qpos[self._qadr[self._name2id[name]]] = q
         self._stand_qpos_joints = self._stand_qpos[7:].copy()
@@ -383,9 +422,11 @@ class AlexStandIsaacEnv(gym.Env):
         self._viewer      = None
 
         print(f"[AlexStandIsaacEnv] scene       : {SCENE_XML.name}")
+        print(f"[AlexStandIsaacEnv] pose        : {self._pose_name}")
         print(f"[AlexStandIsaacEnv] pelvis_z_init: {self._pelvis_z_init:.4f}")
         print(f"[AlexStandIsaacEnv] obs_dim     : {obs_dim}")
         print(f"[AlexStandIsaacEnv] action_dim  : {nu}")
+        print(f"[AlexStandIsaacEnv] push        : {'enabled' if self._enable_push else 'disabled'}")
         print(f"[AlexStandIsaacEnv] decimation  : {DECIMATION}")
         print(f"[AlexStandIsaacEnv] delay steps : {MIN_DELAY_STEPS}-{MAX_DELAY_STEPS}")
 
@@ -606,8 +647,8 @@ class AlexStandIsaacEnv(gym.Env):
         delay_idx = MAX_DELAY_STEPS - self._cur_delay
         delayed_q_des = self._delay_buf[delay_idx]
 
-        # Apply push disturbance if scheduled (push_robot event)
-        if self._step_count == self._next_push_step and self._step_count > 0:
+        # Apply push disturbance if scheduled (push_robot event, --push to enable)
+        if self._enable_push and self._step_count == self._next_push_step and self._step_count > 0:
             self._data.qvel[0] += float(self.np_random.uniform(-PUSH_VEL_XY, PUSH_VEL_XY))
             self._data.qvel[1] += float(self.np_random.uniform(-PUSH_VEL_XY, PUSH_VEL_XY))
             self._data.qvel[5] += float(self.np_random.uniform(-PUSH_VEL_YAW, PUSH_VEL_YAW))
@@ -657,13 +698,20 @@ class AlexStandIsaacEnv(gym.Env):
 
 # ── Training ──────────────────────────────────────────────────────────────────
 
-def train(total_timesteps: int = 10_000_000, n_envs: int = 8) -> None:
+def train(
+    total_timesteps: int = 10_000_000,
+    n_envs: int = 8,
+    pose: str = "isaaclab",
+    enable_push: bool = False,
+) -> None:
     """
     Train with SB3 PPO using hyperparameters from AlexStandingEnvPPORunnerCfg.
 
     RSL-RL → SB3 translation:
       actor/critic:    [128,128,128] ELU  (identical)
-      learning_rate:   1e-3 adaptive  →  1e-3 fixed (SB3 doesn't have KL-adaptive)
+      learning_rate:   1e-3 adaptive  →  3e-4 fixed
+                       (RSL-RL's adaptive KL schedule isn't in SB3;
+                        3e-4 is more stable for CPU-based training)
       gamma:           0.99           →  0.99
       gae_lambda:      0.95           →  0.95
       clip_param:      0.2            →  clip_range=0.2
@@ -671,7 +719,8 @@ def train(total_timesteps: int = 10_000_000, n_envs: int = 8) -> None:
       max_grad_norm:   1.0            →  max_grad_norm=1.0
       num_learning_epochs: 5          →  n_epochs=5
       num_mini_batches:    4          →  batch_size = n_steps*n_envs // 4
-      num_steps_per_env:   24 (RSL)   →  n_steps=512 (scaled for fewer CPU envs)
+      num_steps_per_env:   24 (RSL)   →  n_steps=2048 (same as original; more
+                                          stable gradients with fewer CPU envs)
     """
     import torch
     from stable_baselines3 import PPO
@@ -681,14 +730,16 @@ def train(total_timesteps: int = 10_000_000, n_envs: int = 8) -> None:
 
     MODELS_DIR.mkdir(exist_ok=True)
 
-    # n_steps chosen so batch ≈ RSL-RL's effective batch size per iteration
-    n_steps    = 512
+    n_steps    = 2048
     batch_size = (n_steps * n_envs) // 4   # 4 mini-batches
+
+    env_kwargs      = {"random_init": True,  "pose": pose, "enable_push": enable_push}
+    eval_env_kwargs = {"random_init": False, "pose": pose, "enable_push": False}
 
     try:
         vec_env = make_vec_env(
             AlexStandIsaacEnv, n_envs=n_envs,
-            env_kwargs={"random_init": True},
+            env_kwargs=env_kwargs,
             vec_env_cls=SubprocVecEnv,
         )
     except Exception:
@@ -696,7 +747,7 @@ def train(total_timesteps: int = 10_000_000, n_envs: int = 8) -> None:
         from stable_baselines3.common.vec_env import DummyVecEnv
         vec_env = make_vec_env(
             AlexStandIsaacEnv, n_envs=n_envs,
-            env_kwargs={"random_init": True},
+            env_kwargs=env_kwargs,
             vec_env_cls=DummyVecEnv,
         )
 
@@ -705,14 +756,13 @@ def train(total_timesteps: int = 10_000_000, n_envs: int = 8) -> None:
         clip_obs=10.0, clip_reward=10.0, gamma=0.99,
     )
 
-    eval_env = make_vec_env(AlexStandIsaacEnv, n_envs=1,
-                            env_kwargs={"random_init": False})
+    eval_env = make_vec_env(AlexStandIsaacEnv, n_envs=1, env_kwargs=eval_env_kwargs)
     eval_env = VecNormalize(eval_env, norm_obs=True, norm_reward=False,
                             clip_obs=10.0, training=False)
 
     model = PPO(
         "MlpPolicy", vec_env,
-        learning_rate=1e-3,            # AlexStandingEnvPPORunnerCfg.learning_rate
+        learning_rate=3e-4,            # 3e-4 more stable than RSL-RL's 1e-3 for SB3
         n_steps=n_steps,
         batch_size=batch_size,
         n_epochs=5,                    # num_learning_epochs=5
@@ -751,7 +801,8 @@ def train(total_timesteps: int = 10_000_000, n_envs: int = 8) -> None:
     )
 
     print(f"\nTraining for {total_timesteps:,} timesteps across {n_envs} envs.")
-    print(f"n_steps={n_steps}, batch_size={batch_size}, n_epochs=5, lr=1e-3\n")
+    print(f"pose={pose}, push={'on' if enable_push else 'off'}")
+    print(f"n_steps={n_steps}, batch_size={batch_size}, n_epochs=5, lr=3e-4\n")
     try:
         model.learn(
             total_timesteps=total_timesteps,
@@ -824,15 +875,37 @@ def evaluate(model_path: str, vec_norm_path: Optional[str] = None,
 if __name__ == "__main__":
     import argparse
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--eval",       metavar="MODEL_PATH", default=None)
-    ap.add_argument("--vec-norm",   metavar="PKL_PATH",   default=None)
-    ap.add_argument("--episodes",   type=int, default=5)
-    ap.add_argument("--timesteps",  type=int, default=10_000_000)
-    ap.add_argument("--n-envs",     type=int, default=8)
+    ap = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=__doc__)
+    ap.add_argument("--eval",      metavar="MODEL_PATH", default=None,
+                    help="path to saved model to evaluate (skips training)")
+    ap.add_argument("--vec-norm",  metavar="PKL_PATH",   default=None,
+                    help="VecNormalize stats file for evaluation")
+    ap.add_argument("--episodes",  type=int, default=5)
+    ap.add_argument("--timesteps", type=int, default=10_000_000)
+    ap.add_argument("--n-envs",    type=int, default=8)
+    ap.add_argument(
+        "--pose",
+        choices=["isaaclab", "original", "zero"],
+        default="isaaclab",
+        help=(
+            "isaaclab: bent-knee from isaacsimlab/ (default, harder); "
+            "original: near-upright from alex-stand-ppo.py (easier, faster convergence); "
+            "zero: all joints at 0 (sanity check)"
+        ),
+    )
+    ap.add_argument(
+        "--push", dest="enable_push", action="store_true", default=False,
+        help="enable random push disturbances (disabled by default; add after policy converges)",
+    )
     args = ap.parse_args()
 
     if args.eval:
         evaluate(args.eval, args.vec_norm, args.episodes)
     else:
-        train(total_timesteps=args.timesteps, n_envs=args.n_envs)
+        train(
+            total_timesteps=args.timesteps,
+            n_envs=args.n_envs,
+            pose=args.pose,
+            enable_push=args.enable_push,
+        )

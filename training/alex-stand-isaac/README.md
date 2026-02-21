@@ -4,6 +4,15 @@ MuJoCo training script that ports the `isaacsimlab/` configuration into
 a standalone PPO script, mirroring `training/alex-stand/alex-stand-ppo.py`
 as the base structure.
 
+
+
+## STATUS
+
+training does not work
+
+
+
+
 ---
 
 ## Files
