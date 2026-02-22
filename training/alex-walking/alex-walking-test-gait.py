@@ -18,13 +18,74 @@ REPO_ROOT  = Path(__file__).resolve().parents[2]
 SCENE_XML  = REPO_ROOT / "scenes/alex-scenes/scene_alex_v1_train.xml"
 GAIT_PERIOD = 0.8
 
-# Reference pose
+# Reference pose (crouched for stability)
 STAND_PREP_TARGET = {
     "left_hip_x": 0.1, "right_hip_x": -0.1,
     "left_hip_y": -0.45, "right_hip_y": -0.45,
     "left_knee": 0.7, "right_knee": 0.7,
     "left_ankle_y": -0.28, "right_ankle_y": -0.28,
 }
+
+def load_trained_stand_pose():
+    """
+    Attempts to load the trained stand pose from alex-stand RL models.
+    Returns a dict of joint positions if successful, else None.
+    """
+    stand_model_path = REPO_ROOT / "training/alex-stand/rl_models/best/best_model.zip"
+    stand_vec_norm_path = REPO_ROOT / "training/alex-stand/rl_models/vec_normalize_final.pkl"
+    
+    if not stand_model_path.exists():
+        stand_model_path = REPO_ROOT / "training/alex-stand/rl_models/alex_stand_final.zip"
+    
+    if not stand_model_path.exists():
+        print(f"No trained stand model found at {stand_model_path}")
+        return None
+
+    try:
+        from stable_baselines3 import PPO
+        from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+        import gymnasium as gym
+
+        print(f"Loading trained stand pose from {stand_model_path}...")
+        
+        import sys
+        stand_dir = REPO_ROOT / "training/alex-stand"
+        if str(stand_dir) not in sys.path:
+            sys.path.append(str(stand_dir))
+        
+        try:
+            from alex_stand_ppo import AlexStandEnv, ACTION_SCALE as STAND_ACTION_SCALE, STAND_PREP_TARGET as STAND_REF
+            
+            # Create a temporary env
+            env = AlexStandEnv(render_mode=None)
+            vec_env = DummyVecEnv([lambda: env])
+            if stand_vec_norm_path.exists():
+                vec_env = VecNormalize.load(str(stand_vec_norm_path), vec_env)
+                vec_env.training = False
+                vec_env.norm_reward = False
+            
+            model_sb3 = PPO.load(str(stand_model_path), env=vec_env)
+            obs = vec_env.reset()
+            action, _ = model_sb3.predict(obs, deterministic=True)
+            
+            q_trained = {}
+            for i, name in enumerate(env._act_names):
+                val = STAND_REF.get(name, 0.0) + action[0][i] * STAND_ACTION_SCALE
+                q_trained[name] = val
+            
+            print("Successfully loaded trained stand pose.")
+            return q_trained
+            
+        except ImportError as e:
+            print(f"Could not import AlexStandEnv: {e}")
+            return None
+        except Exception as e:
+            print(f"Error loading stand model: {e}")
+            return None
+            
+    except ImportError:
+        print("stable-baselines3 not installed, skipping trained pose load.")
+        return None
 
 def get_ref_gait_offsets(phase: float) -> dict[str, float]:
     l_phase = phase
@@ -54,6 +115,12 @@ def run():
     act_names = [mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_ACTUATOR, i) for i in range(model.nu)]
     name2id = {n: i for i, n in enumerate(act_names)}
     qadr = np.array([model.jnt_qposadr[model.actuator_trnid[i, 0]] for i in range(model.nu)])
+
+    # Try to load trained stand pose
+    trained_pose = load_trained_stand_pose()
+    if trained_pose:
+        for k, v in trained_pose.items():
+            STAND_PREP_TARGET[k] = v
 
     # Reset with stand-prep pose
     mujoco.mj_resetData(model, data)

@@ -61,22 +61,86 @@ MAX_STEPS       = 2000   # 10 s at 5 ms/step
 ACTION_SCALE    = 0.20   # max joint deviation from reference gait (rad)
 GAIT_PERIOD     = 0.8    # Gait cycle duration (seconds)
 
-# Minimum set of axes for walking (pitch only)
+# Minimum set of axes for walking (expanded to allow bust and arm movement)
 ACTIVE_JOINTS: set[str] = {
+    # Leg pitch (core walking)
     "left_hip_y",       "right_hip_y",
     "left_knee",        "right_knee",
     "left_ankle_y",     "right_ankle_y",
+    
+    # Leg stabilization (roll/yaw)
+    "left_hip_x",       "right_hip_x",
+    "left_hip_z",       "right_hip_z",
+    
+    # Bust / Core
+    "spine_z",          # Twist
+    "neck_y",           # Head/Bust pitch
+    
+    # Arms (Swing and stabilization)
+    "left_shoulder_y",  "right_shoulder_y",
+    "left_shoulder_x",  "right_shoulder_x",
 }
 
+def load_trained_stand_pose():
+    """Attempts to load the best trained stand pose from alex-stand."""
+    try:
+        import sys
+        stand_dir = REPO_ROOT / "training/alex-stand"
+        sys.path.append(str(stand_dir))
+        from alex_stand_ppo import AlexStandEnv, PPO, DummyVecEnv, VecNormalize, ACTION_SCALE, STAND_PREP_TARGET as REF
+        
+        model_path = stand_dir / "rl_models/best/best_model.zip"
+        if not model_path.exists():
+            model_path = stand_dir / "rl_models/alex_stand_final.zip"
+        if not model_path.exists():
+            return None
+            
+        env = AlexStandEnv(render_mode=None)
+        vec_env = DummyVecEnv([lambda: env])
+        vn_path = stand_dir / "rl_models/vec_normalize_final.pkl"
+        if vn_path.exists():
+            vec_env = VecNormalize.load(str(vn_path), vec_env)
+            vec_env.training = False
+        
+        model = PPO.load(str(model_path), env=vec_env)
+        obs = vec_env.reset()
+        action, _ = model.predict(obs, deterministic=True)
+        
+        trained = {}
+        for i, name in enumerate(env._act_names):
+            trained[name] = REF.get(name, 0.0) + action[0][i] * ACTION_SCALE
+        return trained
+    except Exception:
+        return None
+
+# Try to update STAND_PREP_TARGET with trained values
+_trained = load_trained_stand_pose()
+if _trained:
+    print("AlexWalkingEnv: Using trained stand pose for initialization.")
+    for k, v in _trained.items():
+        STAND_PREP_TARGET[k] = v
+
 # Reward weights
-W_FORWARD   = 10.0
-W_HEIGHT    = 2.0
-W_UPRIGHT   = 3.0
-W_ALIVE     = 1.0
-W_CTRL      = 0.01
-W_DRIFT     = 2.0   # penalty for Y movement
-W_SMOOTH    = 0.1
+W_FORWARD    = 4.0   # gated on uprightness, so reduced
+W_HEIGHT     = 2.0
+W_UPRIGHT    = 3.0
+W_ALIVE      = 3.0   # increased: reward staying up
+W_CTRL       = 0.01
+W_DRIFT      = 2.0   # penalty for Y movement
+W_SMOOTH     = 0.1
+W_GAIT       = 2.0   # gait tracking: follow reference joints
 FALL_PENALTY = 50.0
+
+# Curriculum
+MAX_CURRICULUM_STEPS = 5_00_000  # per-env steps to reach full gait amplitude
+AMPLITUDE_START      = 0.15     # start at 15% of gait amplitude
+
+# Gait joints to track
+GAIT_JOINTS: set[str] = {
+    "left_hip_y", "right_hip_y",
+    "left_knee",  "right_knee",
+    "left_ankle_y", "right_ankle_y",
+}
 
 # ─── Reference Gait ───────────────────────────────────────────────────────────
 
@@ -191,6 +255,24 @@ class AlexWalkingEnv(gym.Env):
         self._ctrl_hi = self._model.actuator_ctrlrange[:, 1].copy()
         self._pelvis_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_BODY, "pelvis_link")
 
+        # Joint velocity addresses (needed for PD loop)
+        self._vadr = np.empty(nu, dtype=np.int32)
+        for a in range(nu):
+            j = self._model.actuator_trnid[a, 0]
+            self._vadr[a] = self._model.jnt_dofadr[j]
+
+        # PD gains proportional to joint torque capacity (gear)
+        self._gear = self._model.actuator_gear[:, 0].copy()
+        self._kp   = self._gear * 2.5
+        self._kd   = self._gear * 0.15
+
+        # Curriculum state — persists across episode resets
+        self._total_env_steps = 0
+
+        # Mask for gait-tracked joints
+        self._gait_mask = np.array([n in GAIT_JOINTS for n in self._act_names], dtype=bool)
+        self._last_q_ref = self._stand_joint_q.copy()
+
         # Obs: pelvis(z, quat, linvel, angvel) + joints(pos, vel) + phase(sin, cos) + prev_action
         nq_j = self._model.nq - 7
         nv_j = self._model.nv - 6
@@ -228,7 +310,8 @@ class AlexWalkingEnv(gym.Env):
         upright = float(self._data.xmat[pid].reshape(3, 3)[2, 2])
         height = float(self._data.xpos[pid, 2])
 
-        r_forward = W_FORWARD * vel[0]
+        # Forward reward gated on uprightness — falling forward yields near-zero reward
+        r_forward = W_FORWARD * vel[0] * max(0.0, upright)
         r_drift   = -W_DRIFT * (abs(vel[1]) + abs(self._data.xpos[pid, 1]))
         r_height  = W_HEIGHT * float(np.exp(-10.0 * (height - self._pelvis_z_init) ** 2))
         r_upright = W_UPRIGHT * upright
@@ -236,8 +319,13 @@ class AlexWalkingEnv(gym.Env):
         r_ctrl    = -W_CTRL * float(np.dot(action, action))
         r_smooth  = -W_SMOOTH * float(np.dot(action - self._prev_action, action - self._prev_action))
 
-        total = r_forward + r_drift + r_height + r_upright + r_alive + r_ctrl + r_smooth
-        return float(total), {"vel_x": vel[0]}
+        # Gait tracking: penalize deviation from reference on walking joints
+        q_actual = np.array([self._data.qpos[self._qadr[i]] for i in range(self._model.nu)])
+        gait_err = float(np.mean((q_actual[self._gait_mask] - self._last_q_ref[self._gait_mask]) ** 2))
+        r_gait   = -W_GAIT * gait_err
+
+        total = r_forward + r_drift + r_height + r_upright + r_alive + r_ctrl + r_smooth + r_gait
+        return float(total), {"vel_x": vel[0], "gait_err": gait_err}
 
     def reset(self, *, seed: Optional[int] = None, options=None):
         super().reset(seed=seed)
@@ -260,16 +348,26 @@ class AlexWalkingEnv(gym.Env):
         action = np.clip(np.asarray(action, dtype=np.float32), -1.0, 1.0)
         action = action * self._active_mask
 
+        # Curriculum: ramp gait amplitude from AMPLITUDE_START → 1.0
+        self._total_env_steps += 1
+        amp = min(1.0, AMPLITUDE_START + (1.0 - AMPLITUDE_START) * (self._total_env_steps / MAX_CURRICULUM_STEPS))
+
         phase = (self._step_count * self._model.opt.timestep / GAIT_PERIOD) % 1.0
         offsets = get_ref_gait_offsets(phase)
-        
+
         q_ref = self._stand_joint_q.copy()
         for name, val in offsets.items():
             if name in self._name2id:
-                q_ref[self._name2id[name]] += val
-        
-        q_des = q_ref + action * ACTION_SCALE
-        self._data.ctrl[:] = np.clip(q_des, self._ctrl_lo, self._ctrl_hi)
+                q_ref[self._name2id[name]] += val * amp
+        self._last_q_ref = q_ref
+
+        q_des = q_ref + action * (ACTION_SCALE * amp)
+
+        # PD control: convert desired joint positions to normalized torque commands
+        q_actual = np.array([self._data.qpos[self._qadr[i]] for i in range(self._model.nu)])
+        qdot     = np.array([self._data.qvel[self._vadr[i]] for i in range(self._model.nu)])
+        tau      = self._kp * (q_des - q_actual) - self._kd * qdot
+        self._data.ctrl[:] = np.clip(tau / self._gear, -1.0, 1.0)
 
         mujoco.mj_step(self._model, self._data)
         self._step_count += 1
@@ -309,7 +407,7 @@ def train():
 
     print("Training Alex to walk...")
     try:
-        model.learn(total_timesteps=5_000_000, progress_bar=True)
+        model.learn(total_timesteps=10_000_000, progress_bar=True)
     except KeyboardInterrupt:
         pass
 

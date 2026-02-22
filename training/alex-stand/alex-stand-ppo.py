@@ -10,10 +10,10 @@ Dependencies:
     pip install stable-baselines3[extra] gymnasium mujoco torch
 
 Training:
-    python training/alex-stand/alex-stand-ppo.py
+    python training/alex-stand/alex_stand_ppo.py
 
 Evaluate a saved model:
-    python training/alex-stand/alex-stand-ppo.py --eval rl_models/best/best_model \
+    python training/alex-stand/alex_stand_ppo.py --eval rl_models/best/best_model \
         --vec-norm rl_models/vec_normalize_final.pkl
 
 TensorBoard:

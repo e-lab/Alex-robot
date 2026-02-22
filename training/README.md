@@ -12,11 +12,11 @@ Developing RL control for IHMC Alex humanoid robot.
 
 Train:
 
-`python training/alex-stand/alex-stand-ppo.py --timesteps 10000000 --n-envs 8`
+`python training/alex-stand/alex_stand_ppo.py --timesteps 10000000 --n-envs 8`
 
 Demo:
 
-`mjpython training/alex-stand/alex-stand-ppo.py --eval training/alex-stand/rl_models/best/best_model --vec-norm training/alex-stand/rl_models/vec_normalize_final.pkl --episodes 20`
+`mjpython training/alex-stand/alex_stand_ppo.py --eval training/alex-stand/rl_models/best/best_model --vec-norm training/alex-stand/rl_models/vec_normalize_final.pkl --episodes 20`
 
 
 TensorBoard:
@@ -26,13 +26,16 @@ TensorBoard:
 
 ## Alex walking
 
-**STATUS: initial gait good example**
+**STATUS: FAILS - initial gait good example,  best epi lenght ~40**
 
-1. Test initial untrained srating poit gait for learning:
+Loads the trained stand pose if available for curriculum.
+
+
+1. Test initial untrained starting point gait for learning:
 
 `mjpython training/alex-walking/alex-walking-test-gait.py`
 
-2. Start training:
+2. Start training to refine walking:
 `python training/alex-walking/alex-walking-ppo.py`
 
 3. Evaluate (after training):
