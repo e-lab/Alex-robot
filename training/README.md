@@ -63,3 +63,24 @@ A few routines trained by IHMC on IsaacLab.
 
 We want to see if we can make these models work here in MuJoCo also.
 
+
+## Notes
+
+### IsaacSim Lab notes from IHMC
+
+
+1- Bent-knee initial pose vs near-upright pose
+    - alex-stand: hip_y=0.05, knee=0.10 — nearly straight legs, CoM directly over feet, trivially stable
+    - alex-stand-isaac: hip_y=-0.772, knee=1.419 — deep squat, very narrow balance basin, large active torques required just to hold still
+
+    The bent-knee pose requires significant continuous muscle effort to maintain. An untrained policy outputting random actions immediately collapses. The near-upright pose is naturally stable even with zero torques.
+
+2- GPU envs
+
+    - The fundamental problem is that the isaacsimlab configuration was designed for 4096 GPU envs in parallel. It tolerates
+  aggressive randomization because the sheer volume of environments guarantees enough "good starts." With only 8 CPU envs,
+  you need gentle randomization, a stable initial pose, and no distractions (pushes, full action space) until the policy has
+  learned the basics.
+
+  -   The bottleneck is CPU physics simulation, not the GPU. SB3 uses the GPU only for tiny NN forward/backward passes
+  ([128,128,128] is trivially small). A RTX 3090 GPU would sit at <5% utilization.

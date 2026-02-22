@@ -12,15 +12,23 @@ Faithfully mirrors the isaacsimlab/ configuration inside MuJoCo:
                   DelayedPDActuatorCfg(min_delay=0, max_delay=2)
   Observations  : gravity projection (not quaternion), joint offsets,
                   joint vels, prev action, target height command
-                  (mirrors AlexObservationsCfg policy group)
+                  (mirrors AlexObservationsCfg policy group).
+                  Uniform noise added during training:
+                  ang_vel ±0.3, gravity ±0.05, joint_pos ±0.01,
+                  joint_vel ±0.3 (mirrors enable_corruption=True).
   Rewards       : direct port of StandingEnvCfg / AlexRewards terms:
                   height tracking (exp, std=0.05), flat orientation (exp,
-                  std=0.2), joint deviation by group (arms/torso/hips),
-                  foot sliding, ankle torques, undesired thigh contacts,
-                  action rate, joint velocity, lin/ang velocity penalties
-  Randomisation : push disturbances every 2-4 s (±0.7 m/s x/y),
-                  mass randomisation ±2 kg (torso), joint reset ±0.7 rad,
-                  base reset ±0.5 m lateral / full yaw
+                  std=0.2), joint deviation by group (arms/torso/hips/
+                  ankle_x), foot sliding, ankle torques, undesired thigh
+                  contacts, action rate, joint velocity, lin/ang velocity
+                  penalties.
+  Randomisation : push disturbances every 2-4 s (±0.7 m/s x/y,
+                  ±0.05 m/s z, ±0.1 rad/s roll/pitch, ±0.2 rad/s yaw),
+                  mass randomisation ±2 kg (torso), joint reset ±0.7 rad
+                  + ±0.5 rad/s velocity, base reset ±0.5 m xy / ±0.01 m z
+                  / ±0.1 rad roll-pitch / full yaw.
+                  NOTE: with 8 CPU envs (vs 4096 GPU), reduce rand ranges
+                  if policy cannot learn early episodes.
   PPO           : mirrors AlexStandingEnvPPORunnerCfg (RSL-RL):
                   [128,128,128] ELU, lr=1e-3, 5 epochs, 4 mini-batches,
                   gamma=0.99, gae_lambda=0.95, entropy=0.01, clip=0.2
@@ -32,7 +40,7 @@ Training:
     python training/alex-stand-isaac/alex-stand-isaac-ppo.py
 
 Evaluate:
-    python training/alex-stand-isaac/alex-stand-isaac-ppo.py \\
+    mjpython training/alex-stand-isaac/alex-stand-isaac-ppo.py \\
         --eval rl_models/best/best_model --vec-norm rl_models/vec_normalize_final.pkl
 """
 from __future__ import annotations
@@ -146,6 +154,7 @@ W_JOINT_ARMS     = -0.60   # joint_deviation_arms (L1)          (w=-0.6)
 W_JOINT_TORSO    = -0.60   # joint_deviation_torso (L1)         (w=-0.6)
 W_JOINT_HIP_YAW  = -1.50   # joint_mean_deviation_hip           (w=-1.5)
 W_ANKLE_TORQUE   = -2e-5   # ankle_roll_torques_l2              (w=-2e-5)
+W_JOINT_ANKLE_X  = -0.60   # joint_mean_deviation_ankle L1      (w=-0.6)
 W_FOOT_SLIDE     = -0.50   # foot_sliding (penalise sliding vel when contacting floor)
 W_UNDESIRED_CONT = -0.10   # undesired_contacts (thigh/shin)    (w=-0.1)
 # IsaacLab's death=-200 is calibrated for GPU-normalized rewards.
@@ -158,18 +167,30 @@ ORIENTATION_STD   = 0.20   # flat_orientation_exp std
 
 # ── Domain randomisation — from isaacsimlab/alex_stand_env_cfg.py ─────────────
 
-# IsaacLab uses ±0.7 rad / ±0.5 m / ±π yaw — safe with 4096 GPU envs because
-# the agent sees enough good resets to learn.  With 8 CPU envs these ranges
-# cause almost every early episode to start in an unrecoverable state.
-# Defaults are set to "easy" values; override with --rand-joints / --rand-xy.
-JOINT_RESET_RANGE   = 0.05   # ±0.05 rad  (IsaacLab: 0.70)
-BASE_RESET_XY       = 0.05   # ±0.05 m    (IsaacLab: 0.50)
-BASE_RESET_YAW      = 0.10   # ±0.10 rad  (IsaacLab: π)
-MASS_RAND_KG        = 2.0    # ±2 kg on torso body (unchanged)
-PUSH_INTERVAL_MIN   = 2.0    # s between pushes
-PUSH_INTERVAL_MAX   = 4.0    # s between pushes
-PUSH_VEL_XY         = 0.7    # m/s (unchanged)
-PUSH_VEL_YAW        = 0.2    # rad/s (unchanged)
+# All ranges match isaacsimlab/alex_stand_env_cfg.py exactly.
+# NOTE: with only 8 CPU envs (vs 4096 GPU), early training may struggle with
+# large reset ranges. Reduce JOINT_RESET_RANGE / BASE_RESET_XY if the policy
+# cannot recover from resets. Full ranges are kept here for faithful porting.
+JOINT_RESET_RANGE     = 0.70      # ±0.70 rad  — reset_robot_joints position_range
+JOINT_RESET_VEL       = 0.50      # ±0.50 rad/s — reset_robot_joints velocity_range
+BASE_RESET_XY         = 0.50      # ±0.50 m    — reset_base pose_range x/y
+BASE_RESET_Z          = 0.01      # ±0.01 m    — reset_base pose_range z
+BASE_RESET_YAW        = math.pi   # ±π rad     — reset_base pose_range yaw
+BASE_RESET_ROLL_PITCH = 0.10      # ±0.10 rad  — reset_base pose_range roll/pitch
+MASS_RAND_KG          = 2.0       # ±2 kg on torso body — add_base_mass
+PUSH_INTERVAL_MIN     = 2.0       # s between pushes — push_robot interval_range_s
+PUSH_INTERVAL_MAX     = 4.0       # s between pushes
+PUSH_VEL_XY           = 0.7       # m/s x/y — push_robot velocity_range x/y
+PUSH_VEL_Z            = 0.05      # m/s z   — push_robot velocity_range z
+PUSH_VEL_ROLL_PITCH   = 0.10      # rad/s   — push_robot velocity_range roll/pitch
+PUSH_VEL_YAW          = 0.2       # rad/s   — push_robot velocity_range yaw
+
+# ── Observation noise — from isaacsimlab/walk_flat_env_cfg.py AlexObservationsCfg ──
+# Uniform noise applied during training (enable_corruption=True equivalent).
+OBS_NOISE_ANG_VEL   = 0.30   # ±0.3 rad/s on base angular velocity
+OBS_NOISE_GRAV      = 0.05   # ±0.05 on projected gravity vector
+OBS_NOISE_JOINT_POS = 0.01   # ±0.01 rad on joint positions
+OBS_NOISE_JOINT_VEL = 0.30   # ±0.3 rad/s on joint velocities
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -449,14 +470,29 @@ class AlexStandIsaacEnv(gym.Env):
         ang_vel_body  = rot.T @ ang_vel_world
         lin_vel       = self._data.qvel[:3]
 
+        joint_pos_offset = self._data.qpos[7:] - self._stand_qpos_joints
+        joint_vel        = self._data.qvel[6:].copy()
+
+        # Observation noise — mirrors AlexObservationsCfg Unoise terms
+        # (enable_corruption=True during training, disabled in PLAY/eval)
+        if self.random_init:
+            ang_vel_body     = ang_vel_body + self.np_random.uniform(
+                -OBS_NOISE_ANG_VEL, OBS_NOISE_ANG_VEL, size=3)
+            gravity_proj     = gravity_proj + self.np_random.uniform(
+                -OBS_NOISE_GRAV, OBS_NOISE_GRAV, size=3)
+            joint_pos_offset = joint_pos_offset + self.np_random.uniform(
+                -OBS_NOISE_JOINT_POS, OBS_NOISE_JOINT_POS, size=joint_pos_offset.shape)
+            joint_vel        = joint_vel + self.np_random.uniform(
+                -OBS_NOISE_JOINT_VEL, OBS_NOISE_JOINT_VEL, size=joint_vel.shape)
+
         return np.concatenate([
             gravity_proj,                             # (3)  orientation signal
             [pelvis_z],                               # (1)  height
             ang_vel_body,                             # (3)  angular velocity in body frame
             lin_vel,                                  # (3)  linear velocity (world)
             [self._target_height],                    # (1)  height command
-            self._data.qpos[7:] - self._stand_qpos_joints,  # joint pos offsets
-            self._data.qvel[6:],                      # joint velocities
+            joint_pos_offset,                         # joint pos offsets
+            joint_vel,                                # joint velocities
             self._prev_action,                        # previous action
         ]).astype(np.float32)
 
@@ -538,6 +574,13 @@ class AlexStandIsaacEnv(gym.Env):
         ankle_tau   = self._data.qfrc_actuator[self._vadr[self._mask_ankle_x]]
         r_ankle_tau = W_ANKLE_TORQUE * float(np.dot(ankle_tau, ankle_tau))
 
+        # --- Ankle roll deviation L1 (joint_mean_deviation_ankle, w=-0.6) ---
+        q_anklex_err = float(np.sum(np.abs(
+            self._data.qpos[self._qadr[self._mask_ankle_x]]
+            - self._stand_joint_q[self._mask_ankle_x]
+        )))
+        r_ankle_dev = W_JOINT_ANKLE_X * q_anklex_err
+
         # --- Foot sliding (foot_sliding) -------------------------------------
         # When a foot is in contact, penalise its horizontal velocity.
         r_foot_slide = 0.0
@@ -559,7 +602,7 @@ class AlexStandIsaacEnv(gym.Env):
         total = (r_height + r_orient + r_alive + r_action_rate
                  + r_lin_vel_z + r_ang_vel_xy + r_joint_vel + r_torque
                  + r_joint_arms + r_joint_torso + r_hip_yaw + r_ankle_tau
-                 + r_foot_slide + r_bad_contact)
+                 + r_ankle_dev + r_foot_slide + r_bad_contact)
 
         return float(total), dict(
             r_height=r_height, r_orient=r_orient, r_alive=r_alive,
@@ -567,8 +610,8 @@ class AlexStandIsaacEnv(gym.Env):
             r_ang_vel_xy=r_ang_vel_xy, r_joint_vel=r_joint_vel,
             r_torque=r_torque, r_joint_arms=r_joint_arms,
             r_joint_torso=r_joint_torso, r_hip_yaw=r_hip_yaw,
-            r_ankle_tau=r_ankle_tau, r_foot_slide=r_foot_slide,
-            r_bad_contact=r_bad_contact,
+            r_ankle_tau=r_ankle_tau, r_ankle_dev=r_ankle_dev,
+            r_foot_slide=r_foot_slide, r_bad_contact=r_bad_contact,
             pelvis_z=pelvis_z, upright=float(rot[2, 2]),
         )
 
@@ -594,20 +637,32 @@ class AlexStandIsaacEnv(gym.Env):
         self._data.ctrl[:] = self._stand_joint_q.copy()
 
         if self.random_init:
-            # Joint randomisation: ±0.7 rad (reset_robot_joints event)
+            # Joint position randomisation — reset_robot_joints position_range=±0.7
             self._data.qpos[7:] += self.np_random.uniform(
                 -JOINT_RESET_RANGE, JOINT_RESET_RANGE,
                 size=self._model.nq - 7,
             )
-            # Base position: ±0.5 m x/y (reset_base event)
+            # Base position: ±0.5 m x/y, ±0.01 m z (reset_base pose_range)
             self._data.qpos[0] += float(self.np_random.uniform(-BASE_RESET_XY, BASE_RESET_XY))
             self._data.qpos[1] += float(self.np_random.uniform(-BASE_RESET_XY, BASE_RESET_XY))
-            # Full yaw randomisation ±π
-            yaw = float(self.np_random.uniform(-BASE_RESET_YAW, BASE_RESET_YAW))
-            dq  = _quat_from_euler_xyz(0.0, 0.0, yaw)
+            self._data.qpos[2] += float(self.np_random.uniform(-BASE_RESET_Z,  BASE_RESET_Z))
+            # Orientation: full yaw ±π, roll/pitch ±0.1 rad (reset_base pose_range)
+            roll  = float(self.np_random.uniform(-BASE_RESET_ROLL_PITCH, BASE_RESET_ROLL_PITCH))
+            pitch = float(self.np_random.uniform(-BASE_RESET_ROLL_PITCH, BASE_RESET_ROLL_PITCH))
+            yaw   = float(self.np_random.uniform(-BASE_RESET_YAW, BASE_RESET_YAW))
+            dq    = _quat_from_euler_xyz(roll, pitch, yaw)
             self._data.qpos[3:7] = _quat_mul(self._data.qpos[3:7].copy(), dq)
 
         self._data.qvel[:] = 0.0
+
+        if self.random_init:
+            # Joint velocity randomisation — reset_robot_joints velocity_range=±0.5
+            # Applied after zeroing so the noise is not overwritten.
+            self._data.qvel[6:] = self.np_random.uniform(
+                -JOINT_RESET_VEL, JOINT_RESET_VEL,
+                size=self._model.nv - 6,
+            )
+
         mujoco.mj_forward(self._model, self._data)
 
         # Resample episode-level randomisation
@@ -648,10 +703,14 @@ class AlexStandIsaacEnv(gym.Env):
         delayed_q_des = self._delay_buf[delay_idx]
 
         # Apply push disturbance if scheduled (push_robot event, --push to enable)
+        # Velocity ranges from isaacsimlab/alex_stand_env_cfg.py push_robot params.
         if self._enable_push and self._step_count == self._next_push_step and self._step_count > 0:
-            self._data.qvel[0] += float(self.np_random.uniform(-PUSH_VEL_XY, PUSH_VEL_XY))
-            self._data.qvel[1] += float(self.np_random.uniform(-PUSH_VEL_XY, PUSH_VEL_XY))
-            self._data.qvel[5] += float(self.np_random.uniform(-PUSH_VEL_YAW, PUSH_VEL_YAW))
+            self._data.qvel[0] += float(self.np_random.uniform(-PUSH_VEL_XY,         PUSH_VEL_XY))
+            self._data.qvel[1] += float(self.np_random.uniform(-PUSH_VEL_XY,         PUSH_VEL_XY))
+            self._data.qvel[2] += float(self.np_random.uniform(-PUSH_VEL_Z,          PUSH_VEL_Z))
+            self._data.qvel[3] += float(self.np_random.uniform(-PUSH_VEL_ROLL_PITCH, PUSH_VEL_ROLL_PITCH))
+            self._data.qvel[4] += float(self.np_random.uniform(-PUSH_VEL_ROLL_PITCH, PUSH_VEL_ROLL_PITCH))
+            self._data.qvel[5] += float(self.np_random.uniform(-PUSH_VEL_YAW,        PUSH_VEL_YAW))
             # Schedule next push
             push_steps = self.np_random.uniform(PUSH_INTERVAL_MIN, PUSH_INTERVAL_MAX)
             self._next_push_step = self._step_count + int(push_steps / CONTROL_DT)
@@ -702,16 +761,16 @@ def train(
     total_timesteps: int = 10_000_000,
     n_envs: int = 8,
     pose: str = "isaaclab",
-    enable_push: bool = False,
+    enable_push: bool = True,
 ) -> None:
     """
     Train with SB3 PPO using hyperparameters from AlexStandingEnvPPORunnerCfg.
 
     RSL-RL → SB3 translation:
       actor/critic:    [128,128,128] ELU  (identical)
-      learning_rate:   1e-3 adaptive  →  3e-4 fixed
-                       (RSL-RL's adaptive KL schedule isn't in SB3;
-                        3e-4 is more stable for CPU-based training)
+      learning_rate:   1e-3 adaptive  →  1e-3 fixed
+                       (RSL-RL uses adaptive KL schedule; SB3 uses fixed LR;
+                        1e-3 matches the isaacsimlab target value)
       gamma:           0.99           →  0.99
       gae_lambda:      0.95           →  0.95
       clip_param:      0.2            →  clip_range=0.2
@@ -762,7 +821,7 @@ def train(
 
     model = PPO(
         "MlpPolicy", vec_env,
-        learning_rate=3e-4,            # 3e-4 more stable than RSL-RL's 1e-3 for SB3
+        learning_rate=1e-3,            # 1e-3 — matches AlexStandingEnvPPORunnerCfg
         n_steps=n_steps,
         batch_size=batch_size,
         n_epochs=5,                    # num_learning_epochs=5
@@ -802,7 +861,7 @@ def train(
 
     print(f"\nTraining for {total_timesteps:,} timesteps across {n_envs} envs.")
     print(f"pose={pose}, push={'on' if enable_push else 'off'}")
-    print(f"n_steps={n_steps}, batch_size={batch_size}, n_epochs=5, lr=3e-4\n")
+    print(f"n_steps={n_steps}, batch_size={batch_size}, n_epochs=5, lr=1e-3\n")
     try:
         model.learn(
             total_timesteps=total_timesteps,
@@ -895,9 +954,10 @@ if __name__ == "__main__":
         ),
     )
     ap.add_argument(
-        "--push", dest="enable_push", action="store_true", default=False,
-        help="enable random push disturbances (disabled by default; add after policy converges)",
+        "--no-push", dest="enable_push", action="store_false",
+        help="disable random push disturbances (push enabled by default, matching isaacsimlab)",
     )
+    ap.set_defaults(enable_push=True)
     args = ap.parse_args()
 
     if args.eval:
