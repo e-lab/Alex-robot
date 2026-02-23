@@ -87,7 +87,7 @@ class AlexHumanoidWalkEnv(gym.Env):
         return self._get_obs(), {}
 
 def train():
-    n_envs = 8
+    n_envs = 12
     vec_env = make_vec_env(AlexHumanoidWalkEnv, n_envs=n_envs, vec_env_cls=SubprocVecEnv)
     vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
     
@@ -97,7 +97,7 @@ def train():
         ent_coef=0.01, # Higher exploration
         learning_rate=3e-4,
         n_steps=2048,
-        batch_size=256
+        batch_size=1024
     )
     
     eval_env = make_vec_env(AlexHumanoidWalkEnv, n_envs=1)
