@@ -1,3 +1,8 @@
 .DS_Store
 
 *.pyc
+/training/alex-walk-like-humanoid/rl_models/tensorboard
+/training/alex-walk-like-humanoid/rl_models/tensorboard
+training/alex-walk-like-humanoid/rl_models/tensorboard/PPO_1/events.out.tfevents.1771856928.Pora.local.30708.0
+/training/alex-walk-like-humanoid/rl_models/tensorboard
+/training/humanoid-walk/rl_models/tensorboard

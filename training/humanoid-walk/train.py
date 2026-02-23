@@ -13,10 +13,10 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─── Hyperparameters ──────────────────────────────────────────────────────────
 ENV_NAME = "Humanoid-v5"
-TOTAL_TIMESTEPS = 10_000_000
-N_ENVS = 4
+TOTAL_TIMESTEPS = 30_000_000
+N_ENVS = 12
 LEARNING_RATE = 3e-4
-BATCH_SIZE = 128
+BATCH_SIZE = 1024
 N_STEPS = 2048
 GAMMA = 0.99
 GAE_LAMBDA = 0.95
