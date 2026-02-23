@@ -12,16 +12,14 @@ Developing RL control for IHMC Alex humanoid robot.
 
 Train:
 
-`python training/alex-stand/alex_stand_ppo.py --timesteps 10000000 --n-envs 8`
+`python training/alex-stand/train.py --timesteps 10000000 --n-envs 8`
 
-Demo:
-
-`mjpython training/alex-stand/alex_stand_ppo.py --eval training/alex-stand/rl_models/best/best_model --vec-norm training/alex-stand/rl_models/vec_normalize_final.pkl --episodes 20`
-
+Evaluate:
+`mjpython training/alex-stand/train.py --eval training/alex-stand/rl_models/best/best_model --vec-norm training/alex-stand/rl_models/vec_normalize_final.pkl --episodes 20`
 
 TensorBoard:
-
 `tensorboard --logdir training/alex-stand/rl_models/tensorboard`
+
 
 
 ## Alex walking
@@ -33,13 +31,39 @@ Loads the trained stand pose if available for curriculum.
 
 1. Test initial untrained starting point gait for learning:
 
-`mjpython training/alex-walking/alex-walking-test-gait.py`
+`mjpython training/alex-walking/test-gait.py`
 
 2. Start training to refine walking:
-`python training/alex-walking/alex-walking-ppo.py`
+`python training/alex-walking/train.py`
 
 3. Evaluate (after training):
-`mjpython training/alex-walking/alex-walking-ppo.py --eval`
+`mjpython training/alex-walking/train.py --eval`
+
+
+## humanoid walk
+
+**STATUS: WORKS**
+
+using the built in gynasium MuJoCo humanoid-v5 env to learn to walk
+
+Training
+
+```bash
+python training/humanoid-walk/train.py
+```
+- Logs and models are saved in `rl_models/`.
+- The script uses `SubprocVecEnv` for multi-threaded training and `VecNormalize` for observation/reward normalization.
+
+Tensorboard - monitor training progress:
+```bash
+tensorboard --logdir training/humanoid-walk/rl_models/tensorboard
+```
+
+Evaluation
+
+```bash
+python training/humanoid-walk/eval.py
+```
 
    
 #### Notes:
@@ -52,14 +76,4 @@ Loads the trained stand pose if available for curriculum.
 
 - Reward Function: Encourages forward velocity (vx) while penalizing lateral drift, vertical height deviations, and excessive control effort.
 
-
-## Alex Stand IHMC IsaacLab
-
-**STATUS: FAILS**
-
-A few routines trained by IHMC on IsaacLab.
-
-`https://github.com/ihmcrobotics/alex/tree/develop/src/main/resources/rl_models`
-
-We want to see if we can make these models work here in MuJoCo also.
 
