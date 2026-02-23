@@ -6,9 +6,10 @@ from gymnasium import utils
 from gymnasium.envs.mujoco import MujocoEnv
 from gymnasium.spaces import Box
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize, DummyVecEnv
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.env_util import make_vec_env
+from gymnasium.wrappers import TimeLimit
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -226,15 +227,44 @@ class AlexHumanoidEnv(MujocoEnv, utils.EzPickle):
             )
         )
 
-    # Actuator indices that are NOT needed for walking — hold at zero.
-    # Order in scene_alex_v1_train.xml:
-    #  17: left_wrist_z  18: left_wrist_x  19: neck_z  20: neck_y
-    #  25: right_wrist_z  26: right_wrist_x
-    _PASSIVE_ACTUATORS = np.array([17, 18, 19, 20, 25, 26], dtype=int)
+    # Actuator index → desired joint position for joints locked during walking.
+    # Active joints: 12 legs + 1 spine = 13 total.
+    # idx: name              target  reason
+    #  13: left_shoulder_y    0.2    arms slightly forward (stand-prep pose)
+    #  14: left_shoulder_x    0.3    arms slightly out
+    #  15: left_shoulder_z    0.0    neutral
+    #  16: left_elbow        -0.5    bent arm (stand-prep pose)
+    #  17: left_wrist_z       0.0    neutral
+    #  18: left_wrist_x       0.0    neutral
+    #  19: neck_z             0.0    head forward
+    #  20: neck_y             0.0    head level
+    #  21: right_shoulder_y   0.2    arms slightly forward
+    #  22: right_shoulder_x  -0.3    arms slightly out (mirrored)
+    #  23: right_shoulder_z   0.0    neutral
+    #  24: right_elbow       -0.5    bent arm (stand-prep pose)
+    #  25: right_wrist_z      0.0    neutral
+    #  26: right_wrist_x      0.0    neutral
+    _LOCKED_ACTUATORS: dict[int, float] = {
+        13:  0.2, 14:  0.3, 15: 0.0,  # left shoulder
+        16: -0.5, 17:  0.0, 18: 0.0,  # left elbow + wrists
+        19:  0.0, 20:  0.0,           # neck
+        21:  0.2, 22: -0.3, 23: 0.0,  # right shoulder
+        24: -0.5, 25:  0.0, 26: 0.0,  # right elbow + wrists
+    }
+    # Soft-PD gain in ctrl units (normalised torque per radian of error).
+    # gear=40 for elbows → kp=0.5 gives ~20 Nm/rad; gear=10 for wrists/neck.
+    _LOCKED_KP = 0.5
 
     def step(self, action):
         action = np.asarray(action, dtype=np.float64).copy()
-        action[self._PASSIVE_ACTUATORS] = 0.0  # wrists & neck: hold at zero
+        # Soft PD hold for locked joints: override policy action with a
+        # proportional term that pulls each joint toward its target position.
+        for idx, target in self._LOCKED_ACTUATORS.items():
+            jid  = self.model.actuator_trnid[idx, 0]
+            qadr = self.model.jnt_qposadr[jid]
+            vadr = self.model.jnt_dofadr[jid]
+            error = target - self.data.qpos[qadr]
+            action[idx] = np.clip(self._LOCKED_KP * error, -1.0, 1.0)
         xy_position_before = mass_center(self.model, self.data)
         self.do_simulation(action, self.frame_skip)
         xy_position_after = mass_center(self.model, self.data)
@@ -316,11 +346,18 @@ class AlexHumanoidEnv(MujocoEnv, utils.EzPickle):
 
 
 TOTAL_TIMESTEPS = 30_000_000
+MAX_EPISODE_STEPS = 1000
+
+
+def make_env():
+    env = AlexHumanoidEnv()
+    env = TimeLimit(env, max_episode_steps=MAX_EPISODE_STEPS)
+    return env
 
 
 def train(resume: bool = False):
-    n_envs = 12
-    vec_env = make_vec_env(AlexHumanoidEnv, n_envs=n_envs, vec_env_cls=SubprocVecEnv)
+    n_envs = 8
+    vec_env = make_vec_env(make_env, n_envs=n_envs, vec_env_cls=SubprocVecEnv)
 
     stats_path = MODELS_DIR / "vec_normalize_final.pkl"
     final_path = MODELS_DIR / "alex_humanoid_walk_final.zip"
@@ -348,7 +385,7 @@ def train(resume: bool = False):
         remaining = TOTAL_TIMESTEPS
         print("Starting fresh training.")
 
-    eval_env = make_vec_env(AlexHumanoidEnv, n_envs=1)
+    eval_env = make_vec_env(make_env, n_envs=1, vec_env_cls=DummyVecEnv)
     eval_env = VecNormalize(eval_env, norm_obs=True, norm_reward=False, training=False)
     eval_callback = EvalCallback(eval_env, best_model_save_path=str(MODELS_DIR / "best"),
                                  eval_freq=10000)
