@@ -40,6 +40,24 @@ Loads the trained stand pose if available for curriculum.
 `mjpython training/alex-walking/train.py --eval`
 
 
+## Alex walk like humanoid
+
+Since the gymnasium mujoco env humanoid learn to walk more easily, we made a similar env for Alex.
+
+**STATUS: WORKS episodes up to 300 steps**
+
+Train:
+`python training/alex-walk-like-humanoid/train.py`
+
+
+Tensorboard:
+`tensorboard --logdir training/alex-walk-like-humanoid/rl_models/tensorboard`
+
+Eval:
+`mjpython training/alex-walk-like-humanoid/eval.py`
+
+
+
 ## humanoid walk
 
 **STATUS: WORKS**
