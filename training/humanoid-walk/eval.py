@@ -1,5 +1,7 @@
 import argparse
-import os
+import pickle
+import json
+import zipfile
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -25,66 +27,87 @@ class CastObsToFloat32(VecEnvWrapper):
         obs, rew, done, info = self.venv.step_wait()
         return obs.astype(np.float32), rew, done, info
 
-ENV_NAME = "Humanoid-v5"
+
+ENV_NAME  = "Humanoid-v5"
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--warp", action="store_true",
-                    help="Evaluate model trained with mujoco-warp (rl_models_warp/)")
-parser.add_argument("--episodes", type=int, default=5,
-                    help="Number of evaluation episodes")
-parser.add_argument("--no-render", action="store_true",
-                    help="Disable rendering")
-args = parser.parse_args()
 
-if args.warp:
-    MODELS_DIR = SCRIPT_DIR / "rl_models_warp"
-    MODEL_PATH = MODELS_DIR / "best" / "best_model.zip"
-    if not MODEL_PATH.exists():
-        MODEL_PATH = MODELS_DIR / "ppo_humanoid_warp_final.zip"
-    STATS_PATH = None  # warp env does not use VecNormalize
-else:
-    MODELS_DIR = SCRIPT_DIR / "rl_models"
-    MODEL_PATH = MODELS_DIR / "best" / "best_model.zip"
-    STATS_PATH = MODELS_DIR / "vec_normalize_final.pkl"
+def find_model(warp: bool) -> tuple[Path | None, Path | None]:
+    """Return (model_path, stats_path) for the requested mode, trying best then final."""
+    if warp:
+        base = SCRIPT_DIR / "rl_models_warp"
+        candidates = [base / "best" / "best_model.zip", base / "ppo_humanoid_warp_final.zip"]
+        stats = None  # warp training does not save VecNormalize
+    else:
+        base = SCRIPT_DIR / "rl_models"
+        candidates = [base / "best" / "best_model.zip", base / "ppo_humanoid_final.zip"]
+        stats = base / "vec_normalize_final.pkl"
 
-render_mode = None if args.no_render else "human"
+    model_path = next((p for p in candidates if p.exists()), None)
+    stats_path = stats if (stats and stats.exists()) else None
+    return model_path, stats_path
 
 
-def make_env(render_mode=None):
-    def _init():
-        return gym.make(ENV_NAME, render_mode=render_mode)
-    return _init
+def saved_obs_dtype(model_path: Path) -> np.dtype:
+    """Read the observation space dtype from a saved SB3 model without loading weights."""
+    with zipfile.ZipFile(str(model_path), "r") as zf:
+        raw_data = zf.read("data")
+        if raw_data.startswith(b"{"):
+            data = json.loads(raw_data)
+            obs_space = data.get("observation_space")
+            if isinstance(obs_space, dict) and "dtype" in obs_space:
+                return np.dtype(obs_space["dtype"])
+            raise ValueError(f"Could not find observation_space.dtype in JSON model: {model_path}")
+        
+        data = pickle.loads(raw_data)
+        return data["observation_space"].dtype
 
 
-eval_env = DummyVecEnv([make_env(render_mode=render_mode)])
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--warp", action="store_true",
+                        help="Evaluate model from rl_models_warp/ (mujoco-warp trained)")
+    parser.add_argument("--episodes", type=int, default=5)
+    parser.add_argument("--no-render", action="store_true")
+    args = parser.parse_args()
 
-if not args.warp and STATS_PATH and os.path.exists(STATS_PATH):
-    eval_env = VecNormalize.load(STATS_PATH, eval_env)
-    eval_env.training = False
-    eval_env.norm_reward = False
+    model_path, stats_path = find_model(args.warp)
+    if model_path is None:
+        print(f"No model found in {'rl_models_warp' if args.warp else 'rl_models'}/")
+        return
 
-if args.warp:
-    eval_env = CastObsToFloat32(eval_env)
+    render_mode = None if args.no_render else "human"
+    eval_env = DummyVecEnv([lambda: gym.make(ENV_NAME, render_mode=render_mode)])
 
-if not MODEL_PATH.exists():
-    print(f"Model not found at {MODEL_PATH}")
-    exit(1)
+    if stats_path:
+        eval_env = VecNormalize.load(str(stats_path), eval_env)
+        eval_env.training = False
+        eval_env.norm_reward = False
 
-model = PPO.load(MODEL_PATH, env=eval_env)
-print(f"Loaded {'warp' if args.warp else 'standard'} model from {MODEL_PATH}")
+    # Auto-detect obs dtype from saved model and cast if needed (float32 = warp-trained).
+    if saved_obs_dtype(model_path) == np.float32:
+        eval_env = CastObsToFloat32(eval_env)
 
-rewards = []
-for episode in range(args.episodes):
-    obs = eval_env.reset()
-    done = False
-    episode_reward = 0.0
-    while not done:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, info = eval_env.step(action)
-        episode_reward += reward[0]
-    rewards.append(episode_reward)
-    print(f"Episode {episode + 1}: Reward = {episode_reward:.2f}")
+    model = PPO.load(str(model_path), env=eval_env)
+    label = "warp" if args.warp else "standard"
+    print(f"Loaded {label} model from {model_path}")
 
-print(f"\nMean reward over {args.episodes} episodes: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}")
-eval_env.close()
+    rewards = []
+    for episode in range(args.episodes):
+        obs = eval_env.reset()
+        episode_reward = 0.0
+        while True:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, done, info = eval_env.step(action)
+            episode_reward += reward[0]
+            if done[0]:
+                break
+        rewards.append(episode_reward)
+        print(f"Episode {episode + 1:2d} | reward: {episode_reward:.1f}")
+
+    print(f"\nMean over {args.episodes} episodes: {np.mean(rewards):.1f} ± {np.std(rewards):.1f}")
+    eval_env.close()
+
+
+if __name__ == "__main__":
+    main()
