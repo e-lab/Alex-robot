@@ -12,32 +12,32 @@ Developing RL control for IHMC Alex humanoid robot.
 
 Train:
 
-`python training/alex-stand/train.py --timesteps 10000000 --n-envs 8`
+`python train.py --timesteps 10000000 --n-envs 8`
 
 Evaluate:
-`mjpython training/alex-stand/train.py --eval training/alex-stand/rl_models/best/best_model --vec-norm training/alex-stand/rl_models/vec_normalize_final.pkl --episodes 20`
+`python eval.py`
 
 TensorBoard:
-`tensorboard --logdir training/alex-stand/rl_models/tensorboard`
+`tensorboard --logdir rl_models/tensorboard`
 
 
 
 ## Alex walking
 
-**STATUS: FAILS - initial gait good example,  best epi lenght ~40**
+**STATUS: WORKS**
 
 Loads the trained stand pose if available for curriculum.
 
 
 1. Test initial untrained starting point gait for learning:
 
-`mjpython training/alex-walking/test-gait.py`
+`mjpython test-gait.py`
 
 2. Start training to refine walking:
-`python training/alex-walking/train.py`
+`python train.py`
 
 3. Evaluate (after training):
-`mjpython training/alex-walking/train.py --eval`
+`python eval.py`
 
 
 ## Alex walk like humanoid
@@ -47,14 +47,14 @@ Since the gymnasium mujoco env humanoid learn to walk more easily, we made a sim
 **STATUS: WORKS episodes up to 300 steps**
 
 Train:
-`python training/alex-walk-like-humanoid/train.py`
+`python train.py`
 
 
 Tensorboard:
-`tensorboard --logdir training/alex-walk-like-humanoid/rl_models/tensorboard`
+`tensorboard --logdir rl_models/tensorboard`
 
 Eval:
-`mjpython training/alex-walk-like-humanoid/eval.py`
+`python eval.py`
 
 
 
@@ -67,20 +67,20 @@ using the built in gynasium MuJoCo humanoid-v5 env to learn to walk
 Training
 
 ```bash
-python training/humanoid-walk/train.py
+python train.py
 ```
 - Logs and models are saved in `rl_models/`.
 - The script uses `SubprocVecEnv` for multi-threaded training and `VecNormalize` for observation/reward normalization.
 
 Tensorboard - monitor training progress:
 ```bash
-tensorboard --logdir training/humanoid-walk/rl_models/tensorboard
+tensorboard --logdir rl_models/tensorboard
 ```
 
 Evaluation
 
 ```bash
-python training/humanoid-walk/eval.py
+python eval.py
 ```
 
    

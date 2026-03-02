@@ -34,7 +34,7 @@ You will get this:
 
 ### RL learning
 
-We can train VERY efficienctly with [mjlab](https://github.com/e-lab/mjlab). Use this fork to train RL algorithms on your NVIDIA GPU PC. See readme there.
+We can train VERY efficiently with [mjlab](https://github.com/e-lab/mjlab). Use this fork to train RL algorithms on your NVIDIA GPU PC. See readme there.
 
 
 For pure MuJoCo RL training, see [this file](training/README.md).
