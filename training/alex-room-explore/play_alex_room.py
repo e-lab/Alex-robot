@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import time
 from contextlib import nullcontext
 from dataclasses import asdict
 from pathlib import Path
@@ -16,6 +17,7 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.scripts.play import load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
+from mjlab.viewer.native import keys as viewer_keys
 
 DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
 DEFAULT_CHECKPOINT = "Mjlab-Velocity-Flat-Alex-V1/model.pt"
@@ -52,18 +54,8 @@ def parse_args() -> argparse.Namespace:
   return parser.parse_args()
 
 
-def _absolutize_assets(spec: mujoco.MjSpec, base_dir: Path) -> None:
-  for tex in spec.textures:
-    if tex.file and not Path(tex.file).is_absolute():
-      tex.file = (base_dir / tex.file).resolve().as_posix()
-  for mesh in spec.meshes:
-    if mesh.file and not Path(mesh.file).is_absolute():
-      mesh.file = (base_dir / mesh.file).resolve().as_posix()
-
-
 def _attach_explore_scene(scene_spec: mujoco.MjSpec, floorplan_xml: Path) -> None:
   floorplan_spec = mujoco.MjSpec.from_file(str(floorplan_xml))
-  _absolutize_assets(floorplan_spec, floorplan_xml.parent)
   frame = scene_spec.worldbody.add_frame()
   scene_spec.attach(floorplan_spec, prefix="room/", frame=frame)
   scene_spec.worldbody.add_camera(
@@ -82,6 +74,76 @@ def _resolve_viewer(viewer: str) -> str:
 
 
 class FixedMainCameraViewer(NativeMujocoViewer):
+  def __init__(self, env, policy):
+    super().__init__(env, policy, key_callback=self._on_manual_key)
+    self.cmd_lin_x = 0.0
+    self.cmd_lin_y = 0.0
+    self.cmd_yaw = 0.0
+    self.lin_step = 0.2
+    self.yaw_step = 0.2
+    # MuJoCo key callback only provides key codes; keep a short-lived latch
+    # when CMD (Super) is pressed so the next arrow key can be treated as CMD+Arrow.
+    self._cmd_latch_until = 0.0
+
+  def _clamp_twist(self) -> None:
+    twist_term = self.env.unwrapped.command_manager.get_term("twist")
+    ranges = twist_term.cfg.ranges
+    self.cmd_lin_x = max(ranges.lin_vel_x[0], min(ranges.lin_vel_x[1], self.cmd_lin_x))
+    self.cmd_lin_y = max(ranges.lin_vel_y[0], min(ranges.lin_vel_y[1], self.cmd_lin_y))
+    self.cmd_yaw = max(ranges.ang_vel_z[0], min(ranges.ang_vel_z[1], self.cmd_yaw))
+
+  def _apply_manual_twist(self) -> None:
+    self._clamp_twist()
+    twist_term = self.env.unwrapped.command_manager.get_term("twist")
+    cmd = twist_term.command
+    cmd[:, 0] = self.cmd_lin_x
+    cmd[:, 1] = self.cmd_lin_y
+    cmd[:, 2] = self.cmd_yaw
+
+  def _on_manual_key(self, key: int) -> None:
+    if key in (viewer_keys.KEY_LEFT_SUPER, viewer_keys.KEY_RIGHT_SUPER):
+      self._cmd_latch_until = time.time() + 0.4
+      return
+
+    cmd_modified = time.time() <= self._cmd_latch_until
+    if key == viewer_keys.KEY_UP and not cmd_modified:
+      self.cmd_lin_x += self.lin_step
+    elif key == viewer_keys.KEY_DOWN and not cmd_modified:
+      self.cmd_lin_x -= self.lin_step
+    elif key == viewer_keys.KEY_LEFT and not cmd_modified:
+      self.cmd_yaw += self.yaw_step
+    elif key == viewer_keys.KEY_RIGHT and not cmd_modified:
+      self.cmd_yaw -= self.yaw_step
+    elif key == viewer_keys.KEY_LEFT and cmd_modified:
+      self.cmd_lin_y += self.lin_step
+      self._cmd_latch_until = 0.0
+    elif key == viewer_keys.KEY_RIGHT and cmd_modified:
+      self.cmd_lin_y -= self.lin_step
+      self._cmd_latch_until = 0.0
+    elif key in (viewer_keys.KEY_BACKSPACE, viewer_keys.KEY_DELETE):
+      self.cmd_lin_x = 0.0
+      self.cmd_lin_y = 0.0
+      self.cmd_yaw = 0.0
+    else:
+      return
+    self._clamp_twist()
+    self.log(
+      f"[twist] x={self.cmd_lin_x:+.2f} y={self.cmd_lin_y:+.2f} yaw={self.cmd_yaw:+.2f}",
+      level=1,
+    )
+
+  def step_simulation(self) -> None:
+    if self._is_paused:
+      return
+    with torch.no_grad():
+      with self._sim_timer.measure_time():
+        self._apply_manual_twist()
+        obs = self.env.get_observations()
+        actions = self.policy(obs)
+        self.env.step(actions)
+        self._step_count += 1
+      self._accumulated_sim_time += self._sim_timer.measured_time
+
   def _setup_camera(self) -> None:
     super()._setup_camera()
     if self.viewer is None or self.mjm is None:
@@ -125,6 +187,10 @@ def main() -> None:
   env_cfg.sim.njmax = args.njmax
   env_cfg.sim.nconmax = args.nconmax
   env_cfg.sim.contact_sensor_maxmatch = args.contact_sensor_maxmatch
+  if "twist" in env_cfg.commands:
+    twist_cmd = env_cfg.commands["twist"]
+    twist_cmd.rel_standing_envs = 0.0
+    twist_cmd.resampling_time_range = (1e9, 1e9)
   if "reset_base" in env_cfg.events:
     env_cfg.events["reset_base"].params["pose_range"] = {
       "x": (1.2, 1.2),
