@@ -60,10 +60,20 @@ Eval:
 
 ## Alex room explore
 
-runs walking tracking policy from
+Runs a walking tracking policy trained in mjlab "Mjlab-Velocity-Flat-Alex-V1", with checkpoint from [here](https://wandb.ai/culurciello/mjlab/runs/ib5nrc31/).
 
-https://wandb.ai/culurciello/mjlab/runs/ib5nrc31/
+Run:
 
+```bash
+mjpython play_alex_room.py
+```
+
+You can control the robot walking with manual "twist" commands:
+
+  - ↑ / ↓: increase/decrease forward velocity (lin_vel_x)
+  - ← / →: increase/decrease yaw rate (ang_vel_z)
+  - CMD + ← / CMD + →: increase/decrease strafe (lin_vel_y)
+  - Delete (or Backspace): reset all twist commands to zero
 
 
 
