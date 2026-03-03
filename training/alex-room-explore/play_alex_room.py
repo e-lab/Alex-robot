@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import argparse
 import os
+from contextlib import nullcontext
 from dataclasses import asdict
 from pathlib import Path
 
-# import mjlab.tasks  # noqa: F401  # Registers tasks.
 import mujoco
 import torch
 from mjlab.envs import ManagerBasedRlEnv
@@ -19,7 +19,7 @@ from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 
 DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
 DEFAULT_CHECKPOINT = "Mjlab-Velocity-Flat-Alex-V1/model.pt"
-DEFAULT_FLOORPLAN_XML = "scenes/ithor/FloorPlan1_physics.xml"
+DEFAULT_FLOORPLAN_XML = "scenes/ithor/FloorPlan1_physics_simple.xml"
 
 
 def parse_args() -> argparse.Namespace:
@@ -70,6 +70,7 @@ def _attach_explore_scene(scene_spec: mujoco.MjSpec, floorplan_xml: Path) -> Non
     name="main",
     pos=(1.640, -2.477, 2.559),
     xyaxes=(0.786, 0.618, -0.000, -0.236, 0.300, 0.924),
+    fovy=90.0,
   )
 
 
@@ -78,6 +79,19 @@ def _resolve_viewer(viewer: str) -> str:
     return viewer
   has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
   return "native" if has_display else "viser"
+
+
+class FixedMainCameraViewer(NativeMujocoViewer):
+  def _setup_camera(self) -> None:
+    super()._setup_camera()
+    if self.viewer is None or self.mjm is None:
+      return
+    main_cam_id = mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_CAMERA, "main")
+    if main_cam_id >= 0:
+      lock_ctx = self.viewer.lock() if hasattr(self.viewer, "lock") else nullcontext()
+      with lock_ctx:
+        self.viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+        self.viewer.cam.fixedcamid = main_cam_id
 
 
 def main() -> None:
@@ -132,7 +146,7 @@ def main() -> None:
   resolved_viewer = _resolve_viewer(args.viewer)
   try:
     if resolved_viewer == "native":
-      NativeMujocoViewer(env, policy).run()
+      FixedMainCameraViewer(env, policy).run()
     else:
       ViserPlayViewer(env, policy).run()
   finally:
