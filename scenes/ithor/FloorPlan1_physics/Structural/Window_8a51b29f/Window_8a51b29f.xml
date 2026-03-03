@@ -1,1 +1,31 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Window_8a51b29f/Window_8a51b29f.xml
+<mujoco model="Window_8a51b29f">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_Glass_Detailed_Lit_Medium_Mat" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 0.10000000000000001"/>
+    <mesh name="Window_8a51b29f_Window_8a51b29f" class="/" file="Window_8a51b29f_Window_8a51b29f/Window_8a51b29f_Window_8a51b29f.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Window_8a51b29f">
+      <body name="Window_8a51b29f_Window_8a51b29f" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Window_8a51b29f_Window_8a51b29f" class="__VISUAL_MJT__" type="mesh" material="material_Glass_Detailed_Lit_Medium_Mat" mesh="Window_8a51b29f_Window_8a51b29f"/>
+        <geom name="Window_8a51b29f_Window_8a51b29f_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.76284825801849365 0.06363300234079361 0.45416027307510376" rgba="0 1 0 1" pos="0.54133635759353638 2.5439999103546143 -1.565281867980957" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

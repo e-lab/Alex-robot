@@ -1,1 +1,42 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/StandardIslandHeight_c3ccfdb2/StandardIslandHeight_c3ccfdb2.xml
+<mujoco model="StandardIslandHeight_c3ccfdb2">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="DarkWoodSmooth" type="2d" file="WoodGrains1.png"/>
+    <material name="material_DarkWoodSmooth" class="/" texture="DarkWoodSmooth" specular="0.5" shininess="0.5" rgba="0.245283 0.1689213 0.11372549999999999 1"/>
+    <texture name="LightWhite" type="2d" file="TexturesCom_MarbleNoisy0062_1_seamless_S.png"/>
+    <material name="material_LightWhite" class="/" texture="LightWhite" specular="0.5" shininess="0.5" rgba="0.88970590000000005 0.88970590000000005 0.88970590000000005 1"/>
+    <material name="material_PureBlack_Wood" class="/" specular="0.5" shininess="0.5" rgba="0 0 0 1"/>
+    <mesh name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_0" class="/" file="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2/StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_0.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_1" class="/" file="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2/StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_1.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_2" class="/" file="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2/StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_2.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="StandardIslandHeight_c3ccfdb2">
+      <body name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_0" class="__VISUAL_MJT__" type="mesh" material="material_DarkWoodSmooth" mesh="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_0"/>
+        <geom name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_1" class="__VISUAL_MJT__" type="mesh" material="material_LightWhite" mesh="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_1"/>
+        <geom name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_2" class="__VISUAL_MJT__" type="mesh" material="material_PureBlack_Wood" mesh="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_2"/>
+        <site name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_Receptacle_0" class="/" type="box" rgba="1 0 0 1" size="0.55278110504150391 0.051499977707862854 1.0110956430435181" pos="0.059099875390529633 1.1531000137329102 -0.0010000020265579224" quat="0 1 0 0"/>
+        <geom name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.49465647339820862 0.021598927676677704 1.0108959674835205" rgba="0 1 0 1" pos="0.17000000178813934 0.017999999225139618 -0.0022773146629333496" quat="0 1 0 0"/>
+        <geom name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.45216718316078186 0.52207344770431519 0.99456667900085449" rgba="0 1 0 1" pos="0.15038956701755524 0.55134207010269165 -0.0022646188735961914" quat="0 1 0 0"/>
+        <geom name="StandardIslandHeight_c3ccfdb2_StandardIslandHeight_c3ccfdb2_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.568195641040802 0.021598927676677704 1.0108959674835205" rgba="0 1 0 1" pos="0.060508415102958679 1.0789999961853027 -0.0022772550582885742" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

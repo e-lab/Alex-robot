@@ -1,1 +1,47 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/StandardWindow1(3)(2)_6f0f1d64/StandardWindow1(3)(2)_6f0f1d64.xml
+<mujoco model="StandardWindow1(3)(2)_6f0f1d64">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_WhitePlastic" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_39ea71ca" class="/" file="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_39ea71ca/StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_39ea71ca.obj" scale="1 1 1" inertia="legacy"/>
+    <material name="material_Glass_Detailed_Lit_Medium_Mat" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 0.10000000000000001"/>
+    <mesh name="StandardWindow1(3)(2)_6f0f1d64_WindowGlass_012dc59a" class="/" file="StandardWindow1(3)(2)_6f0f1d64_WindowGlass_012dc59a/StandardWindow1(3)(2)_6f0f1d64_WindowGlass_012dc59a.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_(2)_6f0f1d64" class="/" file="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_(2)_6f0f1d64/StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_(2)_6f0f1d64.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="StandardWindow1(3)(2)_6f0f1d64_WindowTreatment1_57b62271" class="/" file="StandardWindow1(3)(2)_6f0f1d64_WindowTreatment1_57b62271/StandardWindow1(3)(2)_6f0f1d64_WindowTreatment1_57b62271.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="StandardWindow1(3)(2)_6f0f1d64">
+      <body name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_39ea71ca" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_39ea71ca" class="__VISUAL_MJT__" type="mesh" material="material_WhitePlastic" mesh="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_39ea71ca"/>
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_39ea71ca_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.098247908055782318 0.61812520027160645 0.89919251203536987" rgba="0 1 0 1" pos="2.3031179904937744 1.5200703144073486 -1.2015669345855713" quat="0 1 0 0"/>
+      </body>
+      <body name="StandardWindow1(3)(2)_6f0f1d64_WindowGlass_012dc59a" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_WindowGlass_012dc59a" class="__VISUAL_MJT__" type="mesh" material="material_Glass_Detailed_Lit_Medium_Mat" mesh="StandardWindow1(3)(2)_6f0f1d64_WindowGlass_012dc59a"/>
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_WindowGlass_012dc59a_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.098247908055782318 0.61812520027160645 0.89919251203536987" rgba="0 1 0 1" pos="2.3031179904937744 1.5200703144073486 -1.2015669345855713" quat="0 1 0 0"/>
+      </body>
+      <body name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_(2)_6f0f1d64" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_(2)_6f0f1d64" class="__VISUAL_MJT__" type="mesh" material="material_WhitePlastic" mesh="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_(2)_6f0f1d64"/>
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_StandardWindow1_(3)_(2)_6f0f1d64_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.098247908055782318 0.61812520027160645 0.89919251203536987" rgba="0 1 0 1" pos="2.3031179904937744 1.5200703144073486 -1.2015669345855713" quat="0 1 0 0"/>
+      </body>
+      <body name="StandardWindow1(3)(2)_6f0f1d64_WindowTreatment1_57b62271" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_WindowTreatment1_57b62271" class="__VISUAL_MJT__" type="mesh" material="material_WhitePlastic" mesh="StandardWindow1(3)(2)_6f0f1d64_WindowTreatment1_57b62271"/>
+        <geom name="StandardWindow1(3)(2)_6f0f1d64_WindowTreatment1_57b62271_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.098247908055782318 0.61812520027160645 0.89919251203536987" rgba="0 1 0 1" pos="2.3031179904937744 1.5200703144073486 -1.2015669345855713" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

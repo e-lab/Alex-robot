@@ -1,1 +1,11 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/StandardWindow1(3)(2)_6f0f1d64.mtl
+newmtl WhitePlastic
+Kd 1 1 1
+illum 2
+
+newmtl Glass_Detailed_Lit_Medium_Mat
+Kd 1 1 1
+Tr 1
+d 0
+map_Ks Textures/Glass2MetallicSmoothness.png
+illum 2
+

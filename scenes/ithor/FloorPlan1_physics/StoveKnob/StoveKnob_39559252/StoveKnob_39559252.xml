@@ -1,1 +1,36 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/StoveKnob/StoveKnob_39559252/StoveKnob_39559252.xml
+<mujoco model="StoveKnob_39559252">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_StoveDarkMat" class="/" specular="0.5" shininess="0.5" rgba="0.1245675 0.1323529 0.12844549999999999 1"/>
+    <mesh name="StoveKnob_39559252_StoveKnob1_c008f6a2" class="/" file="StoveKnob_39559252_StoveKnob1_c008f6a2/StoveKnob_39559252_StoveKnob1_c008f6a2.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="StoveKnob_39559252_StoveKnobTurn1_c4a95938" class="/" file="StoveKnob_39559252_StoveKnobTurn1_c4a95938/StoveKnob_39559252_StoveKnobTurn1_c4a95938.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="StoveKnob_39559252">
+      <body name="StoveKnob_39559252_StoveKnob1_c008f6a2" pos="-0 0 0" quat="0.92426142649002496 0.38176015441979294 0 0">
+        <geom name="StoveKnob_39559252_StoveKnob1_c008f6a2" class="__VISUAL_MJT__" type="mesh" material="material_StoveDarkMat" mesh="StoveKnob_39559252_StoveKnob1_c008f6a2"/>
+        <joint name="StoveKnob_39559252_joint" class="/" type="hinge" pos="-0 0 0" axis="0 -1 0" stiffness="0" range="-1.5707963267948966 0" damping="0.10000000000000001" frictionloss="0"/>
+        <geom name="StoveKnob_39559252_StoveKnob1_c008f6a2_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.037558332085609436 0.019739549607038498 0.038340300321578979" rgba="0 1 0 1" pos="-0 0.01119926106184721 -7.0802030904815183e-10" quat="-1.8801222868829202e-07 0.99999999999998246 0 0"/>
+        <body name="StoveKnob_39559252_StoveKnobTurn1_c4a95938" pos="-0 0.014600047841668129 -4.2840838432312012e-08" quat="1 0 0 0">
+          <geom name="StoveKnob_39559252_StoveKnobTurn1_c4a95938" class="__VISUAL_MJT__" type="mesh" material="material_StoveDarkMat" mesh="StoveKnob_39559252_StoveKnobTurn1_c4a95938"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude name="//unnamed_contact_0" body1="StoveKnob_39559252_StoveKnob1_c008f6a2" body2="StoveKnob_39559252_StoveKnobTurn1_c4a95938"/>
+  </contact>
+</mujoco>

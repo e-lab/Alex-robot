@@ -1,1 +1,45 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Drawer/Drawer_8f754799/Drawer_8f754799.xml
+<mujoco model="Drawer_8f754799">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_WhiteWoodClean" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="Drawer_8f754799_Mesh_01_61ff9686" class="/" file="Drawer_8f754799_Mesh_01_61ff9686/Drawer_8f754799_Mesh_01_61ff9686.obj" scale="1 1 1" inertia="legacy"/>
+    <texture name="HammeredMetal_AlbedoTransparency_2" type="2d" file="HammeredMetal_AlbedoTransparency.png"/>
+    <material name="material_HammeredMetal_AlbedoTransparency_2" class="/" texture="HammeredMetal_AlbedoTransparency_2" specular="0.5" shininess="0.5" rgba="1 0.93407709999999999 0.81617649999999997 1"/>
+    <mesh name="Drawer_8f754799_handle_3_178mm_01_11b9f268" class="/" file="Drawer_8f754799_handle_3_178mm_01_11b9f268/Drawer_8f754799_handle_3_178mm_01_11b9f268.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Drawer_8f754799">
+      <body name="Drawer_8f754799_Mesh_01_61ff9686" pos="-0.019500004127621651 -0.024600028991699219 0.0010000485926866531" quat="1 0 0 0">
+        <geom name="Drawer_8f754799_Mesh_01_61ff9686" class="__VISUAL_MJT__" type="mesh" material="material_WhiteWoodClean" mesh="Drawer_8f754799_Mesh_01_61ff9686"/>
+        <joint name="Drawer_8f754799_joint" class="/" type="slide" pos="0.019500004127621651 0.024600028991699219 -0.0010000481270253658" axis="0 0 1" stiffness="0" range="0 0.26100000000000001" damping="0.10000000000000001" frictionloss="0"/>
+        <site name="Drawer_8f754799_Mesh_01_61ff9686_Receptacle_0" class="/" type="box" rgba="1 0 0 1" size="0.17590720951557159 0.040375798940658569 0.17126330733299255" pos="0.014102946035563946 0.0092934966087341309 -0.17965176701545715" quat="0 1 0 0"/>
+        <geom name="Drawer_8f754799_Mesh_01_61ff9686_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.17905448377132416 0.046968776732683182 0.01138788741081953" rgba="0 1 0 1" pos="0.0195000059902668 0.0093400478363037109 0.010400890372693539" quat="0 1 0 0"/>
+        <geom name="Drawer_8f754799_Mesh_01_61ff9686_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.17905448377132416 0.044112864881753922 0.0073814410716295242" rgba="0 1 0 1" pos="0.019499991089105606 0.0069411396980285645 -0.36086231470108032" quat="0 1 0 0"/>
+        <geom name="Drawer_8f754799_Mesh_01_61ff9686_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.19288802146911621 0.043673992156982422 0.0055124815553426743" rgba="0 1 0 1" pos="-0.15326370298862457 0.0073800086975097656 -0.17537355422973633" quat="0 0.70710678118654757 0 0.70710678118654757"/>
+        <geom name="Drawer_8f754799_Mesh_01_61ff9686_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="0.19288811087608337 0.043673992156982422 0.0055124843493103981" rgba="0 1 0 1" pos="0.1919085830450058 0.0073800086975097656 -0.17537359893321991" quat="0 0.70710678118654757 0 0.70710678118654757"/>
+        <geom name="Drawer_8f754799_Mesh_01_61ff9686_PrimitiveCollider_4" class="__DYNAMIC_MJT__" type="box" size="0.1928880512714386 0.17725589871406555 0.0031554084271192551" rgba="0 1 0 1" pos="0.018958371132612228 -0.034046649932861328 -0.17537358403205872" quat="-0.49999994039536055 0.49999999999999822 0.50000005960463589 0.49999999999999822"/>
+        <body name="Drawer_8f754799_handle_3_178mm_01_11b9f268" pos="-1.3038516044616699e-08 0 0.019999982789158821" quat="1 0 0 0">
+          <geom name="Drawer_8f754799_handle_3_178mm_01_11b9f268" class="__VISUAL_MJT__" type="mesh" material="material_HammeredMetal_AlbedoTransparency_2" mesh="Drawer_8f754799_handle_3_178mm_01_11b9f268"/>
+          <geom name="Drawer_8f754799_handle_3_178mm_01_11b9f268_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.088752105832099915 0.0035549115855246782 0.016431532800197601" rgba="0 1 0 1" pos="1.941927507687069e-09 0 0.016290070489048958" quat="0 1 0 0"/>
+          <geom name="Drawer_8f754799_handle_3_178mm_01_11b9f268_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.088752105832099915 0.0077598136849701405 0.0019227261655032635" rgba="0 1 0 1" pos="3.6715022133648745e-09 0.011284887790679932 0.030798796564340591" quat="0 1 0 0"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude name="//unnamed_contact_0" body1="Drawer_8f754799_Mesh_01_61ff9686" body2="Drawer_8f754799_handle_3_178mm_01_11b9f268"/>
+  </contact>
+</mujoco>

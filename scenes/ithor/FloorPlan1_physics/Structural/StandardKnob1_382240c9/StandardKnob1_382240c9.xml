@@ -1,1 +1,35 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/StandardKnob1_382240c9/StandardKnob1_382240c9.xml
+<mujoco model="StandardKnob1_382240c9">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="Copper_AlbedoTransparency" type="2d" file="Copper_AlbedoTransparency.png"/>
+    <material name="material_Copper_AlbedoTransparency" class="/" texture="Copper_AlbedoTransparency" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="StandardKnob1_382240c9_StandardKnob1_382240c9" class="/" file="StandardKnob1_382240c9_StandardKnob1_382240c9/StandardKnob1_382240c9_StandardKnob1_382240c9.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="StandardKnob1_382240c9">
+      <body name="StandardKnob1_382240c9_StandardKnob1_382240c9" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="StandardKnob1_382240c9_StandardKnob1_382240c9" class="__VISUAL_MJT__" type="mesh" material="material_Copper_AlbedoTransparency" mesh="StandardKnob1_382240c9_StandardKnob1_382240c9"/>
+        <geom name="StandardKnob1_382240c9_StandardKnob1_382240c9_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.03026885911822319 0.083424091339111328 0.026651591062545776" rgba="0 1 0 1" pos="0.58859997987747192 0.88700002431869507 2.5" quat="0 1 0 0"/>
+        <geom name="StandardKnob1_382240c9_StandardKnob1_382240c9_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.012208700180053711 0.012162581086158752 0.045925401151180267" rgba="0 1 0 1" pos="0.58859997987747192 0.907867431640625 2.5" quat="0 1 0 0"/>
+        <geom name="StandardKnob1_382240c9_StandardKnob1_382240c9_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="capsule" size="0.02016364224255085 0.00038636475801467896" rgba="0 1 0 1" pos="0.58833521604537964 0.9100000262260437 2.5457000732421875" quat="0.70710678118654746 0.70710678118654757 0 0"/>
+        <geom name="StandardKnob1_382240c9_StandardKnob1_382240c9_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="capsule" size="0.021146368235349655 1.0000000000000001e-05" rgba="0 1 0 1" pos="0.58853518962860107 0.90710002183914185 2.4572999477386475" quat="0.70710678118654746 0.70710678118654757 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

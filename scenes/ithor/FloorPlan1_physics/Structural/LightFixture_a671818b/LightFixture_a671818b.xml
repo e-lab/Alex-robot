@@ -1,1 +1,71 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/LightFixture_a671818b/LightFixture_a671818b.xml
+<mujoco model="LightFixture_a671818b">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_Glass_Detailed_Lit_Medium_Mat" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 0.10000000000000001"/>
+    <texture name="Copper_AlbedoTransparency" type="2d" file="Copper_AlbedoTransparency.png"/>
+    <material name="material_Copper_AlbedoTransparency" class="/" texture="Copper_AlbedoTransparency" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <material name="material_ToasterDarkMat" class="/" specular="0.5" shininess="0.5" rgba="0.048307559999999999 0.047520819999999998 0.05379747 1"/>
+    <material name="material_Light" class="/" specular="0.5" shininess="0.5" rgba="1 0.94411769999999995 0.86029409999999995 1"/>
+    <mesh name="LightFixture_a671818b_LightFixture_a671818b_0" class="/" file="LightFixture_a671818b_LightFixture_a671818b/LightFixture_a671818b_LightFixture_a671818b_0.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="LightFixture_a671818b_LightFixture_a671818b_1" class="/" file="LightFixture_a671818b_LightFixture_a671818b/LightFixture_a671818b_LightFixture_a671818b_1.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="LightFixture_a671818b_LightFixture_a671818b_2" class="/" file="LightFixture_a671818b_LightFixture_a671818b/LightFixture_a671818b_LightFixture_a671818b_2.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="LightFixture_a671818b_LightFixture_a671818b_3" class="/" file="LightFixture_a671818b_LightFixture_a671818b/LightFixture_a671818b_LightFixture_a671818b_3.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="LightFixture_a671818b">
+      <body name="LightFixture_a671818b_LightFixture_a671818b" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_0" class="__VISUAL_MJT__" type="mesh" material="material_Glass_Detailed_Lit_Medium_Mat" mesh="LightFixture_a671818b_LightFixture_a671818b_0"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_1" class="__VISUAL_MJT__" type="mesh" material="material_Copper_AlbedoTransparency" mesh="LightFixture_a671818b_LightFixture_a671818b_1"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_2" class="__VISUAL_MJT__" type="mesh" material="material_ToasterDarkMat" mesh="LightFixture_a671818b_LightFixture_a671818b_2"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_3" class="__VISUAL_MJT__" type="mesh" material="material_Light" mesh="LightFixture_a671818b_LightFixture_a671818b_3"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.044754870235919952 0.010146094486117363 0.099600106477737427" rgba="0 1 0 1" pos="0.099999994039535522 2.4907031059265137 -0.5" quat="0 1 0 0"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.044754870235919952 0.010146094486117363 0.099600106477737427" rgba="0 1 0 1" pos="0.099999994039535522 2.4907031059265137 -0.5" quat="0 0.70710716861662282 0 -0.70710639375626005"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.044754866510629654 0.010146094486117363 0.099600091576576233" rgba="0 1 0 1" pos="0.099999994039535522 2.4907031059265137 -0.5" quat="0 0.3826837590247722 0 -0.92387939720434842"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="0.044754870235919952 0.010146094486117363 0.099600106477737427" rgba="0 1 0 1" pos="0.099999994039535522 2.4907031059265137 -0.5" quat="0 0.92387944627232255 0 -0.38268364056430054"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_4" class="__DYNAMIC_MJT__" type="capsule" size="0.011795935221016407 0.28961301129311323" rgba="0 1 0 1" pos="0.099999994039535522 2.1875855922698975 -0.5" quat="0.65328142145803181 0.65328142145803192 0.27059819729217222 -0.27059819729217227"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_5" class="__DYNAMIC_MJT__" type="capsule" size="0.02753765881061554 1.0000000000000001e-05" rgba="0 1 0 1" pos="0.099999994039535522 1.8879337310791016 -0.5" quat="0.65328142145803181 0.65328142145803192 0.27059819729217222 -0.27059819729217227"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_6" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480955123901367 0.030229024589061737" rgba="0 1 0 1" pos="0.099999994039535522 1.880601167678833 -0.5" quat="0 1 0 0"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_7" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480955123901367 0.030229024589061737" rgba="0 1 0 1" pos="0.099999994039535522 1.880601167678833 -0.5" quat="0 0.70710716861662282 0 -0.70710639375626005"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_8" class="__DYNAMIC_MJT__" type="box" size="0.011454921215772629 0.0032480955123901367 0.030229020863771439" rgba="0 1 0 1" pos="0.099999994039535522 1.880601167678833 -0.5" quat="0 0.3826837590247722 0 -0.92387939720434842"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_9" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480955123901367 0.030229024589061737" rgba="0 1 0 1" pos="0.099999994039535522 1.880601167678833 -0.5" quat="0 0.92387944627232255 0 -0.38268364056430054"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_10" class="__DYNAMIC_MJT__" type="capsule" size="0.031119788065552711 0.015546990558505058" rgba="0 1 0 1" pos="0.099999994039535522 1.8424336910247803 -0.5" quat="0.65328142145803181 0.65328142145803192 0.27059819729217222 -0.27059819729217227"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_11" class="__DYNAMIC_MJT__" type="box" size="0.011454927735030651 0.003248095978051424 0.048705104738473892" rgba="0 1 0 1" pos="0.099999994039535522 1.8348104953765869 -0.4562402069568634" quat="0 0 0.56462786680718169 -0.82534560762432829"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_12" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.003248095978051424 0.048705101013183594" rgba="0 1 0 1" pos="0.099999994039535522 1.8348104953765869 -0.54375982284545898" quat="0.56462786680718169 0.82534560762432829 0 0"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_13" class="__DYNAMIC_MJT__" type="box" size="0.011454921215772629 0.0032480955123901367 0.048705093562602997" rgba="0 1 0 1" pos="0.11371384561061859 1.8348104953765869 -0.45844459533691406" quat="-0.08960984723342473 -0.13098731748194209 0.55747169729439694 -0.81488508677812455"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_14" class="__DYNAMIC_MJT__" type="box" size="0.011454921215772629 0.0032480955123901367 0.048705093562602997" rgba="0 1 0 1" pos="0.086286142468452454 1.8348104953765869 -0.54155540466308594" quat="0.55747169729439694 0.81488508677812455 0.08960984723342473 -0.13098731748194209"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_15" class="__DYNAMIC_MJT__" type="box" size="0.011454927735030651 0.0032480955123901367 0.048705112189054489" rgba="0 1 0 1" pos="0.12679602205753326 1.8348104953765869 -0.46540385484695435" quat="-0.18270228005644074 -0.26706536438564932 0.53425130896241579 -0.78094270396725241"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_16" class="__DYNAMIC_MJT__" type="box" size="0.011454923078417778 0.0032480955123901367 0.048705101013183594" rgba="0 1 0 1" pos="0.073203966021537781 1.8348104953765869 -0.53459614515304565" quat="0.53425130896241579 0.78094270396725241 0.18270228005644074 -0.26706536438564932"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_17" class="__DYNAMIC_MJT__" type="box" size="0.011454924941062927 0.003248095978051424 0.048705104738473892" rgba="0 1 0 1" pos="0.13529318571090698 1.8348104953765869 -0.47412893176078796" quat="-0.25526990063607841 -0.37314114874816606 0.50362876230497933 -0.73618002602576793"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_18" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.003248095978051424 0.048705104738473892" rgba="0 1 0 1" pos="0.064706809818744659 1.8348104953765869 -0.52587109804153442" quat="0.50362876230497933 0.73618002602576793 0.25526990063607841 -0.37314114874816606"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_19" class="__DYNAMIC_MJT__" type="box" size="0.011454925872385502 0.003248095978051424 0.048705104738473892" rgba="0 1 0 1" pos="0.14197434484958649 1.8348104953765869 -0.48762774467468262" quat="-0.33813346229384855 -0.49426707414429566 0.45218402208039071 -0.66098065877089984"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_20" class="__DYNAMIC_MJT__" type="box" size="0.011454924941062927 0.003248095978051424 0.048705104738473892" rgba="0 1 0 1" pos="0.058025632053613663 1.8348104953765869 -0.51237231492996216" quat="0.45218402208039071 0.66098065877089984 0.33813346229384855 -0.49426707414429566"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_21" class="__DYNAMIC_MJT__" type="box" size="0.011454925872385502 0.0032480962108820677 0.048705104738473892" rgba="0 1 0 1" pos="0.1436932384967804 1.8348104953765869 -0.50241243839263916" quat="-0.41010985121944132 -0.59947868307676289 0.38809088357610189 -0.56729241538596165"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_22" class="__DYNAMIC_MJT__" type="box" size="0.011454925872385502 0.0032480962108820677 0.048705104738473892" rgba="0 1 0 1" pos="0.056306738406419754 1.8348104953765869 -0.49758753180503845" quat="0.38809088357610189 0.56729241538596165 0.41010985121944132 -0.59947868307676289"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_23" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480955123901367 0.048705093562602997" rgba="0 1 0 1" pos="0.14107394218444824 1.8348104953765869 -0.51509475708007812" quat="-0.46301987215692536 -0.67681991247790263 0.3231366238250547 -0.4723453465465009"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_24" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480955123901367 0.048705093562602997" rgba="0 1 0 1" pos="0.058926049619913101 1.8348104953765869 -0.48490527272224426" quat="0.3231366238250547 0.4723453465465009 0.46301987215692536 -0.67681991247790263"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_25" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480955123901367 0.048705101013183594" rgba="0 1 0 1" pos="0.13405239582061768 1.8348104953765869 -0.52748370170593262" quat="-0.50942735963853325 -0.74465625162272842 0.2434920178538362 -0.35592480864975906"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_26" class="__DYNAMIC_MJT__" type="box" size="0.011454924941062927 0.0032480955123901367 0.048705101013183594" rgba="0 1 0 1" pos="0.065947592258453369 1.8348104953765869 -0.47251629829406738" quat="0.2434920178538362 0.35592480864975906 0.50942735963853325 -0.74465625162272842"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_27" class="__DYNAMIC_MJT__" type="box" size="0.011454921215772629 0.0032480950467288494 0.048705093562602997" rgba="0 1 0 1" pos="0.1228705421090126 1.8348104953765869 -0.53730762004852295" quat="-0.54341650809533937 -0.79433984734331475 0.15330733584660886 -0.22409722539041504"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_28" class="__DYNAMIC_MJT__" type="box" size="0.011454921215772629 0.0032480950467288494 0.048705089837312698" rgba="0 1 0 1" pos="0.077129445970058441 1.8348104953765869 -0.46269237995147705" quat="0.15330733584660886 0.22409722539041504 0.54341650809533937 -0.79433984734331475"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_29" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480950467288494 0.048705093562602997" rgba="0 1 0 1" pos="0.11095008254051208 1.8348104953765869 -0.54236763715744019" quat="-0.56011909386201053 -0.81875491346562002 0.071212515412630864 -0.10409500475868795"/>
+        <geom name="LightFixture_a671818b_LightFixture_a671818b_PrimitiveCollider_30" class="__DYNAMIC_MJT__" type="box" size="0.011454922147095203 0.0032480950467288494 0.048705093562602997" rgba="0 1 0 1" pos="0.08904990553855896 1.8348104953765869 -0.45763236284255981" quat="0.071212515412630864 0.10409500475868795 0.56011909386201053 -0.81875491346562002"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

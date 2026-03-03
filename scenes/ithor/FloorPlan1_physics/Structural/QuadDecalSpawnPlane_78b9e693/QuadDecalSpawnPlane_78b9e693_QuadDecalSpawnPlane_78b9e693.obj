@@ -1,1 +1,30 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/QuadDecalSpawnPlane_78b9e693/QuadDecalSpawnPlane_78b9e693_QuadDecalSpawnPlane_78b9e693.obj
+mtllib QuadDecalSpawnPlane_78b9e693.mtl
+v 2.205 0.9385 -1.25524
+v 2.205 0.9385 -1.94274
+v 2.205 2.0135 -1.25524
+v 2.205 2.0135 -1.94274
+v 2.205 0.9385 -1.25524
+v 2.205 0.9385 -1.94274
+v 2.205 2.0135 -1.25524
+v 2.205 2.0135 -1.94274
+vt 0 0
+vt 1 0
+vt 0 1
+vt 1 1
+vt 0 0
+vt 1 0
+vt 0 1
+vt 1 1
+vn 2.821828 1.476 -1.599
+vn 2.821828 1.476 -1.599
+vn 2.821828 1.476 -1.599
+vn 2.821828 1.476 -1.599
+vn 2.821828 1.476 -1.599
+vn 2.821828 1.476 -1.599
+vn 2.821828 1.476 -1.599
+vn 2.821828 1.476 -1.599
+usemtl GlassDecalStencil (Instance)
+f 2/2/2 4/4/4 1/1/1
+f 3/3/3 1/1/1 4/4/4
+f 6/6/6 8/8/8 5/5/5
+f 7/7/7 5/5/5 8/8/8

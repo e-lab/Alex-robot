@@ -1,1 +1,7 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Faucet_1000141d.mtl
+newmtl HammeredMetal_AlbedoTransparency
+Kd 1 1 1
+map_Kd Textures/HammeredMetal_MetallicSmoothness.png
+map_Ks Textures/HammeredMetal_MetallicSmoothness.png
+map_Bump Textures/HammeredMetal_Normal.png
+illum 2
+

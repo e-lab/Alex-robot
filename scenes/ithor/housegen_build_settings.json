@@ -1,1 +1,30 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/housegen_build_settings.json
+{
+    "flavor": "ithor",
+    "split": "train",
+    "assets_dir": "/home/gregor/workspace/ai2/mujoco-thor-worktree/wp-masses-fix-attempt-1/assets",
+    "target_dir": "/home/gregor/workspace/ai2/mujoco-thor-worktree/wp-masses-fix-attempt-1/assets/scenes/ithor",
+    "save_dir": "/home/gregor/workspace/ai2/mujoco-thor-worktree/wp-masses-fix-attempt-1/assets/scenes/ithor",
+    "objaverse_mjcf_dir": "assets/objects/objaverse",
+    "objaverse_data_dir": "assets/objaverse",
+    "save_procthor_json": false,
+    "bundle_assets": false,
+    "bundle_patterns": [
+        "objects/thor"
+    ],
+    "identifier": "121825",
+    "param_geom_margin": 0.001,
+    "param_freejoint_damping": 0.001,
+    "param_freejoint_frictionloss": 0.001,
+    "use_sleep_island": false,
+    "settle_time": 20.0,
+    "copy_original": false,
+    "copy_non_settled": false,
+    "use_presaved_houses": false,
+    "presaved_houses_json": "",
+    "export_lights": false,
+    "usd_remove_sites": false,
+    "start_datetime": "121825-133504",
+    "end_datetime": "121825-133805",
+    "mujoco-version": "3.4.0",
+    "datetime": "12-18-25 13:38:05"
+}

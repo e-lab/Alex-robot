@@ -1,1 +1,49 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Wall_ad20b7dd/Wall_ad20b7dd.xml
+<mujoco model="Wall_ad20b7dd">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_WhiteWood1" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <texture name="YellowDrywall" type="2d" file="WallDrywallWhite.png"/>
+    <material name="material_YellowDrywall" class="/" texture="YellowDrywall" specular="0.5" shininess="0.5" rgba="1 0.77105250000000003 0.36029410000000001 1"/>
+    <mesh name="Wall_ad20b7dd_Wall_ad20b7dd_0" class="/" file="Wall_ad20b7dd_Wall_ad20b7dd/Wall_ad20b7dd_Wall_ad20b7dd_0.obj" scale="1 1 1" inertia="shell"/>
+    <mesh name="Wall_ad20b7dd_Wall_ad20b7dd_1" class="/" file="Wall_ad20b7dd_Wall_ad20b7dd/Wall_ad20b7dd_Wall_ad20b7dd_1.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Wall_ad20b7dd">
+      <body name="Wall_ad20b7dd_Wall_ad20b7dd" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_0" class="__VISUAL_MJT__" type="mesh" material="material_WhiteWood1" mesh="Wall_ad20b7dd_Wall_ad20b7dd_0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_1" class="__VISUAL_MJT__" type="mesh" material="material_YellowDrywall" mesh="Wall_ad20b7dd_Wall_ad20b7dd_1"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.058926820755004883 1.2556371688842773 1.4436917304992676" rgba="0 1 0 1" pos="-2.3834192752838135 1.2548363208770752 -1.4539922475814819" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.058926820755004883 0.29722785949707031 0.43272072076797485" rgba="0 1 0 1" pos="-2.3834192752838135 2.2132458686828613 0.40156158804893494" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.058926820755004883 1.2556371688842773 0.84405887126922607" rgba="0 1 0 1" pos="-2.3834192752838135 1.2548363208770752 1.6576406955718994" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="1.1010087728500366 1.2556371688842773 0.05351412296295166" rgba="0 1 0 1" pos="-1.3413373231887817 1.2548363208770752 2.4481854438781738" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_4" class="__DYNAMIC_MJT__" type="box" size="0.44097900390625 0.2423100471496582 0.05351412296295166" rgba="0 1 0 1" pos="0.19591188430786133 2.2681632041931152 2.4481854438781738" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_5" class="__DYNAMIC_MJT__" type="box" size="0.87643283605575562 1.2556371688842773 0.05351412296295166" rgba="0 1 0 1" pos="1.5162384510040283 1.2548363208770752 2.4481854438781738" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_6" class="__DYNAMIC_MJT__" type="box" size="0.095880031585693359 1.2556371688842773 0.46421408653259277" rgba="0 1 0 1" pos="2.2967910766601562 1.2548363208770752 2.0374855995178223" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_7" class="__DYNAMIC_MJT__" type="box" size="0.095880031585693359 0.19334542751312256 0.54199200868606567" rgba="0 1 0 1" pos="2.2967910766601562 2.3171277046203613 1.0424853563308716" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_8" class="__DYNAMIC_MJT__" type="box" size="0.085004091262817383 1.0630099773406982 0.54199200868606567" rgba="0 1 0 1" pos="2.423914909362793 1.0622091293334961 1.042485237121582" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_9" class="__DYNAMIC_MJT__" type="box" size="0.095880031585693359 1.2556371688842773 0.46421408653259277" rgba="0 1 0 1" pos="2.2967910766601562 1.2548363208770752 0.050485402345657349" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_10" class="__DYNAMIC_MJT__" type="box" size="0.095880031585693359 0.19636225700378418 0.8116755485534668" rgba="0 1 0 1" pos="2.2967910766601562 2.3141114711761475 -1.202039361000061" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_11" class="__DYNAMIC_MJT__" type="box" size="0.095880031585693359 0.44214880466461182 0.8116755485534668" rgba="0 1 0 1" pos="2.2967910766601562 0.44134795665740967 -1.202039361000061" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_12" class="__DYNAMIC_MJT__" type="box" size="0.095880031585693359 1.2556371688842773 0.45233571529388428" rgba="0 1 0 1" pos="2.2967910766601562 1.2548363208770752 -2.4493927955627441" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_13" class="__DYNAMIC_MJT__" type="box" size="2.4148421287536621 1.2556371688842773 0.056403517723083496" rgba="0 1 0 1" pos="-0.0221710205078125 1.2548363208770752 -2.8453249931335449" quat="0 1 0 0"/>
+        <geom name="Wall_ad20b7dd_Wall_ad20b7dd_PrimitiveCollider_14" class="__DYNAMIC_MJT__" type="box" size="0.095880031585693359 0.022939205169677734 0.54199200868606567" rgba="0 1 0 1" pos="2.2967910766601562 0.021721363067626953 1.0424853563308716" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

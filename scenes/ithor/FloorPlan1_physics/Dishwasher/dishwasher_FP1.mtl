@@ -1,1 +1,12 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Dishwasher/dishwasher_FP1.mtl
+newmtl HammeredMetal_AlbedoTransparency
+Kd 1 1 1
+map_Kd Textures/HammeredMetal_MetallicSmoothness.png
+map_Ks Textures/HammeredMetal_MetallicSmoothness.png
+map_Bump Textures/HammeredMetal_Normal.png
+illum 2
+
+newmtl FloorKitchen1Texturetest_DefaultMaterial_MetallicSmoothness_mat
+Kd 1 1 1
+map_Ks Textures/FloorKitchen1Texturetest_DefaultMaterial_MetallicSmoothness.png
+illum 2
+

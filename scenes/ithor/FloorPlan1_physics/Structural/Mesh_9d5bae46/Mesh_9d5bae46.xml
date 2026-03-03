@@ -1,1 +1,33 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Mesh_9d5bae46/Mesh_9d5bae46.xml
+<mujoco model="Mesh_9d5bae46">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="HammeredMetal_AlbedoTransparency" type="2d" file="HammeredMetal_MetallicSmoothness.png"/>
+    <material name="material_HammeredMetal_AlbedoTransparency" class="/" texture="HammeredMetal_AlbedoTransparency" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="Mesh_9d5bae46_Mesh_9d5bae46" class="/" file="Mesh_9d5bae46_Mesh_9d5bae46/Mesh_9d5bae46_Mesh_9d5bae46.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Mesh_9d5bae46">
+      <body name="Mesh_9d5bae46_Mesh_9d5bae46" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Mesh_9d5bae46_Mesh_9d5bae46" class="__VISUAL_MJT__" type="mesh" material="material_HammeredMetal_AlbedoTransparency" mesh="Mesh_9d5bae46_Mesh_9d5bae46"/>
+        <site name="Mesh_9d5bae46_Mesh_9d5bae46_Receptacle_0" class="/" type="box" rgba="1 0 0 1" size="0.064072906970977783 0.061772003769874573 0.060816116631031036" pos="0.050243407487869263 0.98300904035568237 -2.60064697265625" quat="0 1 0 0"/>
+        <geom name="Mesh_9d5bae46_Mesh_9d5bae46_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.1012992262840271 0.10129908472299576 0.016042297706007957" rgba="0 1 0 1" pos="0.049300000071525574 0.93236714601516724 -2.5987000465393066" quat="0.70710684079119079 0.70710672158189924 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,1 +1,33 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Door_96dbc7e4/Door_96dbc7e4.xml
+<mujoco model="Door_96dbc7e4">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="WornWood" type="2d" file="TexturesCom_WornWood2_albedo_S.png"/>
+    <material name="material_WornWood" class="/" texture="WornWood" specular="0.5" shininess="0.5" rgba="0.51470590000000005 0.39119739999999997 0.17030709999999999 1"/>
+    <mesh name="Door_96dbc7e4_Door_96dbc7e4" class="/" file="Door_96dbc7e4_Door_96dbc7e4/Door_96dbc7e4_Door_96dbc7e4.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Door_96dbc7e4">
+      <body name="Door_96dbc7e4_Door_96dbc7e4" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Door_96dbc7e4_Door_96dbc7e4" class="__VISUAL_MJT__" type="mesh" material="material_WornWood" mesh="Door_96dbc7e4_Door_96dbc7e4"/>
+        <geom name="Door_96dbc7e4_Door_96dbc7e4_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.42499998211860657 1 0.0279999990016222" rgba="0 1 0 1" pos="0.19999998807907104 1 2.5" quat="0 1 0 0"/>
+        <geom name="Door_96dbc7e4_Door_96dbc7e4_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.42974492907524109 1.0030472278594971 0.027886640280485153" rgba="0 1 0 1" pos="0.19999998807907104 0.99930685758590698 2.5" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

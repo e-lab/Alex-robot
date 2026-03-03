@@ -1,1 +1,40 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/SinkMesh_f73808d7/SinkMesh_f73808d7.xml
+<mujoco model="SinkMesh_f73808d7">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="HammeredMetal_AlbedoTransparency" type="2d" file="HammeredMetal_MetallicSmoothness.png"/>
+    <material name="material_HammeredMetal_AlbedoTransparency" class="/" texture="HammeredMetal_AlbedoTransparency" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="SinkMesh_f73808d7_SinkMesh_f73808d7" class="/" file="SinkMesh_f73808d7_SinkMesh_f73808d7/SinkMesh_f73808d7_SinkMesh_f73808d7.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="SinkMesh_f73808d7">
+      <body name="SinkMesh_f73808d7_SinkMesh_f73808d7" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7" class="__VISUAL_MJT__" type="mesh" material="material_HammeredMetal_AlbedoTransparency" mesh="SinkMesh_f73808d7_SinkMesh_f73808d7"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.34311312437057495 0.083181947469711304 0.018636405467987061" rgba="0 1 0 1" pos="1.6825391054153442 0.82319355010986328 -1.4969609975814819" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.36193424463272095 0.015107691287994385 0.20915225148200989" rgba="0 1 0 1" pos="1.9009431600570679 0.75511926412582397 -1.5028426647186279" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.34311312437057495 0.083181947469711304 0.018636405467987061" rgba="0 1 0 1" pos="2.1245391368865967 0.82319355010986328 -1.4969608783721924" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="0.22446227073669434 0.083181947469711304 0.018636405467987061" rgba="0 1 0 1" pos="1.8944568634033203 0.82319355010986328 -1.133539080619812" quat="-5.9556997004060113e-23 0.99999999999982236 -1.2246471036423331e-16 -5.9604637669953527e-07"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_4" class="__DYNAMIC_MJT__" type="box" size="0.22754241526126862 0.083181947469711304 0.018636405467987061" rgba="0 1 0 1" pos="1.8980731964111328 0.82319355010986328 -1.8745391368865967" quat="-5.9556997004060113e-23 0.99999999999982236 -1.2246471036423331e-16 -5.9604637669953527e-07"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_5" class="__DYNAMIC_MJT__" type="box" size="0.42302519083023071 0.0043002665042877197 0.021647162735462189" rgba="0 1 0 1" pos="1.6429431438446045 0.90331184864044189 -1.5028426647186279" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_6" class="__DYNAMIC_MJT__" type="box" size="0.42302519083023071 0.0043002665042877197 0.021647162735462189" rgba="0 1 0 1" pos="2.1529431343078613 0.90331184864044189 -1.5028425455093384" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_7" class="__DYNAMIC_MJT__" type="box" size="0.27911245822906494 0.0043002665042877197 0.021647172048687935" rgba="0 1 0 1" pos="1.8978426456451416 0.90331184864044189 -1.9030568599700928" quat="1.2246471036425419e-16 -1.1920927533992738e-07 5.2939552892506906e-23 0.99999999999999289"/>
+        <geom name="SinkMesh_f73808d7_SinkMesh_f73808d7_PrimitiveCollider_8" class="__DYNAMIC_MJT__" type="box" size="0.27911245822906494 0.0043002665042877197 0.021647172048687935" rgba="0 1 0 1" pos="1.8978425264358521 0.90331184864044189 -1.0980567932128906" quat="1.2246471036425419e-16 -1.1920927533992738e-07 5.2939552892506906e-23 0.99999999999999289"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

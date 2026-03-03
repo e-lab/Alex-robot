@@ -1,1 +1,62 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/UpperCabinets_22fd18a8/UpperCabinets_22fd18a8.xml
+<mujoco model="UpperCabinets_22fd18a8">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_WhiteWoodClean" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8" class="/" file="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8/UpperCabinets_22fd18a8_UpperCabinets_22fd18a8.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="UpperCabinets_22fd18a8">
+      <body name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8" class="__VISUAL_MJT__" type="mesh" material="material_WhiteWoodClean" mesh="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8"/>
+        <site name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_Receptacle_0" class="/" type="box" rgba="1 0 0 1" size="0.22385676205158234 0.36528986692428589 0.14533472061157227" pos="-0.95181053876876831 2.0162899494171143 -2.6006653308868408" quat="0 1 0 0"/>
+        <site name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_Receptacle_1" class="/" type="box" rgba="1 0 0 1" size="0.21943353116512299 0.36130154132843018 0.14265561103820801" pos="-0.45112630724906921 2.0113015174865723 -2.596644401550293" quat="0 1 0 0"/>
+        <site name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_Receptacle_2" class="/" type="box" rgba="1 0 0 1" size="0.23100362718105316 0.36549067497253418 0.14396512508392334" pos="0.9558873176574707 2.0117907524108887 -2.6047348976135254" quat="0 1 0 0"/>
+        <site name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_Receptacle_3" class="/" type="box" rgba="1 0 0 1" size="0.2211918830871582 0.36378130316734314 0.14652752876281738" pos="1.4570145606994629 2.012099027633667 -2.6046090126037598" quat="0 1 0 0"/>
+        <site name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_Receptacle_4" class="/" type="box" rgba="1 0 0 1" size="0.28206542134284973 0.37078210711479187 0.14987480640411377" pos="2.0118317604064941 2.0093469619750977 0.10080169141292572" quat="0 0.70710678118654757 0 0.70710678118654757"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.023277163505554199 0.37876635789871216 0.2889653742313385" rgba="0 1 0 1" pos="2.1670336723327637 2.0140774250030518 0.10151279717683792" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.17035567760467529 0.40167140960693359 0.02003788948059082" rgba="0 1 0 1" pos="2.0273337364196777 2.017939567565918 -0.18299999833106995" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.16783219575881958 0.016549214720726013 0.30587506294250488" rgba="0 1 0 1" pos="2.0224788188934326 1.628077507019043 0.10089156776666641" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="0.17035567760467529 1.0793757438659668 0.027918152511119843" rgba="0 1 0 1" pos="2.0273337364196777 1.0834207534790039 0.43566557765007019" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_4" class="__DYNAMIC_MJT__" type="box" size="0.17035567760467529 1.0793757438659668 0.027918152511119843" rgba="0 1 0 1" pos="2.0273337364196777 1.0834207534790039 1.6336655616760254" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_5" class="__DYNAMIC_MJT__" type="box" size="0.17799121141433716 0.052411410957574844 1.9639127254486084" rgba="0 1 0 1" pos="2.012319803237915 2.449049711227417 -0.25810611248016357" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_6" class="__DYNAMIC_MJT__" type="box" size="0.17035567760467529 0.40167140960693359 0.02003788948059082" rgba="0 1 0 1" pos="2.0273337364196777 2.017939567565918 0.3919999897480011" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_7" class="__DYNAMIC_MJT__" type="box" size="0.17035567760467529 0.15192303061485291 0.63417160511016846" rgba="0 1 0 1" pos="2.0273337364196777 2.2823057174682617 1.0329999923706055" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_8" class="__DYNAMIC_MJT__" type="box" size="0.013635814189910889 0.10573065280914307 0.29535883665084839" rgba="0 1 0 1" pos="1.8530000448226929 2.2650001049041748 0.72000002861022949" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_9" class="__DYNAMIC_MJT__" type="box" size="0.013635814189910889 0.10573065280914307 0.29535883665084839" rgba="0 1 0 1" pos="1.8530000448226929 2.2650001049041748 1.3600000143051147" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_10" class="__DYNAMIC_MJT__" type="box" size="0.17035567760467529 0.14653113484382629 0.99540209770202637" rgba="0 1 0 1" pos="2.0273337364196777 2.2876975536346436 -1.1891199350357056" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_11" class="__DYNAMIC_MJT__" type="box" size="0.013635814189910889 0.11112076044082642 0.47570508718490601" rgba="0 1 0 1" pos="1.8530000448226929 2.2703902721405029 -1.6926407814025879" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_12" class="__DYNAMIC_MJT__" type="box" size="0.013635814189910889 0.11130094528198242 0.48252001404762268" rgba="0 1 0 1" pos="1.8530000448226929 2.2729377746582031 -0.70174312591552734" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_13" class="__DYNAMIC_MJT__" type="box" size="1.695914626121521 0.052411410957574844 0.183349609375" rgba="0 1 0 1" pos="0.47057637572288513 2.4430000782012939 -2.6187894344329834" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_14" class="__DYNAMIC_MJT__" type="box" size="0.45952942967414856 0.012195050716400146 0.22846126556396484" rgba="0 1 0 1" pos="0.25232124328613281 1.6782426834106445 -2.5736777782440186" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_15" class="__DYNAMIC_MJT__" type="box" size="0.48532035946846008 0.01194608211517334 0.17127764225006104" rgba="0 1 0 1" pos="-0.69958841800689697 1.6334916353225708 -2.6308612823486328" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_16" class="__DYNAMIC_MJT__" type="box" size="0.48532035946846008 0.01194608211517334 0.17127764225006104" rgba="0 1 0 1" pos="1.1984115839004517 1.6334916353225708 -2.6308612823486328" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_17" class="__DYNAMIC_MJT__" type="box" size="0.49058258533477783 0.39212411642074585 0.029196977615356445" rgba="0 1 0 1" pos="-0.70273774862289429 2.0205650329589844 -2.772942066192627" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_18" class="__DYNAMIC_MJT__" type="box" size="0.014868631958961487 0.38949295878410339 0.17127764225006104" rgba="0 1 0 1" pos="-1.1859999895095825 2.0139999389648438 -2.6289999485015869" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_19" class="__DYNAMIC_MJT__" type="box" size="0.028875477612018585 0.38949295878410339 0.17127764225006104" rgba="0 1 0 1" pos="-0.70199316740036011 2.0139999389648438 -2.6289999485015869" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_20" class="__DYNAMIC_MJT__" type="box" size="0.014868631958961487 0.38949295878410339 0.17127764225006104" rgba="0 1 0 1" pos="-0.2160000205039978 2.0139999389648438 -2.6289999485015869" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_21" class="__DYNAMIC_MJT__" type="box" size="0.49058258533477783 0.39212411642074585 0.029196977615356445" rgba="0 1 0 1" pos="1.1962622404098511 2.0205650329589844 -2.772942066192627" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_22" class="__DYNAMIC_MJT__" type="box" size="0.014868631958961487 0.38949295878410339 0.17127764225006104" rgba="0 1 0 1" pos="0.71299993991851807 2.0139999389648438 -2.6289999485015869" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_23" class="__DYNAMIC_MJT__" type="box" size="0.028875477612018585 0.38949295878410339 0.17127764225006104" rgba="0 1 0 1" pos="1.2070068120956421 2.0139999389648438 -2.6289999485015869" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_24" class="__DYNAMIC_MJT__" type="box" size="0.23436194658279419 0.38949295878410339 0.17127764225006104" rgba="0 1 0 1" pos="1.9087977409362793 2.0139999389648438 -2.6289999485015869" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_25" class="__DYNAMIC_MJT__" type="box" size="0.45952942967414856 0.13148185610771179 0.1711573600769043" rgba="0 1 0 1" pos="0.25232124328613281 2.2692427635192871 -2.6309816837310791" quat="0 1 0 0"/>
+        <geom name="UpperCabinets_22fd18a8_UpperCabinets_22fd18a8_PrimitiveCollider_26" class="__DYNAMIC_MJT__" type="box" size="0.42371606826782227 0.10824939608573914 0.14091435074806213" rgba="0 1 0 1" pos="0.25232124328613281 2.2692427635192871 -2.6309816837310791" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,1 +1,53 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Cabinet/Cabinet_83d77a74/Cabinet_83d77a74.xml
+<mujoco model="Cabinet_83d77a74">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_WhiteWoodClean" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="Cabinet_83d77a74_CabinetDoorMesh_01_381862aa" class="/" file="Cabinet_83d77a74_CabinetDoorMesh_01_381862aa/Cabinet_83d77a74_CabinetDoorMesh_01_381862aa.obj" scale="1 1 1" inertia="legacy"/>
+    <texture name="HammeredMetal_AlbedoTransparency_2" type="2d" file="HammeredMetal_AlbedoTransparency.png"/>
+    <material name="material_HammeredMetal_AlbedoTransparency_2" class="/" texture="HammeredMetal_AlbedoTransparency_2" specular="0.5" shininess="0.5" rgba="1 0.93407709999999999 0.81617649999999997 1"/>
+    <mesh name="Cabinet_83d77a74_handle_3_178mm_01_0553cc10" class="/" file="Cabinet_83d77a74_handle_3_178mm_01_0553cc10/Cabinet_83d77a74_handle_3_178mm_01_0553cc10.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb" class="/" file="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb/Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="Cabinet_83d77a74_handle_3_178mm_02_9244d589" class="/" file="Cabinet_83d77a74_handle_3_178mm_02_9244d589/Cabinet_83d77a74_handle_3_178mm_02_9244d589.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Cabinet_83d77a74">
+      <body name="Cabinet_83d77a74_CabinetDoorMesh_01_381862aa" pos="-0 0 0" quat="0.70710678118654757 0 -0.70710678118654746 0">
+        <geom name="Cabinet_83d77a74_CabinetDoorMesh_01_381862aa" class="__VISUAL_MJT__" type="mesh" material="material_WhiteWoodClean" mesh="Cabinet_83d77a74_CabinetDoorMesh_01_381862aa"/>
+        <joint name="Cabinet_83d77a74_joint" class="/" type="hinge" pos="-0 0 0" axis="0 -1 0" stiffness="0" range="-1.5707963267948966 0" damping="0.10000000000000001" frictionloss="0"/>
+        <geom name="Cabinet_83d77a74_CabinetDoorMesh_01_381862aa_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.14506600797176361 0.37472903728485107 0.015462031587958336" rgba="0 1 0 1" pos="-0.1353733092546463 0.0026938915252685547 0.013115900568664074" quat="0 1 0 0"/>
+        <body name="Cabinet_83d77a74_handle_3_178mm_01_0553cc10" pos="-0.21400006115436554 -0.22420001029968262 0.010000020265579224" quat="0.70710678118654757 0 0 -0.70710678118654746">
+          <geom name="Cabinet_83d77a74_handle_3_178mm_01_0553cc10" class="__VISUAL_MJT__" type="mesh" material="material_HammeredMetal_AlbedoTransparency_2" mesh="Cabinet_83d77a74_handle_3_178mm_01_0553cc10"/>
+          <geom name="Cabinet_83d77a74_handle_3_178mm_01_0553cc10_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.088752113282680511 0.0035549132153391838 0.016431534662842751" rgba="0 1 0 1" pos="3.8838443572331016e-09 -7.1335115592319198e-09 0.016289953142404556" quat="0 1 0 0"/>
+          <geom name="Cabinet_83d77a74_handle_3_178mm_01_0553cc10_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.088752113282680511 0.0077598174102604389 0.0019227263983339071" rgba="0 1 0 1" pos="-6.1096301351426519e-09 0.011284905485808849 0.030798792839050293" quat="0 1 0 0"/>
+        </body>
+      </body>
+      <body name="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb" pos="-0 0 -0.57150006294250488" quat="0.70710678118654757 0 -0.70710678118654746 0">
+        <geom name="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb" class="__VISUAL_MJT__" type="mesh" material="material_WhiteWoodClean" mesh="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb"/>
+        <joint name="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb__1" class="/" type="hinge" pos="-0 0 0" axis="0 -1 0" stiffness="0" range="0 1.5707963267948966" damping="0.10000000000000001" frictionloss="0"/>
+        <geom name="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.14415575563907623 0.37472903728485107 0.015462031587958336" rgba="0 1 0 1" pos="0.14569850265979767 0.0026938915252685547 0.013115986250340939" quat="0 1 0 0"/>
+        <body name="Cabinet_83d77a74_handle_3_178mm_02_9244d589" pos="0.2234000563621521 -0.22399997711181641 0.0099999606609344482" quat="0.70710678118654757 0 0 0.70710678118654746">
+          <geom name="Cabinet_83d77a74_handle_3_178mm_02_9244d589" class="__VISUAL_MJT__" type="mesh" material="material_HammeredMetal_AlbedoTransparency_2" mesh="Cabinet_83d77a74_handle_3_178mm_02_9244d589"/>
+          <geom name="Cabinet_83d77a74_handle_3_178mm_02_9244d589_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.088752083480358124 0.0035549120511859655 0.016431532800197601" rgba="0 1 0 1" pos="3.8838159355236712e-09 1.232497837122537e-08 0.016290070489048958" quat="0 1 0 0"/>
+          <geom name="Cabinet_83d77a74_handle_3_178mm_02_9244d589_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.088752083480358124 0.0077598146162927151 0.0019227261655032635" rgba="0 1 0 1" pos="-7.4549326711803587e-09 0.011284885928034782 0.030798809602856636" quat="0 1 0 0"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude name="//unnamed_contact_0" body1="Cabinet_83d77a74_CabinetDoorMesh_01_381862aa" body2="Cabinet_83d77a74_handle_3_178mm_01_0553cc10"/>
+    <exclude name="//unnamed_contact_1" body1="Cabinet_83d77a74_CabinetDoorMesh_02_bf5159cb" body2="Cabinet_83d77a74_handle_3_178mm_01_0553cc10"/>
+  </contact>
+</mujoco>

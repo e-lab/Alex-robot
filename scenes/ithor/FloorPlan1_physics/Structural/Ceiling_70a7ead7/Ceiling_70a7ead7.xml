@@ -1,1 +1,35 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Ceiling_70a7ead7/Ceiling_70a7ead7.xml
+<mujoco model="Ceiling_70a7ead7">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="Drywall3" type="2d" file="WallDrywallWhite.png"/>
+    <material name="material_Drywall3" class="/" texture="Drywall3" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="Ceiling_70a7ead7_Ceiling_70a7ead7" class="/" file="Ceiling_70a7ead7_Ceiling_70a7ead7/Ceiling_70a7ead7_Ceiling_70a7ead7.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Ceiling_70a7ead7">
+      <body name="Ceiling_70a7ead7_Ceiling_70a7ead7" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Ceiling_70a7ead7_Ceiling_70a7ead7" class="__VISUAL_MJT__" type="mesh" material="material_Drywall3" mesh="Ceiling_70a7ead7_Ceiling_70a7ead7"/>
+        <geom name="Ceiling_70a7ead7_Ceiling_70a7ead7_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="2.4146480560302734 0.06363300234079361 1.7977465391159058" rgba="0 1 0 1" pos="-0.012663841247558594 2.5439999103546143 0.69785416126251221" quat="0 1 0 0"/>
+        <geom name="Ceiling_70a7ead7_Ceiling_70a7ead7_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="2.4146480560302734 0.06363300234079361 0.45659637451171875" rgba="0 1 0 1" pos="-0.012663841247558594 2.5439999103546143 -2.4629154205322266" quat="0 1 0 0"/>
+        <geom name="Ceiling_70a7ead7_Ceiling_70a7ead7_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.5558437705039978 0.06363300234079361 0.49798864126205444" rgba="0 1 0 1" pos="1.8429114818572998 2.5439999103546143 -1.565281867980957" quat="0 1 0 0"/>
+        <geom name="Ceiling_70a7ead7_Ceiling_70a7ead7_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="1.1202998161315918 0.06363300234079361 0.49798864126205444" rgba="0 1 0 1" pos="-1.3126637935638428 2.5439999103546143 -1.565281867980957" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

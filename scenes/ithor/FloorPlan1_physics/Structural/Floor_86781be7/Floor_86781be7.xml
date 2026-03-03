@@ -1,1 +1,35 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Floor_86781be7/Floor_86781be7.xml
+<mujoco model="Floor_86781be7">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="TexturesCom_WoodFine0038_1_seamless_S" type="2d" file="TexturesCom_WoodFine0038_1_seamless_albedo_S.png"/>
+    <material name="material_TexturesCom_WoodFine0038_1_seamless_S" class="/" texture="TexturesCom_WoodFine0038_1_seamless_S" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="Floor_86781be7_mesh_72f6a7fa" class="/" file="Floor_86781be7_mesh_72f6a7fa/Floor_86781be7_mesh_72f6a7fa.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Floor_86781be7">
+      <body name="Floor_86781be7_mesh_72f6a7fa" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Floor_86781be7_mesh_72f6a7fa" class="__VISUAL_MJT__" type="mesh" material="material_TexturesCom_WoodFine0038_1_seamless_S" mesh="Floor_86781be7_mesh_72f6a7fa"/>
+        <site name="Floor_86781be7_mesh_72f6a7fa_Receptacle_0" class="/" type="box" rgba="1 0 0 1" size="1.9751672744750977 0.064627379179000854 2.3339455127716064" pos="-0.45483255386352539 0.045272618532180786 0.16605448722839355" quat="0 1 0 0"/>
+        <site name="Floor_86781be7_mesh_72f6a7fa_Receptacle_1" class="/" type="box" rgba="1 0 0 1" size="0.60485649108886719 0.064627379179000854 0.43138527870178223" pos="-1.8251433372497559 0.045272618532180786 -2.3427832126617432" quat="0 1 0 0"/>
+        <site name="Floor_86781be7_mesh_72f6a7fa_Receptacle_2" class="/" type="box" rgba="1 0 0 1" size="0.62477397918701172 0.064627379179000854 1.016487717628479" pos="1.5689282417297363 0.045272618532180786 1.483512282371521" quat="0 1 0 0"/>
+        <geom name="Floor_86781be7_mesh_72f6a7fa_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="2.4149999618530273 0.049999997019767761 2.6999998092651367" rgba="0 1 0 1" pos="-0.014999866485595703 -0.049999997019767761 -0.19999992847442627" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

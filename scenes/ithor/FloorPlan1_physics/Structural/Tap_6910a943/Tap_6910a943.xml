@@ -1,1 +1,49 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Tap_6910a943/Tap_6910a943.xml
+<mujoco model="Tap_6910a943">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture name="HammeredMetal_AlbedoTransparency" type="2d" file="HammeredMetal_MetallicSmoothness.png"/>
+    <material name="material_HammeredMetal_AlbedoTransparency" class="/" texture="HammeredMetal_AlbedoTransparency" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="Tap_6910a943_Vent_b27695c4" class="/" file="Tap_6910a943_Vent_b27695c4/Tap_6910a943_Vent_b27695c4.obj" scale="1 1 1" inertia="legacy"/>
+    <mesh name="Tap_6910a943_Tap_6910a943" class="/" file="Tap_6910a943_Tap_6910a943/Tap_6910a943_Tap_6910a943.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="Tap_6910a943">
+      <body name="Tap_6910a943_Vent_b27695c4" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Tap_6910a943_Vent_b27695c4" class="__VISUAL_MJT__" type="mesh" material="material_HammeredMetal_AlbedoTransparency" mesh="Tap_6910a943_Vent_b27695c4"/>
+        <geom name="Tap_6910a943_Vent_b27695c4_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.013578319922089577 0.14295195043087006 0.015010599046945572" rgba="0 1 0 1" pos="2.15195631980896 1.0417745113372803 -1.4994127750396729" quat="0 0.99999999999976508 0 -6.8545333320442627e-07"/>
+        <geom name="Tap_6910a943_Vent_b27695c4_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.013578319922089577 0.025211332365870476 0.031870618462562561" rgba="0 1 0 1" pos="2.1519565582275391 0.9431455135345459 -1.4825527667999268" quat="0 0.99999999999976508 0 -6.8545333320442627e-07"/>
+        <geom name="Tap_6910a943_Vent_b27695c4_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.013578318990767002 0.049395967274904251 0.015010599046945572" rgba="0 1 0 1" pos="2.1265261173248291 1.1918632984161377 -1.4994127750396729" quat="-2.5331970617027203e-07 0.92387961816494557 0.38268322557820417 -6.2584868583243677e-07"/>
+        <geom name="Tap_6910a943_Vent_b27695c4_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="0.013578317128121853 0.049395997077226639 0.015010599046945572" rgba="0 1 0 1" pos="2.0685696601867676 1.2138562202453613 -1.4994126558303833" quat="-4.7683712616931122e-07 0.707107138814141 0.70710642355845177 -4.7683712616931122e-07"/>
+        <geom name="Tap_6910a943_Vent_b27695c4_PrimitiveCollider_4" class="__DYNAMIC_MJT__" type="box" size="0.013578326441347599 0.049396008253097534 0.015010599046945572" rgba="0 1 0 1" pos="2.0120368003845215 1.1884260177612305 -1.4994126558303833" quat="-6.2584870948472009e-07 0.38268371687780889 0.92387941466195767 -2.6822087549345148e-07"/>
+        <geom name="Tap_6910a943_Vent_b27695c4_PrimitiveCollider_5" class="__DYNAMIC_MJT__" type="box" size="0.013578326441347599 0.061532333493232727 0.015010599046945572" rgba="0 1 0 1" pos="1.9900437593460083 1.1183332204818726 -1.4994125366210938" quat="-6.8545333320432219e-07 5.5134289844695482e-07 0.9999999999996132 -3.6948217854940116e-13"/>
+        <geom name="Tap_6910a943_Vent_b27695c4_PrimitiveCollider_6" class="__DYNAMIC_MJT__" type="box" size="0.013578319922089577 0.021923063322901726 0.014055739156901836" rgba="0 1 0 1" pos="2.15195631980896 0.9212186336517334 -1.6187659502029419" quat="0 0.99999999999976508 0 -6.8545333320442627e-07"/>
+      </body>
+      <body name="Tap_6910a943_Tap_6910a943" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="Tap_6910a943_Tap_6910a943" class="__VISUAL_MJT__" type="mesh" material="material_HammeredMetal_AlbedoTransparency" mesh="Tap_6910a943_Tap_6910a943"/>
+        <geom name="Tap_6910a943_Tap_6910a943_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.013578319922089577 0.14295195043087006 0.015010599046945572" rgba="0 1 0 1" pos="2.15195631980896 1.0417745113372803 -1.4994127750396729" quat="0 0.99999999999976508 0 -6.8545333320442627e-07"/>
+        <geom name="Tap_6910a943_Tap_6910a943_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.013578319922089577 0.025211332365870476 0.031870618462562561" rgba="0 1 0 1" pos="2.1519565582275391 0.9431455135345459 -1.4825527667999268" quat="0 0.99999999999976508 0 -6.8545333320442627e-07"/>
+        <geom name="Tap_6910a943_Tap_6910a943_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.013578318990767002 0.049395967274904251 0.015010599046945572" rgba="0 1 0 1" pos="2.1265261173248291 1.1918632984161377 -1.4994127750396729" quat="-2.5331970617027203e-07 0.92387961816494557 0.38268322557820417 -6.2584868583243677e-07"/>
+        <geom name="Tap_6910a943_Tap_6910a943_PrimitiveCollider_3" class="__DYNAMIC_MJT__" type="box" size="0.013578317128121853 0.049395997077226639 0.015010599046945572" rgba="0 1 0 1" pos="2.0685696601867676 1.2138562202453613 -1.4994126558303833" quat="-4.7683712616931122e-07 0.707107138814141 0.70710642355845177 -4.7683712616931122e-07"/>
+        <geom name="Tap_6910a943_Tap_6910a943_PrimitiveCollider_4" class="__DYNAMIC_MJT__" type="box" size="0.013578326441347599 0.049396008253097534 0.015010599046945572" rgba="0 1 0 1" pos="2.0120368003845215 1.1884260177612305 -1.4994126558303833" quat="-6.2584870948472009e-07 0.38268371687780889 0.92387941466195767 -2.6822087549345148e-07"/>
+        <geom name="Tap_6910a943_Tap_6910a943_PrimitiveCollider_5" class="__DYNAMIC_MJT__" type="box" size="0.013578326441347599 0.061532333493232727 0.015010599046945572" rgba="0 1 0 1" pos="1.9900437593460083 1.1183332204818726 -1.4994125366210938" quat="-6.8545333320432219e-07 5.5134289844695482e-07 0.9999999999996132 -3.6948217854940116e-13"/>
+        <geom name="Tap_6910a943_Tap_6910a943_PrimitiveCollider_6" class="__DYNAMIC_MJT__" type="box" size="0.013578319922089577 0.021923063322901726 0.014055739156901836" rgba="0 1 0 1" pos="2.15195631980896 0.9212186336517334 -1.6187659502029419" quat="0 0.99999999999976508 0 -6.8545333320442627e-07"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

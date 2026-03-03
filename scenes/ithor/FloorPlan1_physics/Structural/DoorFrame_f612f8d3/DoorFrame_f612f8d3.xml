@@ -1,1 +1,33 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/DoorFrame_f612f8d3/DoorFrame_f612f8d3.xml
+<mujoco model="DoorFrame_f612f8d3">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_BlackWood" class="/" specular="0.5" shininess="0.5" rgba="0.14705879999999999 0.14705879999999999 0.14705879999999999 1"/>
+    <mesh name="DoorFrame_f612f8d3_DoorFrame_f612f8d3" class="/" file="DoorFrame_f612f8d3_DoorFrame_f612f8d3/DoorFrame_f612f8d3_DoorFrame_f612f8d3.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="DoorFrame_f612f8d3">
+      <body name="DoorFrame_f612f8d3_DoorFrame_f612f8d3" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="DoorFrame_f612f8d3_DoorFrame_f612f8d3" class="__VISUAL_MJT__" type="mesh" material="material_BlackWood" mesh="DoorFrame_f612f8d3_DoorFrame_f612f8d3"/>
+        <geom name="DoorFrame_f612f8d3_DoorFrame_f612f8d3_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.019704734906554222 0.98126727342605591 0.078563220798969269" rgba="0 1 0 1" pos="-2.3975000381469727 0.9776376485824585 -0.039328902959823608" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+        <geom name="DoorFrame_f612f8d3_DoorFrame_f612f8d3_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.019704734906554222 0.98126727342605591 0.078563220798969269" rgba="0 1 0 1" pos="-2.3975000381469727 0.9776376485824585 0.83967125415802002" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+        <geom name="DoorFrame_f612f8d3_DoorFrame_f612f8d3_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="0.45972421765327454 0.019386943429708481 0.078563220798969269" rgba="0 1 0 1" pos="-2.3975000381469727 1.9398599863052368 0.39999997615814209" quat="8.6595606834267297e-17 0.70710678118654757 -8.6595606834267297e-17 0.70710678118654757"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

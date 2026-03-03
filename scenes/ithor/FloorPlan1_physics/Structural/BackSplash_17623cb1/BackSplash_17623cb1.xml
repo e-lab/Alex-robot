@@ -1,1 +1,33 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/BackSplash_17623cb1/BackSplash_17623cb1.xml
+<mujoco model="BackSplash_17623cb1">
+  <compiler autolimits="true" boundmass="0.01" angle="radian"/>
+  <default>
+    <default class="/">
+      <default class="__VISUAL_MJT__">
+        <geom contype="0" conaffinity="0" group="0" mass="1e-08"/>
+      </default>
+      <default class="__STRUCTURAL_MJT__">
+        <geom contype="8" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__DYNAMIC_MJT__">
+        <geom contype="1" conaffinity="15" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+      <default class="__ARTICULABLE_DYNAMIC_MJT__">
+        <geom contype="0" conaffinity="7" group="4" friction="0.90000000000000002 0.90000000000000002 0.001" density="500" solref="0.025000000000000001 1" solimp="0.998 0.998 0.001"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <material name="material_SubwayTilesAO" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
+    <mesh name="BackSplash_17623cb1_BackSplash_17623cb1" class="/" file="BackSplash_17623cb1_BackSplash_17623cb1/BackSplash_17623cb1_BackSplash_17623cb1.obj" scale="1 1 1" inertia="legacy"/>
+  </asset>
+  <worldbody>
+    <body name="BackSplash_17623cb1">
+      <body name="BackSplash_17623cb1_BackSplash_17623cb1" pos="-0 0 0" quat="1 0 0 0">
+        <geom name="BackSplash_17623cb1_BackSplash_17623cb1" class="__VISUAL_MJT__" type="mesh" material="material_SubwayTilesAO" mesh="BackSplash_17623cb1_BackSplash_17623cb1"/>
+        <geom name="BackSplash_17623cb1_BackSplash_17623cb1_PrimitiveCollider_0" class="__DYNAMIC_MJT__" type="box" size="0.010241985321044922 0.36366856098175049 0.35482293367385864" rgba="0 1 0 1" pos="2.1927690505981445 1.2590080499649048 0.051000118255615234" quat="0 1 0 0"/>
+        <geom name="BackSplash_17623cb1_BackSplash_17623cb1_PrimitiveCollider_1" class="__DYNAMIC_MJT__" type="box" size="0.010241985321044922 0.36366856098175049 0.34891051054000854" rgba="0 1 0 1" pos="2.1927690505981445 1.2590080499649048 -2.4440000057220459" quat="0 1 0 0"/>
+        <geom name="BackSplash_17623cb1_BackSplash_17623cb1_PrimitiveCollider_2" class="__DYNAMIC_MJT__" type="box" size="1.7101805210113525 0.36366856098175049 0.010241985321044922" rgba="0 1 0 1" pos="0.47976887226104736 1.2590080499649048 -2.7909998893737793" quat="0 1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

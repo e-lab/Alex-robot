@@ -1,1 +1,5 @@
-/Users/euge/.cache/molmo-spaces-resources/scenes/ithor/20251217/FloorPlan1_physics/Structural/Ceiling_70a7ead7.mtl
+newmtl Drywall3
+Kd 1 1 1
+map_Kd Textures/WallDrywallWhite.png
+illum 2
+
