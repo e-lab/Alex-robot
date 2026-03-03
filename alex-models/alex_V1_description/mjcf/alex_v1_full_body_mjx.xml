@@ -477,6 +477,16 @@
                         <geom mesh="head" material="gray" class="alex/visual"/>
                         <geom name="head_collision" class="alex/collision/head"/>
                         <site name="imu_head" class="alex/imu/head"/>
+                        <camera
+                            name="alex_head_rgb"
+                            pos="0.11 0.0 0.06"
+                            xyaxes="0 -1 0 0 0 1"
+                            fovy="69"/>
+                        <camera
+                            name="alex_head_depth"
+                            pos="0.11 0.0 0.06"
+                            xyaxes="0 -1 0 0 0 1"
+                            fovy="69"/>
                     </body>
                 </body>
                 <body name="right_shoulder_y" pos="-0.015 -0.115474 0.352984" euler="-0.698132 0.0 0.0">

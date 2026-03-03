@@ -58,6 +58,16 @@ Eval:
 
 
 
+## Alex room explore
+
+runs walking tracking policy from
+
+https://wandb.ai/culurciello/mjlab/runs/ib5nrc31/
+
+
+
+
+
 ## humanoid walk
 
 **STATUS: WORKS**
