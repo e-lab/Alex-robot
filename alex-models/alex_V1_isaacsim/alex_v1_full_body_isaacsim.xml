@@ -224,8 +224,8 @@
         <mesh name="left_shin" file="../alex_V1_description/meshes/legs/LeftShin.obj"/>
         <mesh name="left_thigh" file="../alex_V1_description/meshes/legs/LeftThigh.obj"/>
         <mesh name="pelvis" file="../alex_V1_description/meshes/legs/Pelvis.obj"/>
-        <mesh name="right_ankle" file="../alex_V1_description/meshes/legs/AnklePitchLink.obj"/>
-        <mesh name="right_foot" file="../alex_V1_description/meshes/legs/Foot.obj"/>
+        <mesh name="right_ankle" file="../alex_V1_description/meshes/legs/AnklePitchLink_right.obj"/>
+        <mesh name="right_foot" file="../alex_V1_description/meshes/legs/Foot_right.obj"/>
         <mesh name="right_hip_x" file="../alex_V1_description/meshes/legs/RightHipRollLink.obj"/>
         <mesh name="right_hip_z" file="../alex_V1_description/meshes/legs/RightHipYawLink.obj"/>
         <mesh name="right_shin" file="../alex_V1_description/meshes/legs/RightShin.obj"/>
@@ -245,7 +245,7 @@
         <mesh name="right_elbow_y" file="../alex_V1_description/meshes/cycloidal_arm/RightElbowPitchLink.obj"/>
         <mesh name="right_wrist_z" file="../alex_V1_description/meshes/cycloidal_arm/RightWristYawLink.obj"/>
         <mesh name="right_wrist_x" file="../alex_V1_description/meshes/cycloidal_arm/RightWristRollLink.obj"/>
-        <mesh name="right_gripper" file="../alex_V1_description/meshes/cycloidal_arm/nub.obj" inertia="convex"/>
+        <mesh name="right_gripper" file="../alex_V1_description/meshes/cycloidal_arm/nub_right.obj" inertia="convex"/>
     </asset>
 
     <worldbody>

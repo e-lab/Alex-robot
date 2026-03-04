@@ -15,3 +15,8 @@ Changes made for IsaacSim MJCF importer compatibility:
 
 ## Known non-blocking warning
 If IsaacSim logs a missing icon PNG for the importer extension (`icoFileMJCF.png`), that is an extension UI asset warning and does not affect model import fidelity.
+- Right-side duplicate mesh references were de-duplicated by using unique OBJ filenames:
+  - `right_ankle -> AnklePitchLink_right.obj`
+  - `right_foot -> Foot_right.obj`
+  - `right_gripper -> nub_right.obj`
+  This avoids importer temp-USD/material spec collisions seen as `...outputs:out already exists`.
