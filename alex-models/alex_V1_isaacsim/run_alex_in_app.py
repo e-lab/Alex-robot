@@ -111,12 +111,21 @@ def main() -> None:
     sim = SimulationContext(sim_cfg)
 
     robot_cfg = alex.ALEX_V1_FULLBODY_DEFAULT_CFG.replace(
+        prim_path=args.prim_path,
         spawn=alex.ALEX_V1_FULLBODY_DEFAULT_CFG.spawn.replace(
             asset_path=str(urdf),
         )
     )
     robot = Articulation(robot_cfg)
-    robot.spawn(args.prim_path)
+    # Compatibility across Isaac Lab versions:
+    # - some versions expect explicit spawn()
+    # - others materialize from prim_path in cfg during initialization/workflow
+    import omni.usd
+
+    stage = omni.usd.get_context().get_stage()
+    prim_exists = stage is not None and stage.GetPrimAtPath(args.prim_path).IsValid()
+    if hasattr(robot, "spawn") and not prim_exists:
+        robot.spawn(args.prim_path)
 
     sim.reset()
     task = asyncio.ensure_future(_run_loop(app, sim))
