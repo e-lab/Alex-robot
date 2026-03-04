@@ -103,7 +103,7 @@ def _mp_to_sim(pts: np.ndarray) -> np.ndarray:
     """MediaPipe world → simulator (Z-up) coordinates.  Shape: (..., 3)."""
     return np.stack([-pts[..., 2],   # X_sim = -Z_mp  (forward)
                      -pts[..., 0],   # Y_sim = -X_mp  (left)
-                      pts[..., 1]],  # Z_sim =  Y_mp  (up)
+                     -pts[..., 1]],  # Z_sim = -Y_mp  (up)
                     axis=-1)
 
 
@@ -377,6 +377,28 @@ def convert_mediapipe_to_alex_npz(
 
     # ── Retarget: keypoints → root pose + joint angles ────────────────────────
     motion_xyzw = retarget_keypoints(wkp_xyz).astype(np.float32)  # (N, 22)
+
+    # ── Sanity checks for common retarget failures ────────────────────────────
+    # Columns in motion_xyzw after root pose:
+    # 0 spine_z, 1 l_hip_x, 2 l_hip_z, 3 l_hip_y, 4 l_knee_y,
+    # 5 r_hip_x, 6 r_hip_z, 7 r_hip_y, 8 r_knee_y, ...
+    j = motion_xyzw[:, 7:]
+    checks = [
+        ("left_hip_x", j[:, 1], (-2.0, 2.0)),
+        ("right_hip_x", j[:, 5], (-2.0, 2.0)),
+        ("left_hip_y", j[:, 3], (-2.6, 1.2)),
+        ("right_hip_y", j[:, 7], (-2.6, 1.2)),
+        ("left_knee_y", j[:, 4], (0.0, 2.8)),
+        ("right_knee_y", j[:, 8], (0.0, 2.8)),
+    ]
+    for name, arr, (lo, hi) in checks:
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        if amin < lo - 1e-3 or amax > hi + 1e-3:
+            print(
+                f"[WARN] {name} out of expected range [{lo:.2f}, {hi:.2f}] "
+                f"(min={amin:.3f}, max={amax:.3f})."
+            )
 
     # ── Resample to output FPS ────────────────────────────────────────────────
     if device.startswith("cuda") and not torch.cuda.is_available():
