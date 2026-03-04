@@ -15,6 +15,7 @@ import importlib.util
 from pathlib import Path
 
 import omni.kit.app
+import omni.usd
 
 
 def _find_repo_root():
@@ -120,8 +121,6 @@ def main() -> None:
     # Compatibility across Isaac Lab versions:
     # - some versions expect explicit spawn()
     # - others materialize from prim_path in cfg during initialization/workflow
-    import omni.usd
-
     stage = omni.usd.get_context().get_stage()
     prim_exists = stage is not None and stage.GetPrimAtPath(args.prim_path).IsValid()
     if hasattr(robot, "spawn") and not prim_exists:

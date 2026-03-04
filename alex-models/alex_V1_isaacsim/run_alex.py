@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 
 from isaaclab.app import AppLauncher
+import omni.usd
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,8 +51,6 @@ def main() -> None:
         )
     )
     robot = Articulation(robot_cfg)
-    import omni.usd
-
     stage = omni.usd.get_context().get_stage()
     prim_exists = stage is not None and stage.GetPrimAtPath(args.prim_path).IsValid()
     if hasattr(robot, "spawn") and not prim_exists:
