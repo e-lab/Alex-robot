@@ -16,6 +16,8 @@ Room scenes from https://github.com/allenai/molmospaces.
 
 `pip install mujoco gymnasium stable_baselines`
 
+Also requires [mjlab from e-Lab](https://github.com/e-lab/mjlab) for some envs.
+
 
 ## Run
 
