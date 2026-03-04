@@ -11,3 +11,6 @@ training/alex-walk-like-humanoid/rl_models/tensorboard/PPO_1/events.out.tfevents
 /training/alex-walk-like-humanoid/rl_models/tensorboard
 /training/alex-walk/rl_models/checkpoints
 /training/alex-walk/rl_models/tensorboard
+*.mov
+action-collect-retarget/open_door1.npz
+action-collect-retarget/pose_landmarker_lite.task
