@@ -5,9 +5,9 @@ Models for IHMC Alex to be used on NVIDIA isaac-sim and isaac-lab
 ## run model on isaac-sim / test
 
 ```bash
-cd /Users/euge/Code/github/Alex-robot/alex-models/alex_V1_isaacsim
+cd Alex-robot/alex-models/alex_V1_isaacsim
 
-/path/to/isaac-sim/python.sh run_alex.py
+isaacsim/_build/linux-x86_64/release/python.sh run_alex.py
 ```
 
 ## alex_V1 IsaacSim MJCF
