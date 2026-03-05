@@ -8,20 +8,19 @@ import importlib.util
 import os
 import sys
 import time
-from dataclasses import asdict
 from pathlib import Path
 
-import mujoco
 import torch
+import mujoco
 from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-from mjlab.scripts.play import load_env_cfg, load_rl_cfg, load_runner_cls
+from mjlab.rl import RslRlVecEnvWrapper
+from mjlab.scripts.play import load_env_cfg, load_rl_cfg
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 from mjlab.viewer.native import keys as viewer_keys
 
 DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
-DEFAULT_CHECKPOINT = "Mjlab-Velocity-Flat-Alex-V1/model.pt"
+DEFAULT_CHECKPOINT = "../../trained-policies/Mjlab-Velocity-Flat-Alex-V1/model.pt"
 DEFAULT_FLOORPLAN_XML = "scenes/ithor/FloorPlan1_physics_simple.xml"
 ROOM_ATTACH_Z_OFFSET_M = 0.1
 
@@ -33,6 +32,26 @@ if _alex_spec is None or _alex_spec.loader is None:
 alex_sensors = importlib.util.module_from_spec(_alex_spec)
 sys.modules["alex_sensors"] = alex_sensors
 _alex_spec.loader.exec_module(alex_sensors)
+
+_locomotion_controller_path = "../../controllers/locomotion_controller.py"
+_locomotion_spec = importlib.util.spec_from_file_location(
+  "locomotion_controller", str(_locomotion_controller_path)
+)
+if _locomotion_spec is None or _locomotion_spec.loader is None:
+  raise RuntimeError(f"Failed to load module spec: {_locomotion_controller_path}")
+locomotion_controller = importlib.util.module_from_spec(_locomotion_spec)
+sys.modules["locomotion_controller"] = locomotion_controller
+_locomotion_spec.loader.exec_module(locomotion_controller)
+
+_alex_action_set_path = "../../controllers/alex_action_set.py"
+_alex_action_set_spec = importlib.util.spec_from_file_location(
+  "alex_action_set", str(_alex_action_set_path)
+)
+if _alex_action_set_spec is None or _alex_action_set_spec.loader is None:
+  raise RuntimeError(f"Failed to load module spec: {_alex_action_set_path}")
+alex_action_set = importlib.util.module_from_spec(_alex_action_set_spec)
+sys.modules["alex_action_set"] = alex_action_set
+_alex_action_set_spec.loader.exec_module(alex_action_set)
 
 
 def parse_args() -> argparse.Namespace:
@@ -94,6 +113,14 @@ def parse_args() -> argparse.Namespace:
     "--record-dir",
     default=None,
     help="Output directory for recordings. Default: script directory.",
+  )
+  parser.add_argument(
+    "--macro-action",
+    default="stop",
+    help=(
+      "Initial macro action: stop, walk_straight, walk_backward, turn_left, "
+      "turn_right, strafe_left, strafe_right, turn_head_left, turn_head_right."
+    ),
   )
   return parser.parse_args()
 
@@ -157,15 +184,17 @@ class FixedMainCameraViewer(NativeMujocoViewer):
   def __init__(
     self,
     env,
-    policy,
+    loco_ctrl,
     record_cameras: bool = False,
     record_width: int = 1280,
     record_height: int = 720,
     record_max_depth_m: float = 5.0,
     record_prefix: str = "alex_play_room",
     record_dir: Path | None = None,
+    initial_macro_action: str = "stop",
   ):
-    super().__init__(env, policy, key_callback=self._on_manual_key)
+    super().__init__(env, loco_ctrl.policy, key_callback=self._on_manual_key)
+    self._loco_ctrl = loco_ctrl
     self.lin_speed = 0.6
     self.yaw_speed = 0.8
     self.key_hold_timeout_s = 0.20
@@ -190,17 +219,21 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     self._camera_renderer = None
     self._rgb_writer = None
     self._depth_writer = None
+    self._macro_actions = alex_action_set.build_default_action_set(
+      lin_speed=self.lin_speed,
+      yaw_speed=self.yaw_speed,
+    )
+    self._active_macro = alex_action_set.resolve_action_name(initial_macro_action)
+    self._head_macro_warned = False
 
   def _is_key_active(self, key_name: str, now_s: float) -> bool:
     return (now_s - self._last_key_time[key_name]) <= self.key_hold_timeout_s
 
   def _clamp_twist(self, lin_x: float, lin_y: float, yaw: float) -> tuple[float, float, float]:
-    twist_term = self.env.unwrapped.command_manager.get_term("twist")
-    ranges = twist_term.cfg.ranges
-    lin_x = max(ranges.lin_vel_x[0], min(ranges.lin_vel_x[1], lin_x))
-    lin_y = max(ranges.lin_vel_y[0], min(ranges.lin_vel_y[1], lin_y))
-    yaw = max(ranges.ang_vel_z[0], min(ranges.ang_vel_z[1], yaw))
-    return lin_x, lin_y, yaw
+    clamped = self._loco_ctrl.clamp_command(
+      locomotion_controller.TwistCommand(lin_x=lin_x, lin_y=lin_y, yaw=yaw)
+    )
+    return clamped.lin_x, clamped.lin_y, clamped.yaw
 
   def _apply_manual_twist(self) -> None:
     now_s = time.time()
@@ -216,14 +249,21 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     cmd_yaw = self.yaw_speed * (turn_left - turn_right)
     cmd_lin_x, cmd_lin_y, cmd_yaw = self._clamp_twist(cmd_lin_x, cmd_lin_y, cmd_yaw)
 
-    twist_term = self.env.unwrapped.command_manager.get_term("twist")
-    cmd = twist_term.command
-    cmd[:, 0] = cmd_lin_x
-    cmd[:, 1] = cmd_lin_y
-    cmd[:, 2] = cmd_yaw
+    self._loco_ctrl.set_command(
+      locomotion_controller.TwistCommand(
+        lin_x=cmd_lin_x, lin_y=cmd_lin_y, yaw=cmd_yaw
+      )
+    )
 
   def _on_manual_key(self, key: int) -> None:
     now_s = time.time()
+    if key in alex_action_set.DEFAULT_KEY_BINDINGS:
+      self._active_macro = alex_action_set.DEFAULT_KEY_BINDINGS[key]
+      self._head_macro_warned = False
+      macro = self._macro_actions[self._active_macro]
+      self.log(f"[macro] {macro.action.value}: {macro.description}", level=1)
+      return
+
     if key in (viewer_keys.KEY_LEFT_SUPER, viewer_keys.KEY_RIGHT_SUPER):
       self._cmd_latch_until = now_s + 0.4
       return
@@ -245,6 +285,7 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       self._cmd_latch_until = 0.0
     else:
       return
+    self._active_macro = alex_action_set.AlexMacroAction.STOP
     # Show instantaneous held-command estimate.
     cmd_lin_x, cmd_lin_y, cmd_yaw = self._clamp_twist(
       self.lin_speed * (
@@ -265,18 +306,39 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       level=1,
     )
 
+  def _apply_macro_action(self) -> bool:
+    if self._active_macro == alex_action_set.AlexMacroAction.STOP:
+      return False
+    macro = self._macro_actions[self._active_macro]
+    if macro.head_yaw_deg != 0.0:
+      self._loco_ctrl.set_command(locomotion_controller.TwistCommand())
+      if not self._head_macro_warned:
+        self.log(
+          f"[macro] {macro.action.value} selected. Head joint actuation is planner-level only in this viewer.",
+          level=1,
+        )
+        self._head_macro_warned = True
+      return True
+
+    self._loco_ctrl.set_command(
+      locomotion_controller.TwistCommand(
+        lin_x=macro.lin_x,
+        lin_y=macro.lin_y,
+        yaw=macro.yaw,
+      )
+    )
+    return True
+
   def step_simulation(self) -> None:
     if self._is_paused:
       return
-    with torch.no_grad():
-      with self._sim_timer.measure_time():
+    with self._sim_timer.measure_time():
+      if not self._apply_macro_action():
         self._apply_manual_twist()
-        obs = self.env.get_observations()
-        actions = self.policy(obs)
-        self.env.step(actions)
-        self._record_camera_frame_if_enabled()
-        self._step_count += 1
-      self._accumulated_sim_time += self._sim_timer.measured_time
+      self._loco_ctrl.step_policy()
+      self._record_camera_frame_if_enabled()
+      self._step_count += 1
+    self._accumulated_sim_time += self._sim_timer.measured_time
 
   def _setup_camera(self) -> None:
     super()._setup_camera()
@@ -409,10 +471,13 @@ def main() -> None:
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device, render_mode=None)
   env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-  runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
-  runner = runner_cls(env, asdict(agent_cfg), device=device)
-  runner.load(str(checkpoint), load_cfg={"actor": True}, strict=True, map_location=device)
-  policy = runner.get_inference_policy(device=device)
+  loco_ctrl = locomotion_controller.VelocityPolicyLocomotionController.from_checkpoint(
+    env=env,
+    task=args.task,
+    checkpoint=checkpoint,
+    device=device,
+    agent_cfg=agent_cfg,
+  )
 
   resolved_viewer = _resolve_viewer(args.viewer)
   try:
@@ -420,16 +485,17 @@ def main() -> None:
       record_dir = Path(args.record_dir).expanduser() if args.record_dir else None
       FixedMainCameraViewer(
         env,
-        policy,
+        loco_ctrl,
         record_cameras=args.record_cameras,
         record_width=args.record_width,
         record_height=args.record_height,
         record_max_depth_m=args.record_max_depth_m,
         record_prefix=args.record_prefix,
         record_dir=record_dir,
+        initial_macro_action=args.macro_action,
       ).run()
     else:
-      ViserPlayViewer(env, policy).run()
+      ViserPlayViewer(env, loco_ctrl.policy).run()
   finally:
     env.close()
 
