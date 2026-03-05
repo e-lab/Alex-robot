@@ -3,6 +3,9 @@
 Extract human body keypoints from video using [MediaPipe Pose](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) and retarget the motion to the Alex robot for use with Mjlab.
 
 
+*STATUS: NOT WORKING* - issue with referencing 2d points from the vidfeo to 3d poitns that are suitable for the robot body. 
+
+
 ## Pipeline
 
 ```
