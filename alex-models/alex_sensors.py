@@ -42,11 +42,31 @@ def resolve_alex_camera_ids(
     model: mujoco.MjModel,
     names: AlexCameraNames = AlexCameraNames(),
 ) -> AlexCameraIds:
-    rgb_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, names.rgb)
-    depth_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, names.depth)
+    def _find_camera_id(name: str) -> int:
+        # 1) Exact match.
+        cid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, name)
+        if cid >= 0:
+            return cid
+        # 2) Prefixed-name fallback (e.g. "robot/alex_head_rgb").
+        for i in range(model.ncam):
+            cam_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_CAMERA, i)
+            if cam_name is None:
+                continue
+            if cam_name == name or cam_name.endswith("/" + name):
+                return i
+        return -1
+
+    rgb_id = _find_camera_id(names.rgb)
+    depth_id = _find_camera_id(names.depth)
     if rgb_id < 0 or depth_id < 0:
+        available = []
+        for i in range(model.ncam):
+            cam_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_CAMERA, i)
+            if cam_name is not None:
+                available.append(cam_name)
         raise RuntimeError(
-            f'Missing Alex camera(s). Expected "{names.rgb}" and "{names.depth}".'
+            f'Missing Alex camera(s). Expected "{names.rgb}" and "{names.depth}". '
+            f"Available cameras: {available}"
         )
     return AlexCameraIds(rgb=rgb_id, depth=depth_id)
 

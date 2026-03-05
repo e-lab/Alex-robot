@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
+import sys
 import time
-from contextlib import nullcontext
 from dataclasses import asdict
 from pathlib import Path
 
@@ -22,6 +23,16 @@ from mjlab.viewer.native import keys as viewer_keys
 DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
 DEFAULT_CHECKPOINT = "Mjlab-Velocity-Flat-Alex-V1/model.pt"
 DEFAULT_FLOORPLAN_XML = "scenes/ithor/FloorPlan1_physics_simple.xml"
+ROOM_ATTACH_Z_OFFSET_M = 0.1
+
+# Load reusable Alex sensor/camera helpers from file path.
+_alex_sensors_path = "../../alex-models/alex_sensors.py"
+_alex_spec = importlib.util.spec_from_file_location("alex_sensors", str(_alex_sensors_path))
+if _alex_spec is None or _alex_spec.loader is None:
+  raise RuntimeError(f"Failed to load module spec: {_alex_sensors_path}")
+alex_sensors = importlib.util.module_from_spec(_alex_spec)
+sys.modules["alex_sensors"] = alex_sensors
+_alex_spec.loader.exec_module(alex_sensors)
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,12 +62,46 @@ def parse_args() -> argparse.Namespace:
     default=5000,
     help="MuJoCo contact sensor maxmatch.",
   )
+  parser.add_argument(
+    "--record-cameras",
+    action="store_true",
+    help="Record alex_head_rgb and alex_head_depth MP4 videos during play.",
+  )
+  parser.add_argument(
+    "--record-width",
+    type=int,
+    default=1280,
+    help="Recorded video width.",
+  )
+  parser.add_argument(
+    "--record-height",
+    type=int,
+    default=720,
+    help="Recorded video height.",
+  )
+  parser.add_argument(
+    "--record-max-depth-m",
+    type=float,
+    default=5.0,
+    help="Depth normalization max distance in meters.",
+  )
+  parser.add_argument(
+    "--record-prefix",
+    default="alex_play_room",
+    help="Output filename prefix for recorded camera videos.",
+  )
+  parser.add_argument(
+    "--record-dir",
+    default=None,
+    help="Output directory for recordings. Default: script directory.",
+  )
   return parser.parse_args()
 
 
 def _attach_explore_scene(scene_spec: mujoco.MjSpec, floorplan_xml: Path) -> None:
   floorplan_spec = mujoco.MjSpec.from_file(str(floorplan_xml))
   frame = scene_spec.worldbody.add_frame()
+  frame.pos = (0.0, 0.0, ROOM_ATTACH_Z_OFFSET_M)
   scene_spec.attach(floorplan_spec, prefix="room/", frame=frame)
   scene_spec.worldbody.add_camera(
     name="main",
@@ -64,6 +109,41 @@ def _attach_explore_scene(scene_spec: mujoco.MjSpec, floorplan_xml: Path) -> Non
     xyaxes=(0.786, 0.618, -0.000, -0.236, 0.300, 0.924),
     fovy=75.0,
   )
+
+
+def _ensure_alex_head_cameras(spec: mujoco.MjSpec) -> mujoco.MjSpec:
+  camera_names = {
+    cam.name
+    for cam in spec.worldbody.find_all("camera")
+    if getattr(cam, "name", None)
+  }
+  needs_rgb = "alex_head_rgb" not in camera_names
+  needs_depth = "alex_head_depth" not in camera_names
+  if not (needs_rgb or needs_depth):
+    return spec
+
+  head_body = None
+  for body in spec.worldbody.find_all("body"):
+    name = getattr(body, "name", "") or ""
+    if name == "head" or name.endswith("/head"):
+      head_body = body
+      break
+  if head_body is None:
+    return spec
+
+  if needs_rgb:
+    cam = head_body.add_camera()
+    cam.name = "alex_head_rgb"
+    cam.pos = (0.11, 0.0, 0.06)
+    cam.quat = (-0.5, -0.5, 0.5, 0.5)
+    cam.fovy = 69.0
+  if needs_depth:
+    cam = head_body.add_camera()
+    cam.name = "alex_head_depth"
+    cam.pos = (0.11, 0.0, 0.06)
+    cam.quat = (-0.5, -0.5, 0.5, 0.5)
+    cam.fovy = 69.0
+  return spec
 
 
 def _resolve_viewer(viewer: str) -> str:
@@ -74,7 +154,17 @@ def _resolve_viewer(viewer: str) -> str:
 
 
 class FixedMainCameraViewer(NativeMujocoViewer):
-  def __init__(self, env, policy):
+  def __init__(
+    self,
+    env,
+    policy,
+    record_cameras: bool = False,
+    record_width: int = 1280,
+    record_height: int = 720,
+    record_max_depth_m: float = 5.0,
+    record_prefix: str = "alex_play_room",
+    record_dir: Path | None = None,
+  ):
     super().__init__(env, policy, key_callback=self._on_manual_key)
     self.lin_speed = 0.6
     self.yaw_speed = 0.8
@@ -90,6 +180,16 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     # MuJoCo key callback only provides key codes; keep a short-lived latch
     # when CMD (Super) is pressed so the next arrow key can be treated as CMD+Arrow.
     self._cmd_latch_until = 0.0
+    self._record_cameras = record_cameras
+    self._record_width = record_width
+    self._record_height = record_height
+    self._record_max_depth_m = record_max_depth_m
+    self._record_prefix = record_prefix
+    self._record_dir = record_dir
+    self._camera_ids = None
+    self._camera_renderer = None
+    self._rgb_writer = None
+    self._depth_writer = None
 
   def _is_key_active(self, key_name: str, now_s: float) -> bool:
     return (now_s - self._last_key_time[key_name]) <= self.key_hold_timeout_s
@@ -174,6 +274,7 @@ class FixedMainCameraViewer(NativeMujocoViewer):
         obs = self.env.get_observations()
         actions = self.policy(obs)
         self.env.step(actions)
+        self._record_camera_frame_if_enabled()
         self._step_count += 1
       self._accumulated_sim_time += self._sim_timer.measured_time
 
@@ -181,12 +282,78 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     super()._setup_camera()
     if self.viewer is None or self.mjm is None:
       return
-    main_cam_id = mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_CAMERA, "main")
-    if main_cam_id >= 0:
-      lock_ctx = self.viewer.lock() if hasattr(self.viewer, "lock") else nullcontext()
-      with lock_ctx:
-        self.viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
-        self.viewer.cam.fixedcamid = main_cam_id
+    self.mjm.vis.headlight.active = 0
+    self.mjm.light_castshadow[:] = 0
+    self.viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = 0
+    alex_sensors.lock_view_to_main_camera(self.viewer, self.mjm)
+
+  def _resolve_record_paths(self) -> tuple[Path, Path]:
+    out_dir = self._record_dir or Path(__file__).resolve().parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rgb_out_path = out_dir / f"{self._record_prefix}_head_rgb.mp4"
+    depth_out_path = out_dir / f"{self._record_prefix}_head_depth.mp4"
+    return rgb_out_path, depth_out_path
+
+  def _sync_mj_data_for_active_env(self) -> None:
+    if self.mjm is None or self.mjd is None:
+      return
+    sim_data = self.env.unwrapped.sim.data
+    if self.mjm.nq > 0:
+      self.mjd.qpos[:] = sim_data.qpos[self.env_idx].cpu().numpy()
+      self.mjd.qvel[:] = sim_data.qvel[self.env_idx].cpu().numpy()
+    if self.mjm.nmocap > 0:
+      self.mjd.mocap_pos[:] = sim_data.mocap_pos[self.env_idx].cpu().numpy()
+      self.mjd.mocap_quat[:] = sim_data.mocap_quat[self.env_idx].cpu().numpy()
+    mujoco.mj_forward(self.mjm, self.mjd)
+
+  def _record_camera_frame_if_enabled(self) -> None:
+    if not self._record_cameras:
+      return
+    if self.mjm is None or self.mjd is None:
+      return
+
+    if self._camera_renderer is None:
+      self._camera_ids = alex_sensors.resolve_alex_camera_ids(self.mjm)
+      self._camera_renderer = mujoco.Renderer(
+        self.mjm,
+        width=self._record_width,
+        height=self._record_height,
+      )
+      fps = int(round(1.0 / self.mjm.opt.timestep))
+      rgb_out_path, depth_out_path = self._resolve_record_paths()
+      self._rgb_writer = alex_sensors.create_mp4_writer(
+        rgb_out_path,
+        fps,
+        self._record_width,
+        self._record_height,
+      )
+      self._depth_writer = alex_sensors.create_mp4_writer(
+        depth_out_path,
+        fps,
+        self._record_width,
+        self._record_height,
+      )
+
+    self._sync_mj_data_for_active_env()
+    rgb_bgr, depth_bgr = alex_sensors.render_alex_rgb_depth(
+      renderer=self._camera_renderer,
+      data=self.mjd,
+      camera_ids=self._camera_ids,
+      max_depth_m=self._record_max_depth_m,
+    )
+    self._rgb_writer.write(rgb_bgr)
+    self._depth_writer.write(depth_bgr)
+
+  def close(self) -> None:
+    try:
+      if self._rgb_writer is not None:
+        self._rgb_writer.release()
+      if self._depth_writer is not None:
+        self._depth_writer.release()
+      if self._camera_renderer is not None:
+        self._camera_renderer.close()
+    finally:
+      super().close()
 
 
 def main() -> None:
@@ -217,6 +384,11 @@ def main() -> None:
   agent_cfg = load_rl_cfg(args.task)
   env_cfg.scene.num_envs = args.num_envs
   env_cfg.scene.spec_fn = lambda spec: _attach_explore_scene(spec, floorplan_xml)
+  if "robot" in env_cfg.scene.entities:
+    robot_cfg = env_cfg.scene.entities["robot"]
+    if hasattr(robot_cfg, "spec_fn") and callable(robot_cfg.spec_fn):
+      orig_robot_spec_fn = robot_cfg.spec_fn
+      robot_cfg.spec_fn = lambda: _ensure_alex_head_cameras(orig_robot_spec_fn())
   env_cfg.sim.njmax = args.njmax
   env_cfg.sim.nconmax = args.nconmax
   env_cfg.sim.contact_sensor_maxmatch = args.contact_sensor_maxmatch
@@ -245,7 +417,17 @@ def main() -> None:
   resolved_viewer = _resolve_viewer(args.viewer)
   try:
     if resolved_viewer == "native":
-      FixedMainCameraViewer(env, policy).run()
+      record_dir = Path(args.record_dir).expanduser() if args.record_dir else None
+      FixedMainCameraViewer(
+        env,
+        policy,
+        record_cameras=args.record_cameras,
+        record_width=args.record_width,
+        record_height=args.record_height,
+        record_max_depth_m=args.record_max_depth_m,
+        record_prefix=args.record_prefix,
+        record_dir=record_dir,
+      ).run()
     else:
       ViserPlayViewer(env, policy).run()
   finally:

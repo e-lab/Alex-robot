@@ -6,11 +6,8 @@ import sys
 import mujoco
 import mujoco.viewer
 
-# Import reusable helpers from repo-local module file (alex-models has '-' in name).
-repo_root = Path(__file__).resolve().parents[2]
-if str(repo_root) not in sys.path:
-    sys.path.append(str(repo_root))
-alex_sensors_path = repo_root / "alex-models" / "alex_sensors.py"
+
+alex_sensors_path = "../../alex-models/alex_sensors.py"
 spec = importlib.util.spec_from_file_location("alex_sensors", str(alex_sensors_path))
 if spec is None or spec.loader is None:
     raise RuntimeError(f"Failed to load module spec: {alex_sensors_path}")
@@ -19,9 +16,7 @@ sys.modules["alex_sensors"] = alex_sensors
 spec.loader.exec_module(alex_sensors)
 
 def main() -> None:
-    xml_path = (
-        repo_root / "scenes" / "alex-scenes" / "scene_alex_v1_full_body_mjx_room1.xml"
-    ).as_posix()
+    xml_path = "../../scenes/alex-scenes/scene_alex_v1_full_body_mjx_room1.xml"
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
 

@@ -84,6 +84,7 @@ Runs a walking tracking policy trained in mjlab "Mjlab-Velocity-Flat-Alex-V1", w
 Run:
 
 ```bash
+cd training/alex-room-explore/
 mjpython play_alex_room.py
 ```
 
@@ -94,6 +95,13 @@ You can control the robot walking with manual "twist" commands:
   - CMD + ← / CMD + →: increase/decrease strafe (lin_vel_y)
   - Delete (or Backspace): reset all twist commands to zero
 
+
+Tests:
+
+```bash
+cd training/alex-room-explore/
+mjpython tests/test_alex_room.py
+```
 
 
 

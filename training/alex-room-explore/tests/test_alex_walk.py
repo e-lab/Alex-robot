@@ -11,7 +11,7 @@ from mjlab.scripts.play import PlayConfig, run_play
 
 DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
 DEFAULT_CHECKPOINT = (
-  "Mjlab-Velocity-Flat-Alex-V1/model.pt"
+  "../Mjlab-Velocity-Flat-Alex-V1/model.pt"
 )
 
 
