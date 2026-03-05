@@ -17,3 +17,4 @@ action-collect-retarget/pose_landmarker_lite.task
 action-collect-retarget/pose_landmarker_full.task
 action-collect-retarget/open_door1_keypoints.npz
 action-collect-retarget/alex_open_door1.npz
+action-collect-retarget/open_door1_alex_tracking_calibrated.npz

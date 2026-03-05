@@ -11,7 +11,7 @@ Coordinate systems
 ------------------
 MediaPipe world:    Y-up,  X right (person's right),  Z toward camera.
 Simulator (MuJoCo): Z-up,  X forward,                 Y left.
-Transform applied:  sim_x = -mp_z,   sim_y = -mp_x,   sim_z = mp_y
+Transform applied:  sim_x = -mp_z,   sim_y = -mp_x,   sim_z = -mp_y
 
 Joint sign conventions (Alex)
 ------------------------------
@@ -66,6 +66,18 @@ ALEX_JOINT_ORDER = (
 # Approximate Alex pelvis height above the ground when standing [m].
 # Adjust if the model uses a different default.
 ALEX_HIP_HEIGHT = 0.88
+
+# Standing prior from mjlab.asset_zoo.robots.alex_V1_description.alex_constants.ALEX_INIT_STATE
+STAND_PRIOR_JOINT_POS = {
+    "left_hip_y": -0.30,
+    "left_knee_y": 0.60,
+    "right_hip_y": -0.30,
+    "right_knee_y": 0.60,
+    "left_shoulder_y": 0.20,
+    "right_shoulder_y": 0.20,
+    "left_elbow_y": -0.60,
+    "right_elbow_y": -0.60,
+}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # MediaPipe landmark indices
@@ -268,6 +280,143 @@ def retarget_keypoints(wkp: np.ndarray) -> np.ndarray:
 
     return np.concatenate([root_pos, root_quat_xyzw, joint_angles], axis=1)  # (N, 22)
 
+
+def _joint_index_map() -> dict[str, int]:
+    return {name: i for i, name in enumerate(ALEX_JOINT_ORDER)}
+
+
+def _build_stand_prior_vector() -> np.ndarray:
+    prior = np.zeros(len(ALEX_JOINT_ORDER), dtype=np.float32)
+    jidx = _joint_index_map()
+    for name, val in STAND_PRIOR_JOINT_POS.items():
+        prior[jidx[name]] = np.float32(val)
+    return prior
+
+
+def _detect_active_arm(wkp_xyz: np.ndarray) -> str:
+    """Choose active arm by larger wrist travel in MediaPipe world coordinates."""
+    l_w = wkp_xyz[:, _L_WRIST, :]
+    r_w = wkp_xyz[:, _R_WRIST, :]
+    l_travel = float(np.linalg.norm(np.diff(l_w, axis=0), axis=1).sum()) if len(l_w) > 1 else 0.0
+    r_travel = float(np.linalg.norm(np.diff(r_w, axis=0), axis=1).sum()) if len(r_w) > 1 else 0.0
+    return "left" if l_travel >= r_travel else "right"
+
+
+def _smooth_columns(x: np.ndarray, alpha: float) -> np.ndarray:
+    if not (0.0 < alpha <= 1.0):
+        return x
+    y = x.copy()
+    for t in range(1, y.shape[0]):
+        y[t] = (1.0 - alpha) * y[t - 1] + alpha * y[t]
+    return y
+
+
+def _joint_limits() -> dict[str, tuple[float, float]]:
+    return {
+        "spine_z": (-0.523599, 0.523599),
+        "left_hip_x": (-0.349066, 0.872665),
+        "left_hip_z": (-0.349066, 1.0472),
+        "left_hip_y": (-2.61799, 0.785398),
+        "left_knee_y": (0.0, 2.445206),
+        "right_hip_x": (-0.872665, 0.349066),
+        "right_hip_z": (-1.0472, 0.349066),
+        "right_hip_y": (-2.61799, 0.785398),
+        "right_knee_y": (0.0, 2.445206),
+        "left_shoulder_y": (-3.141592, 1.22173),
+        "left_shoulder_x": (-0.349066, 2.79253),
+        "left_elbow_y": (-2.35619, 0.174533),
+        "right_shoulder_y": (-3.141592, 1.22173),
+        "right_shoulder_x": (-2.79253, 0.349066),
+        "right_elbow_y": (-2.35619, 0.174533),
+    }
+
+
+def _compute_joint_confidence(wkp: np.ndarray) -> np.ndarray:
+    """Build per-joint confidence weights (N, 15) from MediaPipe visibility."""
+    N = wkp.shape[0]
+    if wkp.shape[-1] < 4:
+        return np.ones((N, len(ALEX_JOINT_ORDER)), dtype=np.float32)
+    vis = np.clip(wkp[:, :, 3].astype(np.float32), 0.0, 1.0)
+    jidx = _joint_index_map()
+    conf = np.ones((N, len(ALEX_JOINT_ORDER)), dtype=np.float32)
+
+    def meanv(*ids: int) -> np.ndarray:
+        return np.mean(vis[:, list(ids)], axis=1)
+
+    conf[:, jidx["spine_z"]] = meanv(_L_HIP, _R_HIP, _L_SHOULDER, _R_SHOULDER)
+    conf[:, jidx["left_hip_x"]] = meanv(_L_HIP, _L_KNEE)
+    conf[:, jidx["left_hip_z"]] = meanv(_L_HIP, _L_KNEE)
+    conf[:, jidx["left_hip_y"]] = meanv(_L_HIP, _L_KNEE)
+    conf[:, jidx["left_knee_y"]] = meanv(_L_HIP, _L_KNEE, _L_ANKLE)
+    conf[:, jidx["right_hip_x"]] = meanv(_R_HIP, _R_KNEE)
+    conf[:, jidx["right_hip_z"]] = meanv(_R_HIP, _R_KNEE)
+    conf[:, jidx["right_hip_y"]] = meanv(_R_HIP, _R_KNEE)
+    conf[:, jidx["right_knee_y"]] = meanv(_R_HIP, _R_KNEE, _R_ANKLE)
+    conf[:, jidx["left_shoulder_y"]] = meanv(_L_SHOULDER, _L_ELBOW)
+    conf[:, jidx["left_shoulder_x"]] = meanv(_L_SHOULDER, _L_ELBOW)
+    conf[:, jidx["left_elbow_y"]] = meanv(_L_SHOULDER, _L_ELBOW, _L_WRIST)
+    conf[:, jidx["right_shoulder_y"]] = meanv(_R_SHOULDER, _R_ELBOW)
+    conf[:, jidx["right_shoulder_x"]] = meanv(_R_SHOULDER, _R_ELBOW)
+    conf[:, jidx["right_elbow_y"]] = meanv(_R_SHOULDER, _R_ELBOW, _R_WRIST)
+
+    # Keep a minimum prior influence when visibility drops.
+    return np.clip(conf, 0.15, 1.0)
+
+
+def apply_calibrated_standing_deltas(
+    motion_xyzw: np.ndarray,
+    wkp: np.ndarray,
+    neutral_window: int = 20,
+    lower_body_gain: float = 0.45,
+    upper_body_gain: float = 0.90,
+    spine_gain: float = 0.50,
+    confidence_power: float = 1.0,
+    smooth_alpha: float = 0.2,
+) -> np.ndarray:
+    """Full-body delta retargeting around stand prior with neutral-frame calibration."""
+    out = motion_xyzw.copy()
+    N = out.shape[0]
+    if N == 0:
+        return out
+
+    jidx = _joint_index_map()
+    limits = _joint_limits()
+    prior = _build_stand_prior_vector()
+    raw_j = out[:, 7:].copy()
+    nw = int(max(3, min(neutral_window, N)))
+    neutral = np.median(raw_j[:nw], axis=0, keepdims=True)
+    raw_delta = raw_j - neutral
+    out_j = np.repeat(prior[None, :], N, axis=0)
+    conf = _compute_joint_confidence(wkp) ** max(0.0, confidence_power)
+
+    lower = ["left_hip_x", "left_hip_z", "left_hip_y", "left_knee_y",
+             "right_hip_x", "right_hip_z", "right_hip_y", "right_knee_y"]
+    upper = ["left_shoulder_y", "left_shoulder_x", "left_elbow_y",
+             "right_shoulder_y", "right_shoulder_x", "right_elbow_y"]
+
+    for n in lower:
+        i = jidx[n]
+        out_j[:, i] = prior[i] + lower_body_gain * conf[:, i] * raw_delta[:, i]
+
+    for n in upper:
+        i = jidx[n]
+        out_j[:, i] = prior[i] + upper_body_gain * conf[:, i] * raw_delta[:, i]
+
+    s = jidx["spine_z"]
+    out_j[:, s] = prior[s] + spine_gain * conf[:, s] * raw_delta[:, s]
+
+    # Clamp to model limits.
+    for name, (lo, hi) in limits.items():
+        i = jidx[name]
+        out_j[:, i] = np.clip(out_j[:, i], lo, hi)
+
+    out[:, 7:] = _smooth_columns(out_j, alpha=smooth_alpha).astype(np.float32)
+
+    # Stabilize root to neutral standing frame to avoid monocular drift.
+    out[:, :3] = out[:1, :3]
+    out[:, 3:7] = out[:1, 3:7]
+    return out
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MotionResampler (identical to lafan_to_alex.py)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -360,6 +509,13 @@ def convert_mediapipe_to_alex_npz(
     output_fps: float,
     device: str,
     frame_range: tuple[int, int] | None,
+    retarget_mode: str,
+    neutral_window: int,
+    lower_body_gain: float,
+    upper_body_gain: float,
+    spine_gain: float,
+    confidence_power: float,
+    smooth_alpha: float,
 ) -> None:
     # ── Load keypoints ────────────────────────────────────────────────────────
     data = np.load(input_npz, allow_pickle=True)
@@ -377,6 +533,24 @@ def convert_mediapipe_to_alex_npz(
 
     # ── Retarget: keypoints → root pose + joint angles ────────────────────────
     motion_xyzw = retarget_keypoints(wkp_xyz).astype(np.float32)  # (N, 22)
+    if retarget_mode == "calibrated_delta":
+        motion_xyzw = apply_calibrated_standing_deltas(
+            motion_xyzw=motion_xyzw,
+            wkp=wkp,
+            neutral_window=neutral_window,
+            lower_body_gain=lower_body_gain,
+            upper_body_gain=upper_body_gain,
+            spine_gain=spine_gain,
+            confidence_power=confidence_power,
+            smooth_alpha=smooth_alpha,
+        )
+        print(
+            "[INFO] Applied calibrated full-body stand-delta retarget:"
+            f" neutral_window={neutral_window}, lower_body_gain={lower_body_gain},"
+            f" upper_body_gain={upper_body_gain}, spine_gain={spine_gain},"
+            f" confidence_power={confidence_power},"
+            f" smooth_alpha={smooth_alpha}"
+        )
 
     # ── Sanity checks for common retarget failures ────────────────────────────
     # Columns in motion_xyzw after root pose:
@@ -505,6 +679,48 @@ def main() -> None:
     )
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument(
+        "--retarget-mode",
+        choices=("calibrated_delta", "direct"),
+        default="calibrated_delta",
+        help="Retarget mode: calibrated full-body stand-prior deltas (recommended) or direct mapping.",
+    )
+    parser.add_argument(
+        "--neutral-window",
+        type=int,
+        default=20,
+        help="Number of initial frames used to calibrate neutral standing baseline.",
+    )
+    parser.add_argument(
+        "--lower-body-gain",
+        type=float,
+        default=0.45,
+        help="Delta gain for hips/knees in calibrated_delta mode.",
+    )
+    parser.add_argument(
+        "--upper-body-gain",
+        type=float,
+        default=0.90,
+        help="Delta gain for shoulders/elbows in calibrated_delta mode.",
+    )
+    parser.add_argument(
+        "--spine-gain",
+        type=float,
+        default=0.50,
+        help="Delta gain for spine yaw in calibrated_delta mode.",
+    )
+    parser.add_argument(
+        "--confidence-power",
+        type=float,
+        default=1.0,
+        help="Exponent for visibility confidence weighting (0 disables, 1 linear).",
+    )
+    parser.add_argument(
+        "--smooth-alpha",
+        type=float,
+        default=0.2,
+        help="Exponential smoothing alpha for joint deltas in calibrated_delta mode.",
+    )
+    parser.add_argument(
         "--frame-range", "--frame_range",
         dest="frame_range",
         nargs=2,
@@ -528,6 +744,13 @@ def main() -> None:
         output_fps=args.output_fps,
         device=args.device,
         frame_range=frame_range,
+        retarget_mode=args.retarget_mode,
+        neutral_window=args.neutral_window,
+        lower_body_gain=args.lower_body_gain,
+        upper_body_gain=args.upper_body_gain,
+        spine_gain=args.spine_gain,
+        confidence_power=args.confidence_power,
+        smooth_alpha=args.smooth_alpha,
     )
 
 

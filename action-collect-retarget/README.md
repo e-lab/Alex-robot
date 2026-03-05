@@ -3,7 +3,7 @@
 Extract human body keypoints from video using [MediaPipe Pose](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) and retarget the motion to the Alex robot for use with Mjlab.
 
 
-*STATUS: NOT WORKING* - issue with referencing 2d points from the vidfeo to 3d poitns that are suitable for the robot body. 
+*STATUS: WORKING* - can reliably take a standing pose as initial pose and apply delta changes simialr to the ones a human does in a video. 
 
 
 ## Pipeline
@@ -153,6 +153,13 @@ Takes the keypoint NPZ produced in Step 1 and outputs a tracking NPZ compatible 
 | `--input-fps` | `30.0` | FPS of the source video |
 | `--output-fps` | `50.0` | FPS for the tracking output |
 | `--device` | `cuda:0` | PyTorch device (`cpu`, `cuda:0`, etc.) |
+| `--retarget-mode` | `calibrated_delta` | Retarget mode: calibrated full-body standing-prior deltas (`calibrated_delta`) or direct mapping (`direct`) |
+| `--neutral-window` | `20` | Number of initial frames used to calibrate neutral standing baseline |
+| `--lower-body-gain` | `0.45` | Delta gain for hips/knees in `calibrated_delta` mode |
+| `--upper-body-gain` | `0.90` | Delta gain for shoulders/elbows in `calibrated_delta` mode |
+| `--spine-gain` | `0.50` | Delta gain for spine yaw in `calibrated_delta` mode |
+| `--confidence-power` | `1.0` | Visibility-confidence weighting exponent (0 disables) |
+| `--smooth-alpha` | `0.2` | Exponential smoothing alpha for joint deltas |
 | `--frame-range START END` | — | 0-indexed half-open slice `[START, END)` to process |
 
 **Examples:**
@@ -166,11 +173,25 @@ python motions/mediapipe_to_alex.py open_door.npz motions/open_door_alex.npz --d
 
 # Process only frames 10–80, source was 60 fps video
 python motions/mediapipe_to_alex.py open_door.npz --frame-range 10 80 --input-fps 60
+
+# Calibrated full-body standing-prior retarget (recommended)
+$ python motions/mediapipe_to_alex.py \
+    open_door1_keypoints.npz \
+    motions/open_door1_alex_tracking_calibrated.npz \
+    --retarget-mode calibrated_delta \
+    --neutral-window 20 \
+    --lower-body-gain 0.45 \
+    --upper-body-gain 0.90 \
+    --spine-gain 0.50 \
+    --confidence-power 1.0 \
+    --smooth-alpha 0.2 \
+    --device cpu
 ```
 
 ### Retargeting approach
 
-The script converts 3-D body keypoints to robot joint angles using geometric retargeting:
+The script converts 3-D body keypoints to robot joint angles using geometric retargeting.
+Default mode (`calibrated_delta`) uses a standing-prior baseline and applies confidence-weighted full-body deltas (legs/torso/arms) with smoothing.
 
 | Joint | Method |
 |---|---|
@@ -181,7 +202,7 @@ The script converts 3-D body keypoints to robot joint angles using geometric ret
 | Elbow flexion | Angle between upper arm and forearm vectors |
 | Spine yaw | Signed angle between pelvis and thorax forward directions |
 
-**Coordinate transform:** MediaPipe world coordinates (Y-up) are converted to the MuJoCo simulator frame (Z-up) as `sim_x = -mp_z`, `sim_y = -mp_x`, `sim_z = mp_y`.
+**Coordinate transform:** MediaPipe world coordinates (Y-up) are converted to the MuJoCo simulator frame (Z-up) as `sim_x = -mp_z`, `sim_y = -mp_x`, `sim_z = -mp_y`.
 
 **Root position:** MediaPipe world landmarks are centred at the hip midpoint each frame, so global XY translation is not available. The root is placed at a fixed standing position (`ALEX_HIP_HEIGHT = 0.88 m`). Adjust this constant in the script if needed.
 
