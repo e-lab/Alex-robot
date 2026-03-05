@@ -1,3 +1,5 @@
+# Full basic room with alex, cameras on and video generation and no policy
+
 from pathlib import Path
 import cv2
 import mujoco

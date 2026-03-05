@@ -60,9 +60,9 @@ def _attach_explore_scene(scene_spec: mujoco.MjSpec, floorplan_xml: Path) -> Non
   scene_spec.attach(floorplan_spec, prefix="room/", frame=frame)
   scene_spec.worldbody.add_camera(
     name="main",
-    pos=(1.640, -2.477, 2.559),
+    pos=(1.6, -2.5, 1.8),
     xyaxes=(0.786, 0.618, -0.000, -0.236, 0.300, 0.924),
-    fovy=90.0,
+    fovy=75.0,
   )
 
 
@@ -76,59 +76,92 @@ def _resolve_viewer(viewer: str) -> str:
 class FixedMainCameraViewer(NativeMujocoViewer):
   def __init__(self, env, policy):
     super().__init__(env, policy, key_callback=self._on_manual_key)
-    self.cmd_lin_x = 0.0
-    self.cmd_lin_y = 0.0
-    self.cmd_yaw = 0.0
-    self.lin_step = 0.2
-    self.yaw_step = 0.2
+    self.lin_speed = 0.6
+    self.yaw_speed = 0.8
+    self.key_hold_timeout_s = 0.20
+    self._last_key_time = {
+      "up": 0.0,
+      "down": 0.0,
+      "left": 0.0,
+      "right": 0.0,
+      "strafe_left": 0.0,
+      "strafe_right": 0.0,
+    }
     # MuJoCo key callback only provides key codes; keep a short-lived latch
     # when CMD (Super) is pressed so the next arrow key can be treated as CMD+Arrow.
     self._cmd_latch_until = 0.0
 
-  def _clamp_twist(self) -> None:
+  def _is_key_active(self, key_name: str, now_s: float) -> bool:
+    return (now_s - self._last_key_time[key_name]) <= self.key_hold_timeout_s
+
+  def _clamp_twist(self, lin_x: float, lin_y: float, yaw: float) -> tuple[float, float, float]:
     twist_term = self.env.unwrapped.command_manager.get_term("twist")
     ranges = twist_term.cfg.ranges
-    self.cmd_lin_x = max(ranges.lin_vel_x[0], min(ranges.lin_vel_x[1], self.cmd_lin_x))
-    self.cmd_lin_y = max(ranges.lin_vel_y[0], min(ranges.lin_vel_y[1], self.cmd_lin_y))
-    self.cmd_yaw = max(ranges.ang_vel_z[0], min(ranges.ang_vel_z[1], self.cmd_yaw))
+    lin_x = max(ranges.lin_vel_x[0], min(ranges.lin_vel_x[1], lin_x))
+    lin_y = max(ranges.lin_vel_y[0], min(ranges.lin_vel_y[1], lin_y))
+    yaw = max(ranges.ang_vel_z[0], min(ranges.ang_vel_z[1], yaw))
+    return lin_x, lin_y, yaw
 
   def _apply_manual_twist(self) -> None:
-    self._clamp_twist()
+    now_s = time.time()
+    forward = 1.0 if self._is_key_active("up", now_s) else 0.0
+    backward = 1.0 if self._is_key_active("down", now_s) else 0.0
+    turn_left = 1.0 if self._is_key_active("left", now_s) else 0.0
+    turn_right = 1.0 if self._is_key_active("right", now_s) else 0.0
+    strafe_left = 1.0 if self._is_key_active("strafe_left", now_s) else 0.0
+    strafe_right = 1.0 if self._is_key_active("strafe_right", now_s) else 0.0
+
+    cmd_lin_x = self.lin_speed * (forward - backward)
+    cmd_lin_y = self.lin_speed * (strafe_left - strafe_right)
+    cmd_yaw = self.yaw_speed * (turn_left - turn_right)
+    cmd_lin_x, cmd_lin_y, cmd_yaw = self._clamp_twist(cmd_lin_x, cmd_lin_y, cmd_yaw)
+
     twist_term = self.env.unwrapped.command_manager.get_term("twist")
     cmd = twist_term.command
-    cmd[:, 0] = self.cmd_lin_x
-    cmd[:, 1] = self.cmd_lin_y
-    cmd[:, 2] = self.cmd_yaw
+    cmd[:, 0] = cmd_lin_x
+    cmd[:, 1] = cmd_lin_y
+    cmd[:, 2] = cmd_yaw
 
   def _on_manual_key(self, key: int) -> None:
+    now_s = time.time()
     if key in (viewer_keys.KEY_LEFT_SUPER, viewer_keys.KEY_RIGHT_SUPER):
-      self._cmd_latch_until = time.time() + 0.4
+      self._cmd_latch_until = now_s + 0.4
       return
 
-    cmd_modified = time.time() <= self._cmd_latch_until
+    cmd_modified = now_s <= self._cmd_latch_until
     if key == viewer_keys.KEY_UP and not cmd_modified:
-      self.cmd_lin_x += self.lin_step
+      self._last_key_time["up"] = now_s
     elif key == viewer_keys.KEY_DOWN and not cmd_modified:
-      self.cmd_lin_x -= self.lin_step
+      self._last_key_time["down"] = now_s
     elif key == viewer_keys.KEY_LEFT and not cmd_modified:
-      self.cmd_yaw += self.yaw_step
+      self._last_key_time["left"] = now_s
     elif key == viewer_keys.KEY_RIGHT and not cmd_modified:
-      self.cmd_yaw -= self.yaw_step
+      self._last_key_time["right"] = now_s
     elif key == viewer_keys.KEY_LEFT and cmd_modified:
-      self.cmd_lin_y += self.lin_step
+      self._last_key_time["strafe_left"] = now_s
       self._cmd_latch_until = 0.0
     elif key == viewer_keys.KEY_RIGHT and cmd_modified:
-      self.cmd_lin_y -= self.lin_step
+      self._last_key_time["strafe_right"] = now_s
       self._cmd_latch_until = 0.0
-    elif key in (viewer_keys.KEY_BACKSPACE, viewer_keys.KEY_DELETE):
-      self.cmd_lin_x = 0.0
-      self.cmd_lin_y = 0.0
-      self.cmd_yaw = 0.0
     else:
       return
-    self._clamp_twist()
+    # Show instantaneous held-command estimate.
+    cmd_lin_x, cmd_lin_y, cmd_yaw = self._clamp_twist(
+      self.lin_speed * (
+        (1.0 if self._is_key_active("up", now_s) else 0.0) -
+        (1.0 if self._is_key_active("down", now_s) else 0.0)
+      ),
+      self.lin_speed * (
+        (1.0 if self._is_key_active("strafe_left", now_s) else 0.0) -
+        (1.0 if self._is_key_active("strafe_right", now_s) else 0.0)
+      ),
+      self.yaw_speed * (
+        (1.0 if self._is_key_active("left", now_s) else 0.0) -
+        (1.0 if self._is_key_active("right", now_s) else 0.0)
+      ),
+    )
     self.log(
-      f"[twist] x={self.cmd_lin_x:+.2f} y={self.cmd_lin_y:+.2f} yaw={self.cmd_yaw:+.2f}",
+      f"[twist-hold] x={cmd_lin_x:+.2f} y={cmd_lin_y:+.2f} yaw={cmd_yaw:+.2f}",
       level=1,
     )
 
