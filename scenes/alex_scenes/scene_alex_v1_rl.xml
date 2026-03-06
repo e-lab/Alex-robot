@@ -13,7 +13,7 @@
             crouched reset pose (pelvis/thigh overlap, shoulder_z/wrist_z).
     -->
     <option timestep="0.005"/>
-    <include file="../../alex-models/alex_V1_description/mjcf/alex_v1_full_body_mjx.xml"/>
+    <include file="../../alex_models/alex_V1_description/mjcf/alex_v1_full_body_mjx.xml"/>
 
     <statistic center="0 0 0.1" extent="0.8"/>
 

@@ -128,6 +128,12 @@ def parse_args() -> argparse.Namespace:
     help="Seconds between brain planning steps.",
   )
   parser.add_argument(
+    "--head-pitch-target-rad",
+    type=float,
+    default=-0.23,
+    help="Fixed neck_y target angle in radians (default: -0.23).",
+  )
+  parser.add_argument(
     "--verbose",
     action="store_true",
     help="Print verbose runtime logs including LLM interactions.",
@@ -627,6 +633,7 @@ def main() -> None:
     checkpoint=checkpoint,
     device=device,
     agent_cfg=agent_cfg,
+    neck_pitch_target_rad=args.head_pitch_target_rad,
   )
 
   resolved_viewer = _resolve_viewer(args.viewer)
