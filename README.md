@@ -31,7 +31,7 @@ OR you can run with:
 
 You will get this:
 
-![](images/alex-room1.png)
+![](images/alex_room1.png)
 
 
 ### RL learning

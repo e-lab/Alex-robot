@@ -4,14 +4,14 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import os
-import sys
 import time
 from pathlib import Path
 
 import torch
 import mujoco
+from alex_models import alex_sensors
+from controllers import alex_action_set, llm_brain_controller, locomotion_controller
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import RslRlVecEnvWrapper
 from mjlab.scripts.play import load_env_cfg, load_rl_cfg
@@ -23,35 +23,6 @@ DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
 DEFAULT_CHECKPOINT = "../../trained-policies/Mjlab-Velocity-Flat-Alex-V1/model.pt"
 DEFAULT_FLOORPLAN_XML = "scenes/ithor/FloorPlan1_physics_simple.xml"
 ROOM_ATTACH_Z_OFFSET_M = 0.1
-
-# Load reusable Alex sensor/camera helpers from file path.
-_alex_sensors_path = "../../alex-models/alex_sensors.py"
-_alex_spec = importlib.util.spec_from_file_location("alex_sensors", str(_alex_sensors_path))
-if _alex_spec is None or _alex_spec.loader is None:
-  raise RuntimeError(f"Failed to load module spec: {_alex_sensors_path}")
-alex_sensors = importlib.util.module_from_spec(_alex_spec)
-sys.modules["alex_sensors"] = alex_sensors
-_alex_spec.loader.exec_module(alex_sensors)
-
-_locomotion_controller_path = "../../controllers/locomotion_controller.py"
-_locomotion_spec = importlib.util.spec_from_file_location(
-  "locomotion_controller", str(_locomotion_controller_path)
-)
-if _locomotion_spec is None or _locomotion_spec.loader is None:
-  raise RuntimeError(f"Failed to load module spec: {_locomotion_controller_path}")
-locomotion_controller = importlib.util.module_from_spec(_locomotion_spec)
-sys.modules["locomotion_controller"] = locomotion_controller
-_locomotion_spec.loader.exec_module(locomotion_controller)
-
-_alex_action_set_path = "../../controllers/alex_action_set.py"
-_alex_action_set_spec = importlib.util.spec_from_file_location(
-  "alex_action_set", str(_alex_action_set_path)
-)
-if _alex_action_set_spec is None or _alex_action_set_spec.loader is None:
-  raise RuntimeError(f"Failed to load module spec: {_alex_action_set_path}")
-alex_action_set = importlib.util.module_from_spec(_alex_action_set_spec)
-sys.modules["alex_action_set"] = alex_action_set
-_alex_action_set_spec.loader.exec_module(alex_action_set)
 
 
 def parse_args() -> argparse.Namespace:
@@ -121,6 +92,33 @@ def parse_args() -> argparse.Namespace:
       "Initial macro action: stop, walk_straight, walk_backward, turn_left, "
       "turn_right, strafe_left, strafe_right, turn_head_left, turn_head_right."
     ),
+  )
+  parser.add_argument(
+    "--brain-prompt",
+    default=None,
+    help='Goal prompt for LLM brain (example: "find the door").',
+  )
+  parser.add_argument(
+    "--brain-model",
+    default="gpt-4.1-mini",
+    help="OpenAI model for LLM brain planning.",
+  )
+  parser.add_argument(
+    "--brain-max-steps",
+    type=int,
+    default=30,
+    help="Maximum planning steps for brain execution.",
+  )
+  parser.add_argument(
+    "--brain-step-interval-s",
+    type=float,
+    default=1.5,
+    help="Seconds between brain planning steps.",
+  )
+  parser.add_argument(
+    "--verbose",
+    action="store_true",
+    help="Print verbose runtime logs including LLM interactions.",
   )
   return parser.parse_args()
 
@@ -192,6 +190,11 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     record_prefix: str = "alex_play_room",
     record_dir: Path | None = None,
     initial_macro_action: str = "stop",
+    brain_prompt: str | None = None,
+    brain_model: str = "gpt-4.1-mini",
+    brain_max_steps: int = 30,
+    brain_step_interval_s: float = 1.5,
+    verbose: bool = False,
   ):
     super().__init__(env, loco_ctrl.policy, key_callback=self._on_manual_key)
     self._loco_ctrl = loco_ctrl
@@ -225,6 +228,28 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     )
     self._active_macro = alex_action_set.resolve_action_name(initial_macro_action)
     self._head_macro_warned = False
+    self._brain = None
+
+    if brain_prompt:
+      action_descriptions = {
+        action.value: cmd.description
+        for action, cmd in self._macro_actions.items()
+      }
+      self._brain = llm_brain_controller.LLMBrainController(
+        goal_prompt=brain_prompt,
+        action_descriptions=action_descriptions,
+        capture_rgb_bgr_fn=self._capture_head_rgb_bgr_for_brain,
+        execute_action_fn=self._set_macro_action_by_name,
+        model=brain_model,
+        max_steps=brain_max_steps,
+        step_interval_s=brain_step_interval_s,
+        verbose=verbose,
+        logger=lambda msg: self.log(msg, level=1),
+      )
+      self.log(
+        f"[brain] enabled goal='{brain_prompt}' model={brain_model}",
+        level=1,
+      )
 
   def _is_key_active(self, key_name: str, now_s: float) -> bool:
     return (now_s - self._last_key_time[key_name]) <= self.key_hold_timeout_s
@@ -329,11 +354,24 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     )
     return True
 
+  def _set_macro_action_by_name(self, action_name: str) -> bool:
+    try:
+      action = alex_action_set.resolve_action_name(action_name)
+    except Exception:
+      self.log(f"[brain] unknown action '{action_name}'", level=1)
+      return False
+    self._active_macro = action
+    self._head_macro_warned = False
+    return True
+
   def step_simulation(self) -> None:
     if self._is_paused:
       return
     with self._sim_timer.measure_time():
-      if not self._apply_macro_action():
+      if self._brain is not None and self._brain.is_active:
+        self._brain.tick()
+      macro_applied = self._apply_macro_action()
+      if self._brain is None and not macro_applied:
         self._apply_manual_twist()
       self._loco_ctrl.step_policy()
       self._record_camera_frame_if_enabled()
@@ -368,12 +406,9 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       self.mjd.mocap_quat[:] = sim_data.mocap_quat[self.env_idx].cpu().numpy()
     mujoco.mj_forward(self.mjm, self.mjd)
 
-  def _record_camera_frame_if_enabled(self) -> None:
-    if not self._record_cameras:
-      return
+  def _ensure_camera_pipeline(self, enable_recording_writers: bool) -> None:
     if self.mjm is None or self.mjd is None:
       return
-
     if self._camera_renderer is None:
       self._camera_ids = alex_sensors.resolve_alex_camera_ids(self.mjm)
       self._camera_renderer = mujoco.Renderer(
@@ -381,6 +416,7 @@ class FixedMainCameraViewer(NativeMujocoViewer):
         width=self._record_width,
         height=self._record_height,
       )
+    if enable_recording_writers and self._rgb_writer is None:
       fps = int(round(1.0 / self.mjm.opt.timestep))
       rgb_out_path, depth_out_path = self._resolve_record_paths()
       self._rgb_writer = alex_sensors.create_mp4_writer(
@@ -396,13 +432,30 @@ class FixedMainCameraViewer(NativeMujocoViewer):
         self._record_height,
       )
 
+  def _render_head_rgb_depth(self) -> tuple:
     self._sync_mj_data_for_active_env()
-    rgb_bgr, depth_bgr = alex_sensors.render_alex_rgb_depth(
+    return alex_sensors.render_alex_rgb_depth(
       renderer=self._camera_renderer,
       data=self.mjd,
       camera_ids=self._camera_ids,
       max_depth_m=self._record_max_depth_m,
     )
+
+  def _capture_head_rgb_bgr_for_brain(self):
+    if self.mjm is None or self.mjd is None:
+      return None
+    self._ensure_camera_pipeline(enable_recording_writers=False)
+    rgb_bgr, _ = self._render_head_rgb_depth()
+    return rgb_bgr
+
+  def _record_camera_frame_if_enabled(self) -> None:
+    if not self._record_cameras:
+      return
+    if self.mjm is None or self.mjd is None:
+      return
+
+    self._ensure_camera_pipeline(enable_recording_writers=True)
+    rgb_bgr, depth_bgr = self._render_head_rgb_depth()
     self._rgb_writer.write(rgb_bgr)
     self._depth_writer.write(depth_bgr)
 
@@ -493,6 +546,11 @@ def main() -> None:
         record_prefix=args.record_prefix,
         record_dir=record_dir,
         initial_macro_action=args.macro_action,
+        brain_prompt=args.brain_prompt,
+        brain_model=args.brain_model,
+        brain_max_steps=args.brain_max_steps,
+        brain_step_interval_s=args.brain_step_interval_s,
+        verbose=args.verbose,
       ).run()
     else:
       ViserPlayViewer(env, loco_ctrl.policy).run()
