@@ -7,8 +7,7 @@ import mujoco
 import mujoco.viewer
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-print(_REPO_ROOT)
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
   sys.path.insert(0, str(_REPO_ROOT))
 
@@ -36,8 +35,8 @@ def main() -> None:
     width = 1280
     height = 720
     num_steps = 1000
-    rgb_out_path = "demos/alex-room-explore/alex_head_rgb_first_1000_steps_720p.mp4"
-    depth_out_path = "demos/alex-room-explore/alex_head_depth_first_1000_steps_720p.mp4"
+    rgb_out_path = "demos/alex-room-explore/tests/alex_head_rgb_first_1000_steps_720p.mp4"
+    depth_out_path = "demos/alex-room-explore/tests/alex_head_depth_first_1000_steps_720p.mp4"
     fps = int(round(1.0 / model.opt.timestep))
     max_depth_m = 5.0
 

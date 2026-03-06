@@ -5,24 +5,36 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import time
 from pathlib import Path
 
+import cv2
 import torch
 import mujoco
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+  sys.path.insert(0, str(_REPO_ROOT))
+
 from alex_models import alex_sensors
 from controllers import alex_action_set, llm_brain_controller, locomotion_controller
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import RslRlVecEnvWrapper
 from mjlab.scripts.play import load_env_cfg, load_rl_cfg
 from mjlab.utils.torch import configure_torch_backends
-from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
+from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer, VerbosityLevel
 from mjlab.viewer.native import keys as viewer_keys
 
 DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
-DEFAULT_CHECKPOINT = "../../trained-policies/Mjlab-Velocity-Flat-Alex-V1/model.pt"
+DEFAULT_CHECKPOINT = "../../trained_policies/Mjlab_Velocity_Flat_Alex_V1/model.pt"
 DEFAULT_FLOORPLAN_XML = "scenes/ithor/FloorPlan1_physics_simple.xml"
 ROOM_ATTACH_Z_OFFSET_M = 0.1
+HEAD_PIP_WIDTH = 320
+HEAD_PIP_HEIGHT = 180
+HEAD_PIP_MARGIN_PX = 12
+HEAD_PIP_WIDTH_FRACTION = 0.28
+HEAD_PIP_MAX_HEIGHT_FRACTION = 0.35
 
 
 def parse_args() -> argparse.Namespace:
@@ -196,11 +208,17 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     brain_step_interval_s: float = 1.5,
     verbose: bool = False,
   ):
-    super().__init__(env, loco_ctrl.policy, key_callback=self._on_manual_key)
+    viewer_verbosity = VerbosityLevel.INFO if verbose else VerbosityLevel.SILENT
+    super().__init__(
+      env,
+      loco_ctrl.policy,
+      key_callback=self._on_manual_key,
+      verbosity=viewer_verbosity,
+    )
     self._loco_ctrl = loco_ctrl
     self.lin_speed = 0.6
     self.yaw_speed = 0.8
-    self.key_hold_timeout_s = 0.20
+    self.key_hold_timeout_s = 0.60
     self._last_key_time = {
       "up": 0.0,
       "down": 0.0,
@@ -220,6 +238,7 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     self._record_dir = record_dir
     self._camera_ids = None
     self._camera_renderer = None
+    self._pip_renderer = None
     self._rgb_writer = None
     self._depth_writer = None
     self._macro_actions = alex_action_set.build_default_action_set(
@@ -228,6 +247,10 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     )
     self._active_macro = alex_action_set.resolve_action_name(initial_macro_action)
     self._head_macro_warned = False
+    self._show_head_pip = True
+    self._pip_status_logged = False
+    self._last_pip_update_s = 0.0
+    self._pip_interval_s = 1.0 / 15.0
     self._brain = None
 
     if brain_prompt:
@@ -282,6 +305,16 @@ class FixedMainCameraViewer(NativeMujocoViewer):
 
   def _on_manual_key(self, key: int) -> None:
     now_s = time.time()
+    if key == viewer_keys.KEY_I:
+      self._show_head_pip = not self._show_head_pip
+      if not self._show_head_pip and self.viewer is not None:
+        self.viewer.clear_images()
+      self.log(
+        f"[viewer] head camera PiP {'enabled' if self._show_head_pip else 'disabled'}",
+        level=1,
+      )
+      return
+
     if key in alex_action_set.DEFAULT_KEY_BINDINGS:
       self._active_macro = alex_action_set.DEFAULT_KEY_BINDINGS[key]
       self._head_macro_warned = False
@@ -378,6 +411,10 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       self._step_count += 1
     self._accumulated_sim_time += self._sim_timer.measured_time
 
+  def sync_env_to_viewer(self) -> None:
+    self._render_head_camera_pip()
+    super().sync_env_to_viewer()
+
   def _setup_camera(self) -> None:
     super()._setup_camera()
     if self.viewer is None or self.mjm is None:
@@ -432,6 +469,62 @@ class FixedMainCameraViewer(NativeMujocoViewer):
         self._record_height,
       )
 
+  def _ensure_head_pip_pipeline(self) -> None:
+    if self.mjm is None or self.mjd is None:
+      return
+    if self._camera_ids is None:
+      self._camera_ids = alex_sensors.resolve_alex_camera_ids(self.mjm)
+    if self._pip_renderer is None:
+      self._pip_renderer = mujoco.Renderer(
+        self.mjm,
+        width=HEAD_PIP_WIDTH,
+        height=HEAD_PIP_HEIGHT,
+      )
+
+  def _render_head_camera_pip(self) -> None:
+    if self.viewer is None or self.mjm is None or self.mjd is None:
+      return
+    if not self._show_head_pip:
+      self.viewer.clear_images()
+      return
+    now_s = time.time()
+    if (now_s - self._last_pip_update_s) < self._pip_interval_s:
+      return
+    try:
+      with self._mj_lock:
+        self._ensure_head_pip_pipeline()
+        if self._pip_renderer is None or self._camera_ids is None:
+          return
+        self._pip_renderer.disable_depth_rendering()
+        self._pip_renderer.update_scene(self.mjd, camera=self._camera_ids.rgb)
+        rgb_frame = self._pip_renderer.render()
+
+      viewport = self.viewer.viewport
+      width = max(1, int(viewport.width * HEAD_PIP_WIDTH_FRACTION))
+      aspect = rgb_frame.shape[0] / rgb_frame.shape[1]
+      height = max(1, int(width * aspect))
+      max_height = max(1, int(viewport.height * HEAD_PIP_MAX_HEIGHT_FRACTION))
+      if height > max_height:
+        height = max_height
+        width = max(1, int(height / aspect))
+
+      if rgb_frame.shape[1] != width or rgb_frame.shape[0] != height:
+        rgb_frame = cv2.resize(rgb_frame, (width, height), interpolation=cv2.INTER_AREA)
+
+      pip_rect = mujoco.MjrRect(HEAD_PIP_MARGIN_PX, HEAD_PIP_MARGIN_PX, width, height)
+      self.viewer.set_images([(pip_rect, rgb_frame)])
+      self._last_pip_update_s = now_s
+      if not self._pip_status_logged:
+        self.log(
+          f"[viewer] head camera PiP ready ({width}x{height})",
+          level=1,
+        )
+        self._pip_status_logged = True
+    except Exception as exc:
+      self.log(f"[WARN] Failed to render head camera PiP overlay: {exc}", level=1)
+      if self.viewer is not None:
+        self.viewer.clear_images()
+
   def _render_head_rgb_depth(self) -> tuple:
     self._sync_mj_data_for_active_env()
     return alex_sensors.render_alex_rgb_depth(
@@ -467,6 +560,10 @@ class FixedMainCameraViewer(NativeMujocoViewer):
         self._depth_writer.release()
       if self._camera_renderer is not None:
         self._camera_renderer.close()
+      if self._pip_renderer is not None:
+        self._pip_renderer.close()
+      if self.viewer is not None:
+        self.viewer.clear_images()
     finally:
       super().close()
 
