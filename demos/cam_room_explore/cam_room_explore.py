@@ -176,7 +176,7 @@ class CameraOverlayManager:
     self._cached_rgb: np.ndarray | None = None
     self._cached_depth: np.ndarray | None = None
     self._cached_detections: list[dict] = []
-    self._warned = False
+    self._last_error_s: float = 0.0
     self._rgb_pip_renderer: mujoco.Renderer | None = None
     self._depth_pip_renderer: mujoco.Renderer | None = None
     self._status_lines: list[str] = []
@@ -264,9 +264,6 @@ class CameraOverlayManager:
     self._last_update_s = time.time()
 
   def update(self, viewer: mujoco.viewer.Handle, *, force: bool = False) -> None:
-    self.update_windows(force=force)
-
-  def update_windows(self, *, force: bool = False) -> None:
     try:
       now_s = time.time()
       if force or self._cached_rgb is None or (now_s - self._last_update_s) >= self.update_interval_s:
@@ -348,31 +345,28 @@ class CameraOverlayManager:
         width,
         height,
       )
-      del rect_rgb
-      del rect_depth
-      cv2.imshow(self._rgb_window_name, rgb_resized)
-      cv2.imshow(self._depth_window_name, depth_resized)
-      cv2.waitKey(1)
-      self._warned = False
+      viewer.set_images([
+        (rect_rgb, cv2.cvtColor(rgb_resized, cv2.COLOR_BGR2RGB)),
+        (rect_depth, cv2.cvtColor(depth_resized, cv2.COLOR_BGR2RGB)),
+      ])
+      self._last_error_s = 0.0
     except Exception as exc:
-      if not self._warned:
-        print(f"[overlay] disabled due to error: {exc}")
-        self._warned = True
+      try:
+        viewer.clear_images()
+      except Exception:
+        pass
+      now_s = time.time()
+      if now_s - self._last_error_s >= 5.0:
+        print(f"[overlay] error: {exc}")
+        self._last_error_s = now_s
 
   def clear(self, viewer: mujoco.viewer.Handle) -> None:
-    del viewer
     try:
-      cv2.destroyWindow(self._rgb_window_name)
-      cv2.destroyWindow(self._depth_window_name)
+      viewer.clear_images()
     except Exception:
       pass
 
   def close(self) -> None:
-    try:
-      cv2.destroyWindow(self._rgb_window_name)
-      cv2.destroyWindow(self._depth_window_name)
-    except Exception:
-      pass
     if self._rgb_pip_renderer is not None:
       self._rgb_pip_renderer.close()
       self._rgb_pip_renderer = None
@@ -611,9 +605,7 @@ class CameraRobotController:
     if viewer is not None:
       if overlay_manager is not None:
         overlay_manager.update(viewer)
-      viewer.sync()
-      if overlay_manager is not None:
-        overlay_manager.update(viewer)
+      viewer.sync(state_only=True)
     remaining = self.model.opt.timestep - (time.time() - step_start)
     if remaining > 0:
       time.sleep(remaining)

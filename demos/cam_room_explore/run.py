@@ -118,7 +118,7 @@ def _run_auto(args: argparse.Namespace) -> None:
     ) as viewer:
       configure_viewer(viewer, robot.model)
       robot.set_view(viewer, first_person=True)
-      overlay_manager.update_windows(force=True)
+      overlay_manager.update(viewer, force=True)
 
       while viewer.is_running():
         if phase == "explore":
