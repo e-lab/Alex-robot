@@ -275,21 +275,15 @@ class AutoExploreController:
       return False
 
     self._move_toward_xy(best_view["robot_xy"][0], best_view["robot_xy"][1], viewer)
-    self._turn_toward(best_view["yaw_rad"], viewer)
 
     image_width = float(self.robot.camera_width)
     for _ in range(24):
       detection = self._find_target_in_current_view(target_label)
       if detection is None:
-        self._run_action("turn_left", 0.15, viewer)
+        self.robot.stop()
         continue
 
       center_u = float(detection["image_center_uv"][0])
-      center_err = (center_u - image_width * 0.5) / image_width
-      if abs(center_err) > 0.08:
-        self._run_action("turn_right" if center_err > 0.0 else "turn_left", 0.12, viewer)
-        continue
-
       depth_image = self.robot.capture_depth()
       u = int(np.clip(round(center_u), 0, depth_image.shape[1] - 1))
       v = int(np.clip(round(detection["image_center_uv"][1]), 0, depth_image.shape[0] - 1))
@@ -302,6 +296,11 @@ class AutoExploreController:
       ):
         self.robot.stop()
         return True
+
+      center_err = (center_u - image_width * 0.5) / image_width
+      if abs(center_err) > 0.08:
+        self._run_action("turn_right" if center_err > 0.0 else "turn_left", 0.12, viewer)
+        continue
 
       self._run_action("forward", min(0.30, depth_to_target / 4.0), viewer)
 

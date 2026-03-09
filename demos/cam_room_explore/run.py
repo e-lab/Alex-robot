@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from queue import Queue
 import sys
+from threading import Thread
 
 import mujoco.viewer
 
@@ -33,6 +35,56 @@ def parse_args() -> argparse.Namespace:
   return parser.parse_args()
 
 
+def _status_lines(target_label: str, scene_graph: dict, mode_line: str) -> list[str]:
+  occupancy = scene_graph.get("occupancy_map", {})
+  return [
+    f"target: {target_label}",
+    mode_line,
+    (
+      "map: "
+      f"{occupancy.get('num_occupied_cells', 0)} occ / "
+      f"{occupancy.get('num_cells', 0)} cells"
+    ),
+  ]
+
+
+def _start_prompt_thread(
+  target_label: str,
+  scene_graph: dict,
+  response_queue: Queue[tuple[str, str | None]],
+) -> None:
+  found = target_label in scene_graph.get("object_index", {})
+  seen_objects = sorted(scene_graph.get("object_index", {}).keys())
+
+  def worker() -> None:
+    print(f"Seen objects: {seen_objects}")
+    print(f"Target '{target_label}' {'found' if found else 'not found'}.")
+    choice = input(
+      "Choose: (1) walk to object, (2) search for another object, blank to quit: "
+    ).strip()
+    if not choice:
+      response_queue.put(("quit", None))
+      return
+    if choice == "1":
+      if not found:
+        print(f"Cannot walk: '{target_label}' was not found in the scene graph.")
+        response_queue.put(("prompt_again", target_label))
+        return
+      response_queue.put(("walk", target_label))
+      return
+    if choice == "2":
+      next_target = input("Which object should I look for next? ").strip()
+      if not next_target:
+        response_queue.put(("quit", None))
+        return
+      response_queue.put(("search", next_target))
+      return
+    print("Unrecognized choice.")
+    response_queue.put(("prompt_again", target_label))
+
+  Thread(target=worker, daemon=True).start()
+
+
 def _run_auto(args: argparse.Namespace) -> None:
   robot = create_camera_robot_from_args(args)
   detector = YoloDetector(
@@ -40,7 +92,11 @@ def _run_auto(args: argparse.Namespace) -> None:
     target_labels=args.target_labels,
     confidence_threshold=args.confidence_threshold,
   )
-  overlay_manager = CameraOverlayManager(robot, detector=detector)
+  overlay_manager = CameraOverlayManager(
+    robot,
+    detector=detector,
+    debug_test_pattern=args.overlay_debug,
+  )
   auto = AutoExploreController(
     robot,
     detector=detector,
@@ -48,6 +104,10 @@ def _run_auto(args: argparse.Namespace) -> None:
     max_depth_m=args.depth_max_m,
     overlay_manager=overlay_manager,
   )
+  target_label = args.prompt
+  response_queue: Queue[tuple[str, str | None]] = Queue()
+  prompt_active = False
+  phase = "explore"
 
   try:
     with mujoco.viewer.launch_passive(
@@ -58,21 +118,58 @@ def _run_auto(args: argparse.Namespace) -> None:
     ) as viewer:
       configure_viewer(viewer, robot.model)
       robot.set_view(viewer, first_person=True)
-      overlay_manager.update(viewer, force=True)
-      scene_graph = auto.explore_room(viewer=viewer)
-      print(f"Exploration complete. Seen objects: {sorted(scene_graph['object_index'].keys())}")
-      print(f"Occupancy map summary: {scene_graph['occupancy_map']}")
+      overlay_manager.update_windows(force=True)
 
-      active_target = args.prompt
       while viewer.is_running():
-        if active_target:
-          success = auto.walk_to_target(active_target, viewer=viewer)
-          print(f"walk_to_target('{active_target}') -> {success}")
-        next_target = input("Enter another target label (blank to quit): ").strip()
-        if not next_target:
-          break
-        active_target = next_target
+        if phase == "explore":
+          overlay_manager.set_status_lines([f"target: {target_label}", "mode: explore"])
+          scene_graph = auto.explore_room(viewer=viewer)
+          print(f"Exploration complete. Seen objects: {sorted(scene_graph['object_index'].keys())}")
+          print(f"Occupancy map summary: {scene_graph['occupancy_map']}")
+          overlay_manager.set_status_lines(_status_lines(target_label, scene_graph, "mode: explored"))
+          phase = "prompt"
+          prompt_active = False
+          continue
+
+        if phase == "prompt":
+          if not prompt_active:
+            _start_prompt_thread(target_label, auto.scene_graph, response_queue)
+            prompt_active = True
+          if not response_queue.empty():
+            action, value = response_queue.get()
+            prompt_active = False
+            if action == "quit":
+              break
+            if action == "walk" and value is not None:
+              phase = "walk"
+            elif action == "search" and value is not None:
+              target_label = value
+              auto.scene_graph = {"views": [], "object_index": {}, "occupancy_map": {}}
+              auto.occupancy_map.cells.clear()
+              phase = "explore"
+            else:
+              phase = "prompt"
+          robot.tick(viewer, overlay_manager=overlay_manager)
+          continue
+
+        if phase == "walk":
+          overlay_manager.set_status_lines(_status_lines(target_label, auto.scene_graph, "mode: walk"))
+          success = auto.walk_to_target(target_label, viewer=viewer)
+          print(f"walk_to_target('{target_label}') -> {success}")
+          overlay_manager.set_status_lines(
+            _status_lines(
+              target_label,
+              auto.scene_graph,
+              "walk: success" if success else "walk: failed",
+            )
+          )
+          phase = "prompt"
+          prompt_active = False
+          continue
+
+        robot.tick(viewer, overlay_manager=overlay_manager)
   finally:
+    overlay_manager.close()
     robot.close()
 
 
