@@ -34,7 +34,7 @@ Notes:
 From the repo root:
 
 ```bash
-python demos/cam_room_explore/run.py
+python run.py
 ```
 
 This starts manual mode with the first-person camera view enabled.
@@ -42,7 +42,7 @@ This starts manual mode with the first-person camera view enabled.
 Prompt-driven exploration:
 
 ```bash
-python demos/cam_room_explore/run.py --prompt door
+python run.py --prompt oven
 ```
 
 After the scan finishes, the script prints seen objects and asks whether to walk to the target, search for another object, or quit.
