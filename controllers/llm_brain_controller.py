@@ -13,6 +13,11 @@ import cv2
 import numpy as np
 
 try:
+  from . import alex_action_set
+except Exception:  # pragma: no cover - supports direct script-style imports
+  from controllers import alex_action_set
+
+try:
   from openai import OpenAI
 except Exception:  # pragma: no cover - import availability is runtime-dependent
   OpenAI = None
@@ -34,6 +39,112 @@ def _extract_json_object(text: str) -> dict:
   if start < 0 or end <= start:
     raise ValueError("No JSON object found in model output.")
   return json.loads(text[start : end + 1])
+
+
+def _response_to_text(response) -> str:
+  text = getattr(response, "output_text", "") or ""
+  if text:
+    return text
+  if not hasattr(response, "output"):
+    return ""
+  chunks = []
+  for out_item in response.output:
+    for content in getattr(out_item, "content", []):
+      maybe_text = getattr(content, "text", None)
+      if maybe_text:
+        chunks.append(maybe_text)
+  return "\n".join(chunks)
+
+
+def plan_task_prompt(
+  task_prompt: str,
+  model: str = "gpt-4.1-mini",
+  api_key_env: str = "OPENAI_API_KEY",
+) -> str:
+  """Generate a 4-8 step Alex macro-action plan for a user task prompt."""
+  if OpenAI is None:
+    raise RuntimeError(
+      "openai package is not available. Install it to use llm_brain_controller."
+    )
+  api_key = os.getenv(api_key_env)
+  if not api_key:
+    raise RuntimeError(f"Environment variable {api_key_env} is required.")
+  client = OpenAI(api_key=api_key)
+  action_set = alex_action_set.build_default_action_set()
+  action_desc = [
+    f"- {action.value}: {cmd.description}" for action, cmd in action_set.items()
+  ]
+  allowed_actions = {action.value for action in action_set}
+  response = client.responses.create(
+    model=model,
+    input=[
+      {
+        "role": "system",
+        "content": [
+          {
+            "type": "input_text",
+            "text": (
+              "You are a robot task planner for Alex. "
+              "Return STRICT JSON only in this shape: "
+              '{"plan":[{"action":"<allowed_action>","reason":"<short reason>"}]}. '
+              "The plan must have 4 to 8 steps inclusive. "
+              "Every step action must be from the allowed action list."
+            ),
+          }
+        ],
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": (
+              f"Goal: {task_prompt}\n"
+              "Allowed actions:\n"
+              f"{chr(10).join(action_desc)}"
+            ),
+          }
+        ],
+      },
+    ],
+  )
+  text = _response_to_text(response).strip()
+  payload = _extract_json_object(text)
+  raw_plan = payload.get("plan", [])
+  if not isinstance(raw_plan, list):
+    raw_plan = []
+
+  normalized_steps: list[tuple[str, str]] = []
+  for step in raw_plan:
+    if not isinstance(step, dict):
+      continue
+    raw_action = str(step.get("action", "")).strip().lower()
+    reason = str(step.get("reason", "")).strip()
+    try:
+      action_name = alex_action_set.resolve_action_name(raw_action).value
+    except Exception:
+      continue
+    if action_name not in allowed_actions:
+      continue
+    normalized_steps.append((action_name, reason))
+    if len(normalized_steps) == 8:
+      break
+
+  if len(normalized_steps) < 4:
+    fallback = [
+      ("turn_left", "scan the environment"),
+      ("walk_straight", "move toward likely goal area"),
+      ("turn_right", "refine alignment"),
+      ("stop", "pause at a safe position"),
+    ]
+    normalized_steps = fallback
+
+  normalized_steps = normalized_steps[:8]
+  lines = [
+    f"{idx}. {action} - {reason if reason else 'execute step'}"
+    for idx, (action, reason) in enumerate(normalized_steps, start=1)
+  ]
+  return "\n".join(lines)
 
 
 class LLMBrainController:
@@ -154,15 +265,7 @@ class LLMBrainController:
       ],
     )
 
-    text = getattr(response, "output_text", "") or ""
-    if not text and hasattr(response, "output"):
-      chunks = []
-      for out_item in response.output:
-        for c in getattr(out_item, "content", []):
-          maybe_text = getattr(c, "text", None)
-          if maybe_text:
-            chunks.append(maybe_text)
-      text = "\n".join(chunks)
+    text = _response_to_text(response)
     if self.verbose:
       self._log("[brain][llm][response][raw]")
       self._log(text if text else "<empty>")

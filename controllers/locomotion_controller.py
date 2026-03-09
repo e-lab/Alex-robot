@@ -34,7 +34,7 @@ class VelocityPolicyLocomotionController:
     self.runner = runner
     self._neck_pitch_action_idx: int | None = None
     self._neck_pitch_qpos_idx: int | None = None
-    self._neck_pitch_target: float = 0.0
+    self._neck_pitch_qvel_idx: int | None = None
     self._neck_pitch_target = neck_pitch_target_rad
     self._neck_pitch_kp: float = 2.0
     self._init_neck_pitch_lock()
@@ -49,8 +49,10 @@ class VelocityPolicyLocomotionController:
         return
       jid = int(model.actuator_trnid[aid, 0])
       qpos_idx = int(model.jnt_qposadr[jid])
+      qvel_idx = int(model.jnt_dofadr[jid])
       self._neck_pitch_action_idx = aid
       self._neck_pitch_qpos_idx = qpos_idx
+      self._neck_pitch_qvel_idx = qvel_idx
       if model.jnt_limited[jid]:
         lo, hi = model.jnt_range[jid]
         self._neck_pitch_target = max(float(lo), min(float(hi), self._neck_pitch_target))
@@ -58,6 +60,7 @@ class VelocityPolicyLocomotionController:
       # If model layout differs, skip neck lock and keep baseline behavior.
       self._neck_pitch_action_idx = None
       self._neck_pitch_qpos_idx = None
+      self._neck_pitch_qvel_idx = None
 
   def _apply_neck_pitch_lock(self, actions: Any) -> Any:
     if self._neck_pitch_action_idx is None or self._neck_pitch_qpos_idx is None:
@@ -67,6 +70,13 @@ class VelocityPolicyLocomotionController:
     correction = torch.clamp(self._neck_pitch_kp * error, -1.0, 1.0)
     actions[:, self._neck_pitch_action_idx] = correction.to(actions.dtype)
     return actions
+
+  def _enforce_neck_pitch_state_lock(self) -> None:
+    if self._neck_pitch_qpos_idx is None or self._neck_pitch_qvel_idx is None:
+      return
+    sim_data = self.env.unwrapped.sim.data
+    sim_data.qpos[:, self._neck_pitch_qpos_idx] = self._neck_pitch_target
+    sim_data.qvel[:, self._neck_pitch_qvel_idx] = 0.0
 
   @classmethod
   def from_checkpoint(
@@ -119,4 +129,5 @@ class VelocityPolicyLocomotionController:
       actions = self.policy(obs)
       actions = self._apply_neck_pitch_lock(actions)
       self.env.step(actions)
+      self._enforce_neck_pitch_state_lock()
       return actions

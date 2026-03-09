@@ -576,6 +576,14 @@ class FixedMainCameraViewer(NativeMujocoViewer):
 
 def main() -> None:
   args = parse_args()
+  task_prompt = (args.brain_prompt or args.task).strip()
+  plan_output = llm_brain_controller.plan_task_prompt(
+    task_prompt=task_prompt,
+    model=args.brain_model,
+  )
+  print(plan_output)
+  return
+
   configure_torch_backends()
 
   repo_root = Path(__file__).resolve().parents[2]
