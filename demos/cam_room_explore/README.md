@@ -1,5 +1,7 @@
 # Camera Room Explore
 
+![](demo.png)
+
 MuJoCo demo for driving a simple camera robot around an iTHOR room and optionally running YOLO-based object search.
 
 ## Files

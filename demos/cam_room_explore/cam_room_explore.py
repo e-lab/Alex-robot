@@ -25,8 +25,8 @@ CAMERA_ROBOT_CAMERA_Z_M = 1.5
 DEFAULT_CAMERA_WIDTH = 640
 DEFAULT_CAMERA_HEIGHT = 360
 DEFAULT_DEPTH_MAX_M = 6.0
-DASHBOARD_MARGIN_PX = 12
-DASHBOARD_GAP_PX = 12
+DASHBOARD_MARGIN_PX = 6
+DASHBOARD_GAP_PX = 6
 DASHBOARD_MAP_SIZE_PX = 360
 
 ACTION_TO_MOTION = {
@@ -343,20 +343,25 @@ class DashboardWindow:
     cv2.putText(rgb_panel, "RGB + YOLO", (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (80, 255, 80), 2, cv2.LINE_AA)
     cv2.putText(depth_panel, "Depth", (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
-    top_height = max(rgb_panel.shape[0], depth_panel.shape[0])
-    top_width = rgb_panel.shape[1] + depth_panel.shape[1] + DASHBOARD_GAP_PX
-    canvas_width = max(top_width, map_panel.shape[1]) + 2 * DASHBOARD_MARGIN_PX
-    canvas_height = top_height + map_panel.shape[0] + DASHBOARD_GAP_PX + 2 * DASHBOARD_MARGIN_PX
+    row_height = max(rgb_panel.shape[0], depth_panel.shape[0], map_panel.shape[0])
+    row_width = (
+      rgb_panel.shape[1]
+      + depth_panel.shape[1]
+      + map_panel.shape[1]
+      + 2 * DASHBOARD_GAP_PX
+    )
+    canvas_width = row_width + 2 * DASHBOARD_MARGIN_PX
+    canvas_height = row_height + 2 * DASHBOARD_MARGIN_PX
     canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
 
-    x_rgb = (canvas_width - top_width) // 2
-    y_top = DASHBOARD_MARGIN_PX
+    x_rgb = DASHBOARD_MARGIN_PX
+    y_rgb = DASHBOARD_MARGIN_PX + (row_height - rgb_panel.shape[0]) // 2
     x_depth = x_rgb + rgb_panel.shape[1] + DASHBOARD_GAP_PX
-    canvas[y_top:y_top + rgb_panel.shape[0], x_rgb:x_rgb + rgb_panel.shape[1]] = rgb_panel
-    canvas[y_top:y_top + depth_panel.shape[0], x_depth:x_depth + depth_panel.shape[1]] = depth_panel
-
-    y_map = y_top + top_height + DASHBOARD_GAP_PX
-    x_map = (canvas_width - map_panel.shape[1]) // 2
+    y_depth = DASHBOARD_MARGIN_PX + (row_height - depth_panel.shape[0]) // 2
+    x_map = x_depth + depth_panel.shape[1] + DASHBOARD_GAP_PX
+    y_map = DASHBOARD_MARGIN_PX + (row_height - map_panel.shape[0]) // 2
+    canvas[y_rgb:y_rgb + rgb_panel.shape[0], x_rgb:x_rgb + rgb_panel.shape[1]] = rgb_panel
+    canvas[y_depth:y_depth + depth_panel.shape[0], x_depth:x_depth + depth_panel.shape[1]] = depth_panel
     canvas[y_map:y_map + map_panel.shape[0], x_map:x_map + map_panel.shape[1]] = map_panel
     return canvas
 
@@ -584,21 +589,30 @@ class CameraRobotController:
   def capture_rgb_depth(self) -> tuple[np.ndarray, np.ndarray]:
     return self.capture_rgb(), self.capture_depth()
 
+  def _is_super_pressed(self) -> bool:
+    window = glfw.get_current_context()
+    if window is None:
+      return False
+    return any(
+      glfw.get_key(window, key_code) == glfw.PRESS
+      for key_code in (glfw.KEY_LEFT_SUPER, glfw.KEY_RIGHT_SUPER)
+    )
+
   def on_key(self, key: int, viewer: mujoco.viewer.Handle) -> None:
     now_s = time.time()
     self._active_action = "stop"
     self._action_until_s = 0.0
-    if key in (glfw.KEY_UP, glfw.KEY_W):
+    if key == glfw.KEY_UP:
       self._last_key_time["forward"] = now_s
-    elif key in (glfw.KEY_DOWN, glfw.KEY_S):
+    elif key == glfw.KEY_DOWN:
       self._last_key_time["backward"] = now_s
-    elif key == glfw.KEY_A:
+    elif key == glfw.KEY_LEFT and self._is_super_pressed():
       self._last_key_time["strafe_left"] = now_s
-    elif key == glfw.KEY_D:
+    elif key == glfw.KEY_RIGHT and self._is_super_pressed():
       self._last_key_time["strafe_right"] = now_s
-    elif key in (glfw.KEY_LEFT, glfw.KEY_Q):
+    elif key == glfw.KEY_LEFT:
       self._last_key_time["turn_left"] = now_s
-    elif key in (glfw.KEY_RIGHT, glfw.KEY_E):
+    elif key == glfw.KEY_RIGHT:
       self._last_key_time["turn_right"] = now_s
     elif key == glfw.KEY_1:
       self.set_view(viewer, first_person=False)
@@ -707,7 +721,7 @@ def run_manual(
   args = args or parse_args()
   controller = create_camera_robot_from_args(args)
   dashboard = DashboardWindow(controller, detector=detector)
-  print("Controls: W/Up forward, S/Down backward, A/D strafe, Q/E or Left/Right turn.")
+  print("Controls: Up forward, Down backward, Cmd+Left/Cmd+Right strafe, Left/Right turn.")
   print("           Space stop, R reset pose, 1 overview camera, 2 camera_robot RGB view.")
 
   def key_callback(key: int) -> None:
