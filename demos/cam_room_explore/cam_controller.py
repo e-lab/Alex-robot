@@ -9,7 +9,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from demos.cam_room_explore.cam_room_explore import CameraRobotController, DashboardWindow
+from demos.cam_room_explore.cam_room_explore import (
+  CameraRobotController,
+  DashboardWindow,
+  POINT_CLOUD_SAMPLE_STRIDE_PX,
+  POINT_CLOUD_VOXEL_SIZE_M,
+)
 
 try:
   from ultralytics import YOLO
@@ -73,44 +78,29 @@ class YoloDetector:
 
 
 @dataclass
-class OccupancyMap2D:
-  resolution_m: float = 0.10
-  free_weight: int = -1
-  occupied_weight: int = 3
+class FusedPointCloudMap:
+  voxel_size_m: float = POINT_CLOUD_VOXEL_SIZE_M
 
   def __post_init__(self) -> None:
-    self.cells: dict[tuple[int, int], int] = {}
+    self.voxels: dict[tuple[int, int, int], int] = {}
 
-  def _cell(self, x_m: float, y_m: float) -> tuple[int, int]:
+  def _voxel(self, x_m: float, y_m: float, z_m: float) -> tuple[int, int, int]:
     return (
-      int(math.floor(x_m / self.resolution_m)),
-      int(math.floor(y_m / self.resolution_m)),
+      int(math.floor(x_m / self.voxel_size_m)),
+      int(math.floor(y_m / self.voxel_size_m)),
+      int(math.floor(z_m / self.voxel_size_m)),
     )
 
-  def _mark(self, cell: tuple[int, int], weight: int) -> None:
-    self.cells[cell] = self.cells.get(cell, 0) + weight
-
-  def _raytrace(self, start_xy: tuple[float, float], end_xy: tuple[float, float]) -> None:
-    dx = end_xy[0] - start_xy[0]
-    dy = end_xy[1] - start_xy[1]
-    dist = math.hypot(dx, dy)
-    if dist <= 1e-6:
-      return
-    steps = max(1, int(dist / self.resolution_m))
-    for idx in range(steps):
-      alpha = idx / steps
-      sample = (
-        start_xy[0] + alpha * dx,
-        start_xy[1] + alpha * dy,
-      )
-      self._mark(self._cell(*sample), self.free_weight)
-    self._mark(self._cell(*end_xy), self.occupied_weight)
+  def _integrate_point(self, point_xyz: tuple[float, float, float]) -> None:
+    voxel = self._voxel(*point_xyz)
+    self.voxels[voxel] = self.voxels.get(voxel, 0) + 1
 
   def update_from_depth(
     self,
     pose: dict,
     depth_image: np.ndarray,
     *,
+    camera_local_pos: tuple[float, float, float],
     fovy_rad: float,
     max_depth_m: float,
   ) -> None:
@@ -118,30 +108,40 @@ class OccupancyMap2D:
     cx = (width - 1) * 0.5
     fy = 0.5 * height / math.tan(0.5 * fovy_rad)
     fx = fy
-    robot_xy = (float(pose["x"]), float(pose["y"]))
+    robot_x = float(pose["x"])
+    robot_y = float(pose["y"])
+    robot_z = float(pose["z"])
     yaw_rad = float(pose["yaw_rad"])
+    cos_yaw = math.cos(yaw_rad)
+    sin_yaw = math.sin(yaw_rad)
+    cy = (height - 1) * 0.5
+    min_depth_m = 0.15
+    max_height_m = robot_z + camera_local_pos[2] + 0.75
 
-    for col in range(0, width, 6):
-      band = depth_image[height // 3: (2 * height) // 3, col]
-      valid = band[np.isfinite(band)]
-      valid = valid[(valid > 0.15) & (valid < max_depth_m)]
-      if valid.size == 0:
-        continue
-      distance_m = float(np.median(valid))
-      angle_offset = math.atan2(col - cx, fx)
-      ray_yaw = yaw_rad + angle_offset
-      end_xy = (
-        robot_xy[0] + distance_m * math.cos(ray_yaw),
-        robot_xy[1] + distance_m * math.sin(ray_yaw),
-      )
-      self._raytrace(robot_xy, end_xy)
+    for row in range(height // 4, height, POINT_CLOUD_SAMPLE_STRIDE_PX):
+      for col in range(0, width, POINT_CLOUD_SAMPLE_STRIDE_PX):
+        depth_m = float(depth_image[row, col])
+        if not np.isfinite(depth_m) or depth_m <= min_depth_m or depth_m >= max_depth_m:
+          continue
+        local_forward_m = depth_m
+        local_right_m = ((col - cx) / fx) * depth_m
+        local_up_m = ((cy - row) / fy) * depth_m
+        local_x = camera_local_pos[0] + local_forward_m
+        local_y = camera_local_pos[1] + local_right_m
+        local_z = camera_local_pos[2] + local_up_m
+        world_x = robot_x + local_x * cos_yaw + local_y * sin_yaw
+        world_y = robot_y + local_x * sin_yaw - local_y * cos_yaw
+        world_z = robot_z + local_z
+        if world_z <= robot_z + 0.02 or world_z >= max_height_m:
+          continue
+        self._integrate_point((world_x, world_y, world_z))
 
   def summary(self) -> dict:
-    occupied = [cell for cell, score in self.cells.items() if score > 0]
+    projected_xy = {(vx, vy) for (vx, vy, _vz) in self.voxels}
     return {
-      "num_cells": len(self.cells),
-      "num_occupied_cells": len(occupied),
-      "resolution_m": self.resolution_m,
+      "num_voxels": len(self.voxels),
+      "num_xy_cells": len(projected_xy),
+      "voxel_size_m": self.voxel_size_m,
     }
 
 
@@ -163,9 +163,47 @@ class AutoExploreController:
     self.scene_graph = {
       "views": [],
       "object_index": {},
-      "occupancy_map": {},
+      "point_cloud_map": {},
     }
-    self.occupancy_map = OccupancyMap2D()
+    self.point_cloud_map = FusedPointCloudMap()
+
+  def _project_detection_to_world_xy(
+    self,
+    detection: dict,
+    depth_image: np.ndarray,
+    pose: dict,
+  ) -> tuple[float, float] | None:
+    height, width = depth_image.shape
+    x1, y1, x2, y2 = detection["bbox_xyxy"]
+    x1_i = int(np.clip(math.floor(x1), 0, width - 1))
+    x2_i = int(np.clip(math.ceil(x2), 0, width - 1))
+    y1_i = int(np.clip(math.floor(y1), 0, height - 1))
+    y2_i = int(np.clip(math.ceil(y2), 0, height - 1))
+    if x2_i < x1_i or y2_i < y1_i:
+      return None
+
+    patch = depth_image[y1_i:y2_i + 1, x1_i:x2_i + 1]
+    valid = patch[np.isfinite(patch)]
+    valid = valid[(valid > 0.15) & (valid < self.max_depth_m)]
+    if valid.size == 0:
+      return None
+
+    depth_m = float(np.median(valid))
+    cx = (width - 1) * 0.5
+    fy = 0.5 * height / math.tan(0.5 * self.robot.fovy_rad)
+    fx = fy
+    center_u = float(detection["image_center_uv"][0])
+    local_forward_m = depth_m
+    local_right_m = ((center_u - cx) / fx) * depth_m
+    cam_offset = self.robot.depth_camera_local_pos
+    local_x = cam_offset[0] + local_forward_m
+    local_y = cam_offset[1] + local_right_m
+    yaw_rad = float(pose["yaw_rad"])
+    cos_yaw = math.cos(yaw_rad)
+    sin_yaw = math.sin(yaw_rad)
+    world_x = float(pose["x"]) + local_x * cos_yaw + local_y * sin_yaw
+    world_y = float(pose["y"]) + local_x * sin_yaw - local_y * cos_yaw
+    return (world_x, world_y)
 
   def _tick_for_duration(self, duration_s: float, viewer=None) -> None:
     end_time = time.time() + duration_s
@@ -183,9 +221,14 @@ class AutoExploreController:
     rgb_image, depth_image = self.robot.capture_rgb_depth()
     detections = self.detector.detect(rgb_image)
     pose = self.robot.get_pose()
-    self.occupancy_map.update_from_depth(
+    for detection in detections:
+      world_xy = self._project_detection_to_world_xy(detection, depth_image, pose)
+      if world_xy is not None:
+        detection["world_xy"] = [world_xy[0], world_xy[1]]
+    self.point_cloud_map.update_from_depth(
       pose,
       depth_image,
+      camera_local_pos=self.robot.depth_camera_local_pos,
       fovy_rad=self.robot.fovy_rad,
       max_depth_m=self.max_depth_m,
     )
@@ -202,11 +245,11 @@ class AutoExploreController:
     self.scene_graph["views"].append(view_entry)
     for detection in detections:
       self.scene_graph["object_index"].setdefault(detection["label"], []).append(view_id)
-    self.scene_graph["occupancy_map"] = self.occupancy_map.summary()
+    self.scene_graph["point_cloud_map"] = self.point_cloud_map.summary()
     if self.dashboard is not None:
       self.dashboard.set_map_state(
-        occupancy_cells=self.occupancy_map.cells,
-        resolution_m=self.occupancy_map.resolution_m,
+        point_cloud_voxels=self.point_cloud_map.voxels,
+        voxel_size_m=self.point_cloud_map.voxel_size_m,
         object_index=self.scene_graph["object_index"],
         views=self.scene_graph["views"],
       )
@@ -279,7 +322,14 @@ class AutoExploreController:
     if best_view is None:
       return False
 
-    self._move_toward_xy(best_view["robot_xy"][0], best_view["robot_xy"][1], viewer)
+    target_dets = [obj for obj in best_view["objects"] if obj["label"] == target_label]
+    target_dets = [obj for obj in target_dets if "world_xy" in obj]
+    if target_dets:
+      target_dets.sort(key=lambda det: det["confidence"], reverse=True)
+      target_xy = target_dets[0]["world_xy"]
+    else:
+      target_xy = best_view["robot_xy"]
+    self._move_toward_xy(target_xy[0], target_xy[1], viewer)
 
     image_width = float(self.robot.camera_width)
     for _ in range(24):

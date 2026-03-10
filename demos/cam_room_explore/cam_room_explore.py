@@ -176,8 +176,6 @@ class DashboardWindow:
     self.window_name = window_name
     self.update_interval_s = 1.0 / max(update_hz, 1e-6)
     self._last_update_s = 0.0
-    self._occupancy_cells: dict[tuple[int, int], int] = {}
-    self._occupancy_resolution_m = 0.10
     self._point_cloud_voxels: dict[tuple[int, int, int], int] = {}
     self._point_cloud_voxel_size_m = POINT_CLOUD_VOXEL_SIZE_M
     self._object_index: dict[str, list[int]] = {}
@@ -190,18 +188,13 @@ class DashboardWindow:
   def set_map_state(
     self,
     *,
-    occupancy_cells: dict[tuple[int, int], int],
-    resolution_m: float,
-    point_cloud_voxels: dict[tuple[int, int, int], int] | None = None,
-    voxel_size_m: float | None = None,
+    point_cloud_voxels: dict[tuple[int, int, int], int],
+    voxel_size_m: float,
     object_index: dict[str, list[int]],
     views: list[dict],
   ) -> None:
-    self._occupancy_cells = dict(occupancy_cells)
-    self._occupancy_resolution_m = resolution_m
-    self._point_cloud_voxels = dict(point_cloud_voxels or {})
-    if voxel_size_m is not None:
-      self._point_cloud_voxel_size_m = voxel_size_m
+    self._point_cloud_voxels = dict(point_cloud_voxels)
+    self._point_cloud_voxel_size_m = voxel_size_m
     self._object_index = {label: list(ids) for label, ids in object_index.items()}
     self._views = [dict(view) for view in views]
     self._map_owned_by_dashboard = False
@@ -259,14 +252,9 @@ class DashboardWindow:
 
   def _render_map_panel(self, pose: dict) -> np.ndarray:
     panel = np.full((DASHBOARD_MAP_SIZE_PX, DASHBOARD_MAP_SIZE_PX, 3), 24, dtype=np.uint8)
-    has_point_cloud = bool(self._point_cloud_voxels)
-    map_resolution_m = (
-      self._point_cloud_voxel_size_m if has_point_cloud else self._occupancy_resolution_m
-    )
-    map_title = "Point Cloud Map" if has_point_cloud else "Occupancy Map"
     cv2.putText(
       panel,
-      map_title,
+      "Point Cloud Map",
       (10, 24),
       cv2.FONT_HERSHEY_SIMPLEX,
       0.7,
@@ -275,7 +263,7 @@ class DashboardWindow:
       cv2.LINE_AA,
     )
 
-    if not has_point_cloud and not self._occupancy_cells:
+    if not self._point_cloud_voxels:
       cv2.putText(
         panel,
         "No map data yet",
@@ -288,20 +276,16 @@ class DashboardWindow:
       )
       return panel
 
+    map_resolution_m = self._point_cloud_voxel_size_m
     robot_cell = self._xy_cell(float(pose["x"]), float(pose["y"]), map_resolution_m)
-    if has_point_cloud:
-      projected_cells: dict[tuple[int, int], dict[str, int]] = {}
-      for (voxel_x, voxel_y, voxel_z), count in self._point_cloud_voxels.items():
-        cell = (voxel_x, voxel_y)
-        entry = projected_cells.setdefault(cell, {"count": 0, "max_z": voxel_z})
-        entry["count"] += count
-        entry["max_z"] = max(entry["max_z"], voxel_z)
-      xs = [cell[0] for cell in projected_cells] + [robot_cell[0]]
-      ys = [cell[1] for cell in projected_cells] + [robot_cell[1]]
-    else:
-      projected_cells = {}
-      xs = [cell[0] for cell in self._occupancy_cells] + [robot_cell[0]]
-      ys = [cell[1] for cell in self._occupancy_cells] + [robot_cell[1]]
+    projected_cells: dict[tuple[int, int], dict[str, int]] = {}
+    for (voxel_x, voxel_y, voxel_z), count in self._point_cloud_voxels.items():
+      cell = (voxel_x, voxel_y)
+      entry = projected_cells.setdefault(cell, {"count": 0, "max_z": voxel_z})
+      entry["count"] += count
+      entry["max_z"] = max(entry["max_z"], voxel_z)
+    xs = [cell[0] for cell in projected_cells] + [robot_cell[0]]
+    ys = [cell[1] for cell in projected_cells] + [robot_cell[1]]
     min_x = min(xs)
     max_x = max(xs)
     min_y = min(ys)
@@ -315,28 +299,21 @@ class DashboardWindow:
     origin_x = (DASHBOARD_MAP_SIZE_PX - map_width) // 2
     origin_y = (DASHBOARD_MAP_SIZE_PX - map_height) // 2
 
-    if has_point_cloud:
-      z_values = [entry["max_z"] for entry in projected_cells.values()]
-      min_z = min(z_values)
-      max_z = max(z_values)
-      z_span = max(1, max_z - min_z)
-      for (cell_x, cell_y), entry in projected_cells.items():
-        x0 = origin_x + (cell_x - min_x) * cell_px
-        y0 = origin_y + (max_y - cell_y) * cell_px
-        density = min(1.0, entry["count"] / 8.0)
-        height_norm = (entry["max_z"] - min_z) / z_span
-        color = (
-          int(60 + 130 * height_norm),
-          int(140 + 100 * density),
-          int(120 + 110 * density),
-        )
-        cv2.rectangle(panel, (x0, y0), (x0 + cell_px - 1, y0 + cell_px - 1), color, -1)
-    else:
-      for (cell_x, cell_y), score in self._occupancy_cells.items():
-        x0 = origin_x + (cell_x - min_x) * cell_px
-        y0 = origin_y + (max_y - cell_y) * cell_px
-        color = (210, 210, 210) if score > 0 else (70, 70, 70)
-        cv2.rectangle(panel, (x0, y0), (x0 + cell_px - 1, y0 + cell_px - 1), color, -1)
+    z_values = [entry["max_z"] for entry in projected_cells.values()]
+    min_z = min(z_values)
+    max_z = max(z_values)
+    z_span = max(1, max_z - min_z)
+    for (cell_x, cell_y), entry in projected_cells.items():
+      x0 = origin_x + (cell_x - min_x) * cell_px
+      y0 = origin_y + (max_y - cell_y) * cell_px
+      density = min(1.0, entry["count"] / 8.0)
+      height_norm = (entry["max_z"] - min_z) / z_span
+      color = (
+        int(60 + 130 * height_norm),
+        int(140 + 100 * density),
+        int(120 + 110 * density),
+      )
+      cv2.rectangle(panel, (x0, y0), (x0 + cell_px - 1, y0 + cell_px - 1), color, -1)
 
     for label, view_ids in self._object_index.items():
       if not view_ids:
@@ -344,8 +321,14 @@ class DashboardWindow:
       view_id = view_ids[-1]
       if view_id >= len(self._views):
         continue
-      robot_xy = self._views[view_id]["robot_xy"]
-      cell_x, cell_y = self._xy_cell(float(robot_xy[0]), float(robot_xy[1]), map_resolution_m)
+      object_xy = None
+      for detection in self._views[view_id].get("objects", []):
+        if detection.get("label") == label and "world_xy" in detection:
+          object_xy = detection["world_xy"]
+          break
+      if object_xy is None:
+        object_xy = self._views[view_id]["robot_xy"]
+      cell_x, cell_y = self._xy_cell(float(object_xy[0]), float(object_xy[1]), map_resolution_m)
       cx = origin_x + (cell_x - min_x) * cell_px + cell_px // 2
       cy = origin_y + (max_y - cell_y) * cell_px + cell_px // 2
       cv2.circle(panel, (cx, cy), max(2, cell_px // 2), (0, 220, 255), -1)

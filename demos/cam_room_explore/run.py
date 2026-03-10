@@ -106,7 +106,7 @@ def _run_auto(args: argparse.Namespace) -> None:
         if phase == "explore":
           scene_graph = auto.explore_room(viewer=viewer)
           print(f"Exploration complete. Seen objects: {sorted(scene_graph['object_index'].keys())}")
-          print(f"Occupancy map summary: {scene_graph['occupancy_map']}")
+          print(f"Point cloud map summary: {scene_graph['point_cloud_map']}")
           phase = "prompt"
           prompt_active = False
           continue
@@ -124,8 +124,8 @@ def _run_auto(args: argparse.Namespace) -> None:
               phase = "walk"
             elif action == "search" and value is not None:
               target_label = value
-              auto.scene_graph = {"views": [], "object_index": {}, "occupancy_map": {}}
-              auto.occupancy_map.cells.clear()
+              auto.scene_graph = {"views": [], "object_index": {}, "point_cloud_map": {}}
+              auto.point_cloud_map.voxels.clear()
               phase = "explore"
             else:
               phase = "prompt"

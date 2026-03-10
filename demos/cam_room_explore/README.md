@@ -8,7 +8,7 @@ MuJoCo demo for driving a simple camera robot around an iTHOR room and optionall
 
 - `run.py`: main entry point for manual mode and prompt-driven auto exploration
 - `cam_room_explore.py`: scene setup, viewer integration, keyboard controls, RGB/depth capture
-- `cam_controller.py`: YOLO detector, occupancy map, room scan, and target approach logic
+- `cam_controller.py`: YOLO detector, fused point-cloud mapping, room scan, and target approach logic
 
 ## Requirements
 
@@ -50,10 +50,10 @@ After the scan finishes, the script prints seen objects and asks whether to walk
 
 ## Manual Controls
 
-- `W` or `Up`: move forward
-- `S` or `Down`: move backward
-- `A` / `D`: strafe left / right
-- `Q` / `E` or `Left` / `Right`: turn left / right
+- `Up`: move forward
+- `Down`: move backward
+- `Cmd` + `Left` / `Right`: strafe left / right
+- `Left` / `Right`: turn left / right
 - `Space`: stop
 - `R`: reset to the start pose
 - `1`: overview camera
@@ -95,6 +95,6 @@ Manual mode:
 Prompt mode:
 
 - Rotates in place to build a scene graph from detections
-- Updates a coarse 2D occupancy map from depth
+- Fuses depth into a voxelized point cloud and renders a top-down map view
 - If no target label is found during the first scan, moves forward and scans again
 - Lets you command the robot to walk toward the best previously observed view of the target
