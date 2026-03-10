@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import math
+import multiprocessing as mp
 import time
 from pathlib import Path
 from threading import Lock
 
+import cv2
 import mujoco
 import mujoco.viewer
 import numpy as np
@@ -23,6 +25,9 @@ CAMERA_ROBOT_CAMERA_Z_M = 1.5
 DEFAULT_CAMERA_WIDTH = 640
 DEFAULT_CAMERA_HEIGHT = 360
 DEFAULT_DEPTH_MAX_M = 6.0
+DASHBOARD_MARGIN_PX = 12
+DASHBOARD_GAP_PX = 12
+DASHBOARD_MAP_SIZE_PX = 360
 
 ACTION_TO_MOTION = {
   "stop": (0.0, 0.0, 0.0),
@@ -99,6 +104,314 @@ def _attach_explore_scene(scene_spec: mujoco.MjSpec, floorplan_xml: Path, fovy: 
 def _yaw_to_quat_wxyz(yaw_rad: float) -> tuple[float, float, float, float]:
   half_yaw = 0.5 * yaw_rad
   return (math.cos(half_yaw), 0.0, 0.0, math.sin(half_yaw))
+
+
+def draw_detections_bgr(
+  image_bgr: np.ndarray,
+  detections: list[dict],
+  *,
+  color: tuple[int, int, int],
+) -> np.ndarray:
+  output = image_bgr.copy()
+  for detection in detections:
+    x1, y1, x2, y2 = [int(round(v)) for v in detection["bbox_xyxy"]]
+    x1 = max(0, min(output.shape[1] - 1, x1))
+    x2 = max(0, min(output.shape[1] - 1, x2))
+    y1 = max(0, min(output.shape[0] - 1, y1))
+    y2 = max(0, min(output.shape[0] - 1, y2))
+    cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
+    label = f"{detection['label']} {detection['confidence']:.2f}"
+    cv2.putText(
+      output,
+      label,
+      (x1, max(18, y1 - 6)),
+      cv2.FONT_HERSHEY_SIMPLEX,
+      0.55,
+      color,
+      2,
+      cv2.LINE_AA,
+    )
+  return output
+
+
+def depth_to_bgr(depth_image: np.ndarray, max_depth_m: float) -> np.ndarray:
+  depth_norm = np.clip(depth_image / max(max_depth_m, 1e-6), 0.0, 1.0)
+  depth_u8 = np.round(255.0 * (1.0 - depth_norm)).astype(np.uint8)
+  return cv2.applyColorMap(depth_u8, cv2.COLORMAP_TURBO)
+
+
+def _dashboard_window_worker(window_name: str, image_queue: mp.Queue) -> None:
+  try:
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+  except cv2.error as exc:
+    print(f"Dashboard disabled: OpenCV window creation failed: {exc}")
+    return
+
+  while True:
+    image = image_queue.get()
+    if image is None:
+      break
+    cv2.imshow(window_name, image)
+    cv2.waitKey(1)
+
+  try:
+    cv2.destroyWindow(window_name)
+  except cv2.error:
+    pass
+
+
+class DashboardWindow:
+  def __init__(
+    self,
+    robot: "CameraRobotController",
+    *,
+    detector=None,
+    update_hz: float = 8.0,
+    window_name: str = "cam_room_explore_dashboard",
+  ) -> None:
+    self.robot = robot
+    self.detector = detector
+    self.window_name = window_name
+    self.update_interval_s = 1.0 / max(update_hz, 1e-6)
+    self._last_update_s = 0.0
+    self._occupancy_cells: dict[tuple[int, int], int] = {}
+    self._occupancy_resolution_m = 0.10
+    self._object_index: dict[str, list[int]] = {}
+    self._views: list[dict] = []
+    self._map_owned_by_dashboard = True
+    self._window_process: mp.Process | None = None
+    self._image_queue: mp.Queue | None = None
+    self._window_failed = False
+
+  def set_map_state(
+    self,
+    *,
+    occupancy_cells: dict[tuple[int, int], int],
+    resolution_m: float,
+    object_index: dict[str, list[int]],
+    views: list[dict],
+  ) -> None:
+    self._occupancy_cells = dict(occupancy_cells)
+    self._occupancy_resolution_m = resolution_m
+    self._object_index = {label: list(ids) for label, ids in object_index.items()}
+    self._views = [dict(view) for view in views]
+    self._map_owned_by_dashboard = False
+
+  def _cell(self, x_m: float, y_m: float) -> tuple[int, int]:
+    return (
+      int(math.floor(x_m / self._occupancy_resolution_m)),
+      int(math.floor(y_m / self._occupancy_resolution_m)),
+    )
+
+  def _mark(self, cell: tuple[int, int], weight: int) -> None:
+    self._occupancy_cells[cell] = self._occupancy_cells.get(cell, 0) + weight
+
+  def _raytrace(self, start_xy: tuple[float, float], end_xy: tuple[float, float]) -> None:
+    dx = end_xy[0] - start_xy[0]
+    dy = end_xy[1] - start_xy[1]
+    dist = math.hypot(dx, dy)
+    if dist <= 1e-6:
+      return
+    steps = max(1, int(dist / self._occupancy_resolution_m))
+    for idx in range(steps):
+      alpha = idx / steps
+      sample = (start_xy[0] + alpha * dx, start_xy[1] + alpha * dy)
+      self._mark(self._cell(*sample), -1)
+    self._mark(self._cell(*end_xy), 3)
+
+  def _update_map_from_depth(self, pose: dict, depth_image: np.ndarray) -> None:
+    height, width = depth_image.shape
+    cx = (width - 1) * 0.5
+    fy = 0.5 * height / math.tan(0.5 * self.robot.fovy_rad)
+    fx = fy
+    robot_xy = (float(pose["x"]), float(pose["y"]))
+    yaw_rad = float(pose["yaw_rad"])
+    for col in range(0, width, 6):
+      band = depth_image[height // 3:(2 * height) // 3, col]
+      valid = band[np.isfinite(band)]
+      valid = valid[(valid > 0.15) & (valid < self.robot.depth_max_m)]
+      if valid.size == 0:
+        continue
+      distance_m = float(np.median(valid))
+      angle_offset = math.atan2(col - cx, fx)
+      ray_yaw = yaw_rad + angle_offset
+      end_xy = (
+        robot_xy[0] + distance_m * math.cos(ray_yaw),
+        robot_xy[1] + distance_m * math.sin(ray_yaw),
+      )
+      self._raytrace(robot_xy, end_xy)
+
+  def _render_map_panel(self, pose: dict) -> np.ndarray:
+    panel = np.full((DASHBOARD_MAP_SIZE_PX, DASHBOARD_MAP_SIZE_PX, 3), 24, dtype=np.uint8)
+    cv2.putText(
+      panel,
+      "Occupancy Map",
+      (10, 24),
+      cv2.FONT_HERSHEY_SIMPLEX,
+      0.7,
+      (255, 255, 255),
+      2,
+      cv2.LINE_AA,
+    )
+
+    if not self._occupancy_cells:
+      cv2.putText(
+        panel,
+        "No map data yet",
+        (90, DASHBOARD_MAP_SIZE_PX // 2),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (180, 180, 180),
+        2,
+        cv2.LINE_AA,
+      )
+      return panel
+
+    robot_cell = (
+      int(math.floor(float(pose["x"]) / self._occupancy_resolution_m)),
+      int(math.floor(float(pose["y"]) / self._occupancy_resolution_m)),
+    )
+    xs = [cell[0] for cell in self._occupancy_cells] + [robot_cell[0]]
+    ys = [cell[1] for cell in self._occupancy_cells] + [robot_cell[1]]
+    min_x = min(xs)
+    max_x = max(xs)
+    min_y = min(ys)
+    max_y = max(ys)
+    span_x = max(1, max_x - min_x + 1)
+    span_y = max(1, max_y - min_y + 1)
+    drawable = DASHBOARD_MAP_SIZE_PX - 2 * DASHBOARD_MARGIN_PX
+    cell_px = max(1, min(drawable // span_x, drawable // span_y))
+    map_width = span_x * cell_px
+    map_height = span_y * cell_px
+    origin_x = (DASHBOARD_MAP_SIZE_PX - map_width) // 2
+    origin_y = (DASHBOARD_MAP_SIZE_PX - map_height) // 2
+
+    for (cell_x, cell_y), score in self._occupancy_cells.items():
+      x0 = origin_x + (cell_x - min_x) * cell_px
+      y0 = origin_y + (max_y - cell_y) * cell_px
+      color = (210, 210, 210) if score > 0 else (70, 70, 70)
+      cv2.rectangle(panel, (x0, y0), (x0 + cell_px - 1, y0 + cell_px - 1), color, -1)
+
+    for label, view_ids in self._object_index.items():
+      if not view_ids:
+        continue
+      view_id = view_ids[-1]
+      if view_id >= len(self._views):
+        continue
+      robot_xy = self._views[view_id]["robot_xy"]
+      cell_x = int(math.floor(float(robot_xy[0]) / self._occupancy_resolution_m))
+      cell_y = int(math.floor(float(robot_xy[1]) / self._occupancy_resolution_m))
+      cx = origin_x + (cell_x - min_x) * cell_px + cell_px // 2
+      cy = origin_y + (max_y - cell_y) * cell_px + cell_px // 2
+      cv2.circle(panel, (cx, cy), max(2, cell_px // 2), (0, 220, 255), -1)
+      cv2.putText(
+        panel,
+        label,
+        (min(DASHBOARD_MAP_SIZE_PX - 80, cx + 5), max(18, cy - 6)),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.4,
+        (0, 220, 255),
+        1,
+        cv2.LINE_AA,
+      )
+
+    cx = origin_x + (robot_cell[0] - min_x) * cell_px + cell_px // 2
+    cy = origin_y + (max_y - robot_cell[1]) * cell_px + cell_px // 2
+    cv2.circle(panel, (cx, cy), max(4, cell_px // 2), (0, 255, 0), -1)
+    tip = (
+      int(round(cx + math.cos(float(pose["yaw_rad"])) * max(8, cell_px * 1.5))),
+      int(round(cy - math.sin(float(pose["yaw_rad"])) * max(8, cell_px * 1.5))),
+    )
+    cv2.arrowedLine(panel, (cx, cy), tip, (0, 255, 0), 2, tipLength=0.35)
+    return panel
+
+  def _compose_dashboard(
+    self,
+    rgb_image: np.ndarray,
+    depth_image: np.ndarray,
+    detections: list[dict],
+    pose: dict,
+  ) -> np.ndarray:
+    rgb_panel = draw_detections_bgr(
+      cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR),
+      detections,
+      color=(80, 255, 80),
+    )
+    depth_panel = depth_to_bgr(depth_image, self.robot.depth_max_m)
+    map_panel = self._render_map_panel(pose)
+
+    cv2.putText(rgb_panel, "RGB + YOLO", (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (80, 255, 80), 2, cv2.LINE_AA)
+    cv2.putText(depth_panel, "Depth", (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+
+    top_height = max(rgb_panel.shape[0], depth_panel.shape[0])
+    top_width = rgb_panel.shape[1] + depth_panel.shape[1] + DASHBOARD_GAP_PX
+    canvas_width = max(top_width, map_panel.shape[1]) + 2 * DASHBOARD_MARGIN_PX
+    canvas_height = top_height + map_panel.shape[0] + DASHBOARD_GAP_PX + 2 * DASHBOARD_MARGIN_PX
+    canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+
+    x_rgb = (canvas_width - top_width) // 2
+    y_top = DASHBOARD_MARGIN_PX
+    x_depth = x_rgb + rgb_panel.shape[1] + DASHBOARD_GAP_PX
+    canvas[y_top:y_top + rgb_panel.shape[0], x_rgb:x_rgb + rgb_panel.shape[1]] = rgb_panel
+    canvas[y_top:y_top + depth_panel.shape[0], x_depth:x_depth + depth_panel.shape[1]] = depth_panel
+
+    y_map = y_top + top_height + DASHBOARD_GAP_PX
+    x_map = (canvas_width - map_panel.shape[1]) // 2
+    canvas[y_map:y_map + map_panel.shape[0], x_map:x_map + map_panel.shape[1]] = map_panel
+    return canvas
+
+  def update(self, viewer: mujoco.viewer.Handle) -> None:
+    del viewer
+    now_s = time.time()
+    if self._window_failed or (now_s - self._last_update_s) < self.update_interval_s:
+      return
+    rgb_image, depth_image = self.robot.capture_rgb_depth()
+    detections = self.detector.detect(rgb_image) if self.detector is not None else []
+    pose = self.robot.get_pose()
+    if self._map_owned_by_dashboard:
+      self._update_map_from_depth(pose, depth_image)
+    dashboard = self._compose_dashboard(rgb_image, depth_image, detections, pose)
+    if self._window_process is None:
+      try:
+        ctx = mp.get_context("spawn")
+        self._image_queue = ctx.Queue(maxsize=1)
+        self._window_process = ctx.Process(
+          target=_dashboard_window_worker,
+          args=(self.window_name, self._image_queue),
+          daemon=True,
+        )
+        self._window_process.start()
+      except Exception as exc:
+        print(f"Dashboard disabled: failed to start window process: {exc}")
+        self._window_failed = True
+        self._window_process = None
+        self._image_queue = None
+        return
+    assert self._image_queue is not None
+    try:
+      if self._image_queue.full():
+        try:
+          self._image_queue.get_nowait()
+        except Exception:
+          pass
+      self._image_queue.put_nowait(dashboard)
+    except Exception as exc:
+      print(f"Dashboard disabled: failed to send image frame: {exc}")
+      self._window_failed = True
+    self._last_update_s = now_s
+
+  def close(self) -> None:
+    if self._image_queue is not None:
+      try:
+        self._image_queue.put_nowait(None)
+      except Exception:
+        pass
+      self._image_queue = None
+    if self._window_process is not None:
+      self._window_process.join(timeout=0.5)
+      if self._window_process.is_alive():
+        self._window_process.terminate()
+      self._window_process = None
 
 
 class CameraRobotController:
@@ -323,11 +636,14 @@ class CameraRobotController:
   def tick(
     self,
     viewer: mujoco.viewer.Handle | None = None,
+    dashboard: DashboardWindow | None = None,
   ) -> None:
     step_start = time.time()
     self.step()
     mujoco.mj_step(self.model, self.data)
     if viewer is not None:
+      if dashboard is not None:
+        dashboard.update(viewer)
       viewer.sync(state_only=True)
     remaining = self.model.opt.timestep - (time.time() - step_start)
     if remaining > 0:
@@ -385,9 +701,12 @@ def configure_viewer(viewer: mujoco.viewer.Handle, model: mujoco.MjModel) -> Non
 
 def run_manual(
   args: argparse.Namespace | None = None,
+  *,
+  detector=None,
 ) -> None:
   args = args or parse_args()
   controller = create_camera_robot_from_args(args)
+  dashboard = DashboardWindow(controller, detector=detector)
   print("Controls: W/Up forward, S/Down backward, A/D strafe, Q/E or Left/Right turn.")
   print("           Space stop, R reset pose, 1 overview camera, 2 camera_robot RGB view.")
 
@@ -405,8 +724,9 @@ def run_manual(
       configure_viewer(viewer, controller.model)
       controller.set_view(viewer, first_person=True)
       while viewer.is_running():
-        controller.tick(viewer)
+        controller.tick(viewer, dashboard=dashboard)
   finally:
+    dashboard.close()
     controller.close()
 
 

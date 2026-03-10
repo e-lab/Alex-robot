@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from demos.cam_room_explore.cam_room_explore import CameraRobotController
+from demos.cam_room_explore.cam_room_explore import CameraRobotController, DashboardWindow
 
 try:
   from ultralytics import YOLO
@@ -153,11 +153,13 @@ class AutoExploreController:
     detector: YoloDetector,
     target_labels: list[str] | None = None,
     max_depth_m: float | None = None,
+    dashboard: DashboardWindow | None = None,
   ) -> None:
     self.robot = robot
     self.detector = detector
     self.target_labels = target_labels or TARGET_OBJECTS
     self.max_depth_m = max_depth_m or robot.depth_max_m
+    self.dashboard = dashboard
     self.scene_graph = {
       "views": [],
       "object_index": {},
@@ -170,7 +172,7 @@ class AutoExploreController:
     while time.time() < end_time:
       if viewer is not None and not viewer.is_running():
         break
-      self.robot.tick(viewer)
+      self.robot.tick(viewer, dashboard=self.dashboard)
 
   def _run_action(self, action_name: str, duration_s: float, viewer=None) -> None:
     self.robot.set_action(action_name, duration_s)
@@ -201,6 +203,13 @@ class AutoExploreController:
     for detection in detections:
       self.scene_graph["object_index"].setdefault(detection["label"], []).append(view_id)
     self.scene_graph["occupancy_map"] = self.occupancy_map.summary()
+    if self.dashboard is not None:
+      self.dashboard.set_map_state(
+        occupancy_cells=self.occupancy_map.cells,
+        resolution_m=self.occupancy_map.resolution_m,
+        object_index=self.scene_graph["object_index"],
+        views=self.scene_graph["views"],
+      )
     return view_entry
 
   def explore_room(

@@ -21,6 +21,7 @@ from demos.cam_room_explore.cam_room_explore import (
   configure_viewer,
   create_camera_robot_from_args,
   run_manual,
+  DashboardWindow,
 )
 
 
@@ -78,11 +79,13 @@ def _run_auto(args: argparse.Namespace) -> None:
     target_labels=args.target_labels,
     confidence_threshold=args.confidence_threshold,
   )
+  dashboard = DashboardWindow(robot, detector=detector)
   auto = AutoExploreController(
     robot,
     detector=detector,
     target_labels=args.target_labels,
     max_depth_m=args.depth_max_m,
+    dashboard=dashboard,
   )
   target_label = args.prompt
   response_queue: Queue[tuple[str, str | None]] = Queue()
@@ -126,7 +129,7 @@ def _run_auto(args: argparse.Namespace) -> None:
               phase = "explore"
             else:
               phase = "prompt"
-          robot.tick(viewer)
+          robot.tick(viewer, dashboard=dashboard)
           continue
 
         if phase == "walk":
@@ -136,15 +139,25 @@ def _run_auto(args: argparse.Namespace) -> None:
           prompt_active = False
           continue
 
-        robot.tick(viewer)
+        robot.tick(viewer, dashboard=dashboard)
   finally:
+    dashboard.close()
     robot.close()
 
 
 def main() -> None:
   args = parse_args()
   if not args.prompt:
-    run_manual(args)
+    detector = None
+    try:
+      detector = YoloDetector(
+        model_name=args.yolo_model,
+        target_labels=args.target_labels,
+        confidence_threshold=args.confidence_threshold,
+      )
+    except Exception as exc:
+      print(f"YOLO dashboard detections disabled: {exc}")
+    run_manual(args, detector=detector)
     return
   _run_auto(args)
 
