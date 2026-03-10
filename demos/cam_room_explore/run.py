@@ -17,7 +17,6 @@ if str(_REPO_ROOT) not in sys.path:
 
 from demos.cam_room_explore.cam_controller import AutoExploreController, TARGET_OBJECTS, YoloDetector
 from demos.cam_room_explore.cam_room_explore import (
-  CameraOverlayManager,
   build_arg_parser,
   configure_viewer,
   create_camera_robot_from_args,
@@ -33,19 +32,6 @@ def parse_args() -> argparse.Namespace:
   parser.add_argument("--target-labels", nargs="*", default=TARGET_OBJECTS)
   parser.add_argument("--confidence-threshold", type=float, default=0.25)
   return parser.parse_args()
-
-
-def _status_lines(target_label: str, scene_graph: dict, mode_line: str) -> list[str]:
-  occupancy = scene_graph.get("occupancy_map", {})
-  return [
-    f"target: {target_label}",
-    mode_line,
-    (
-      "map: "
-      f"{occupancy.get('num_occupied_cells', 0)} occ / "
-      f"{occupancy.get('num_cells', 0)} cells"
-    ),
-  ]
 
 
 def _start_prompt_thread(
@@ -92,17 +78,11 @@ def _run_auto(args: argparse.Namespace) -> None:
     target_labels=args.target_labels,
     confidence_threshold=args.confidence_threshold,
   )
-  overlay_manager = CameraOverlayManager(
-    robot,
-    detector=detector,
-    debug_test_pattern=args.overlay_debug,
-  )
   auto = AutoExploreController(
     robot,
     detector=detector,
     target_labels=args.target_labels,
     max_depth_m=args.depth_max_m,
-    overlay_manager=overlay_manager,
   )
   target_label = args.prompt
   response_queue: Queue[tuple[str, str | None]] = Queue()
@@ -118,15 +98,12 @@ def _run_auto(args: argparse.Namespace) -> None:
     ) as viewer:
       configure_viewer(viewer, robot.model)
       robot.set_view(viewer, first_person=True)
-      overlay_manager.update(viewer, force=True)
 
       while viewer.is_running():
         if phase == "explore":
-          overlay_manager.set_status_lines([f"target: {target_label}", "mode: explore"])
           scene_graph = auto.explore_room(viewer=viewer)
           print(f"Exploration complete. Seen objects: {sorted(scene_graph['object_index'].keys())}")
           print(f"Occupancy map summary: {scene_graph['occupancy_map']}")
-          overlay_manager.set_status_lines(_status_lines(target_label, scene_graph, "mode: explored"))
           phase = "prompt"
           prompt_active = False
           continue
@@ -149,43 +126,25 @@ def _run_auto(args: argparse.Namespace) -> None:
               phase = "explore"
             else:
               phase = "prompt"
-          robot.tick(viewer, overlay_manager=overlay_manager)
+          robot.tick(viewer)
           continue
 
         if phase == "walk":
-          overlay_manager.set_status_lines(_status_lines(target_label, auto.scene_graph, "mode: walk"))
           success = auto.walk_to_target(target_label, viewer=viewer)
           print(f"walk_to_target('{target_label}') -> {success}")
-          overlay_manager.set_status_lines(
-            _status_lines(
-              target_label,
-              auto.scene_graph,
-              "walk: success" if success else "walk: failed",
-            )
-          )
           phase = "prompt"
           prompt_active = False
           continue
 
-        robot.tick(viewer, overlay_manager=overlay_manager)
+        robot.tick(viewer)
   finally:
-    overlay_manager.close()
     robot.close()
 
 
 def main() -> None:
   args = parse_args()
   if not args.prompt:
-    detector = None
-    try:
-      detector = YoloDetector(
-        model_name=args.yolo_model,
-        target_labels=args.target_labels,
-        confidence_threshold=args.confidence_threshold,
-      )
-    except Exception as exc:
-      print(f"YOLO overlay disabled: {exc}")
-    run_manual(args, detector=detector)
+    run_manual(args)
     return
   _run_auto(args)
 

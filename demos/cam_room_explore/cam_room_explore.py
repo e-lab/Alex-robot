@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 from threading import Lock
 
-import cv2
 import mujoco
 import mujoco.viewer
 import numpy as np
@@ -24,12 +23,6 @@ CAMERA_ROBOT_CAMERA_Z_M = 1.5
 DEFAULT_CAMERA_WIDTH = 640
 DEFAULT_CAMERA_HEIGHT = 360
 DEFAULT_DEPTH_MAX_M = 6.0
-OVERLAY_WIDTH_FRACTION = 0.26
-OVERLAY_MAX_HEIGHT_FRACTION = 0.30
-OVERLAY_MARGIN_PX = 12
-OVERLAY_GAP_PX = 12
-OVERLAY_MIN_WIDTH_PX = 280
-OVERLAY_MIN_HEIGHT_PX = 158
 
 ACTION_TO_MOTION = {
   "stop": (0.0, 0.0, 0.0),
@@ -62,11 +55,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
   parser.add_argument("--camera-width", type=int, default=DEFAULT_CAMERA_WIDTH)
   parser.add_argument("--camera-height", type=int, default=DEFAULT_CAMERA_HEIGHT)
   parser.add_argument("--depth-max-m", type=float, default=DEFAULT_DEPTH_MAX_M)
-  parser.add_argument(
-    "--overlay-debug",
-    action="store_true",
-    help="Show synthetic test overlays that do not depend on camera rendering.",
-  )
   return parser
 
 
@@ -111,268 +99,6 @@ def _attach_explore_scene(scene_spec: mujoco.MjSpec, floorplan_xml: Path, fovy: 
 def _yaw_to_quat_wxyz(yaw_rad: float) -> tuple[float, float, float, float]:
   half_yaw = 0.5 * yaw_rad
   return (math.cos(half_yaw), 0.0, 0.0, math.sin(half_yaw))
-
-
-def _draw_detections_bgr(
-  image_bgr: np.ndarray,
-  detections: list[dict],
-  *,
-  color: tuple[int, int, int],
-) -> np.ndarray:
-  output = image_bgr.copy()
-  for detection in detections:
-    x1, y1, x2, y2 = [int(round(v)) for v in detection["bbox_xyxy"]]
-    x1 = max(0, min(output.shape[1] - 1, x1))
-    x2 = max(0, min(output.shape[1] - 1, x2))
-    y1 = max(0, min(output.shape[0] - 1, y1))
-    y2 = max(0, min(output.shape[0] - 1, y2))
-    cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
-    label = f"{detection['label']} {detection['confidence']:.2f}"
-    cv2.putText(
-      output,
-      label,
-      (x1, max(18, y1 - 6)),
-      cv2.FONT_HERSHEY_SIMPLEX,
-      0.55,
-      color,
-      2,
-      cv2.LINE_AA,
-    )
-  return output
-
-
-def _add_overlay_border(image_bgr: np.ndarray, color: tuple[int, int, int]) -> np.ndarray:
-  output = image_bgr.copy()
-  cv2.rectangle(
-    output,
-    (0, 0),
-    (output.shape[1] - 1, output.shape[0] - 1),
-    color,
-    3,
-  )
-  return output
-
-
-def depth_to_bgr(depth_image: np.ndarray, max_depth_m: float) -> np.ndarray:
-  depth_norm = np.clip(depth_image / max(max_depth_m, 1e-6), 0.0, 1.0)
-  depth_u8 = np.round(255.0 * (1.0 - depth_norm)).astype(np.uint8)
-  return cv2.applyColorMap(depth_u8, cv2.COLORMAP_TURBO)
-
-
-class CameraOverlayManager:
-  def __init__(
-    self,
-    robot: "CameraRobotController",
-    *,
-    detector=None,
-    update_hz: float = 8.0,
-    debug_test_pattern: bool = False,
-  ) -> None:
-    self.robot = robot
-    self.detector = detector
-    self.update_interval_s = 1.0 / max(update_hz, 1e-6)
-    self.debug_test_pattern = debug_test_pattern
-    self._last_update_s = 0.0
-    self._cached_rgb: np.ndarray | None = None
-    self._cached_depth: np.ndarray | None = None
-    self._cached_detections: list[dict] = []
-    self._last_error_s: float = 0.0
-    self._rgb_pip_renderer: mujoco.Renderer | None = None
-    self._depth_pip_renderer: mujoco.Renderer | None = None
-    self._status_lines: list[str] = []
-    self._rgb_window_name = "camera_robot_rgb_yolo"
-    self._depth_window_name = "camera_robot_depth_yolo"
-
-  def set_latest_capture(
-    self,
-    rgb_image: np.ndarray,
-    depth_image: np.ndarray,
-    detections: list[dict],
-  ) -> None:
-    self._cached_rgb = rgb_image.copy()
-    self._cached_depth = depth_image.copy()
-    self._cached_detections = [dict(det) for det in detections]
-    self._last_update_s = time.time()
-
-  def set_status_lines(self, lines: list[str]) -> None:
-    self._status_lines = list(lines)
-
-  def _ensure_pip_renderers(self) -> None:
-    if self._rgb_pip_renderer is None:
-      self._rgb_pip_renderer = mujoco.Renderer(
-        self.robot.model,
-        width=self.robot.camera_width,
-        height=self.robot.camera_height,
-      )
-    if self._depth_pip_renderer is None:
-      self._depth_pip_renderer = mujoco.Renderer(
-        self.robot.model,
-        width=self.robot.camera_width,
-        height=self.robot.camera_height,
-      )
-
-  def _refresh_cache(self) -> None:
-    if self.debug_test_pattern:
-      rgb_image = np.zeros((self.robot.camera_height, self.robot.camera_width, 3), dtype=np.uint8)
-      depth_image = np.zeros((self.robot.camera_height, self.robot.camera_width), dtype=np.float32)
-      rgb_image[:] = (25, 25, 180)
-      depth_image[:] = self.robot.depth_max_m * 0.5
-      cv2.putText(
-        rgb_image,
-        "TEST RGB OVERLAY",
-        (20, 60),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.2,
-        (255, 255, 255),
-        3,
-        cv2.LINE_AA,
-      )
-      cv2.rectangle(rgb_image, (40, 100), (220, 220), (0, 255, 0), 4)
-      self._cached_rgb = rgb_image
-      self._cached_depth = depth_image
-      self._cached_detections = [
-        {
-          "label": "test",
-          "confidence": 1.0,
-          "bbox_xyxy": [40.0, 100.0, 220.0, 220.0],
-        }
-      ]
-      self._last_update_s = time.time()
-      return
-    with self.robot._mj_lock:
-      self._ensure_pip_renderers()
-      assert self._rgb_pip_renderer is not None
-      assert self._depth_pip_renderer is not None
-
-      self._rgb_pip_renderer.disable_depth_rendering()
-      self._rgb_pip_renderer.update_scene(self.robot.data, camera=self.robot._rgb_camera_id)
-      rgb_image = self._rgb_pip_renderer.render().copy()
-
-      self._depth_pip_renderer.enable_depth_rendering()
-      self._depth_pip_renderer.update_scene(self.robot.data, camera=self.robot._depth_camera_id)
-      depth_image = np.clip(
-        self._depth_pip_renderer.render().copy(),
-        0.0,
-        self.robot.depth_max_m,
-      )
-      self._depth_pip_renderer.disable_depth_rendering()
-
-    detections = self.detector.detect(rgb_image) if self.detector is not None else []
-    self._cached_rgb = rgb_image
-    self._cached_depth = depth_image
-    self._cached_detections = detections
-    self._last_update_s = time.time()
-
-  def update(self, viewer: mujoco.viewer.Handle, *, force: bool = False) -> None:
-    try:
-      now_s = time.time()
-      if force or self._cached_rgb is None or (now_s - self._last_update_s) >= self.update_interval_s:
-        self._refresh_cache()
-
-      assert self._cached_rgb is not None
-      assert self._cached_depth is not None
-      rgb_bgr = cv2.cvtColor(self._cached_rgb, cv2.COLOR_RGB2BGR)
-      rgb_overlay = _draw_detections_bgr(
-        rgb_bgr,
-        self._cached_detections,
-        color=(80, 255, 80),
-      )
-      depth_overlay = _draw_detections_bgr(
-        depth_to_bgr(self._cached_depth, self.robot.depth_max_m),
-        self._cached_detections,
-        color=(255, 255, 255),
-      )
-      cv2.putText(
-        rgb_overlay,
-        "RGB + YOLO",
-        (10, 24),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (80, 255, 80),
-        2,
-        cv2.LINE_AA,
-      )
-      cv2.putText(
-        depth_overlay,
-        "Depth + YOLO",
-        (10, 24),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-      )
-      for idx, line in enumerate(self._status_lines):
-        y = 50 + idx * 22
-        cv2.putText(
-          rgb_overlay,
-          line,
-          (10, y),
-          cv2.FONT_HERSHEY_SIMPLEX,
-          0.55,
-          (255, 255, 255),
-          2,
-          cv2.LINE_AA,
-        )
-        cv2.putText(
-          depth_overlay,
-          line,
-          (10, y),
-          cv2.FONT_HERSHEY_SIMPLEX,
-          0.55,
-          (255, 255, 255),
-          2,
-          cv2.LINE_AA,
-        )
-
-      viewport = viewer.viewport
-      width = max(OVERLAY_MIN_WIDTH_PX, int(viewport.width * OVERLAY_WIDTH_FRACTION))
-      aspect = rgb_overlay.shape[0] / max(rgb_overlay.shape[1], 1)
-      height = max(OVERLAY_MIN_HEIGHT_PX, int(width * aspect))
-      max_height = max(1, int(viewport.height * OVERLAY_MAX_HEIGHT_FRACTION))
-      if height > max_height:
-        height = max_height
-        width = max(1, int(height / max(aspect, 1e-6)))
-
-      rgb_resized = cv2.resize(rgb_overlay, (width, height), interpolation=cv2.INTER_AREA)
-      depth_resized = cv2.resize(depth_overlay, (width, height), interpolation=cv2.INTER_AREA)
-      rgb_resized = _add_overlay_border(rgb_resized, (0, 255, 0))
-      depth_resized = _add_overlay_border(depth_resized, (255, 255, 255))
-      rect_rgb = mujoco.MjrRect(OVERLAY_MARGIN_PX, OVERLAY_MARGIN_PX, width, height)
-      rect_depth = mujoco.MjrRect(
-        OVERLAY_MARGIN_PX + width + OVERLAY_GAP_PX,
-        OVERLAY_MARGIN_PX,
-        width,
-        height,
-      )
-      viewer.set_images([
-        (rect_rgb, cv2.cvtColor(rgb_resized, cv2.COLOR_BGR2RGB)),
-        (rect_depth, cv2.cvtColor(depth_resized, cv2.COLOR_BGR2RGB)),
-      ])
-      self._last_error_s = 0.0
-    except Exception as exc:
-      try:
-        viewer.clear_images()
-      except Exception:
-        pass
-      now_s = time.time()
-      if now_s - self._last_error_s >= 5.0:
-        print(f"[overlay] error: {exc}")
-        self._last_error_s = now_s
-
-  def clear(self, viewer: mujoco.viewer.Handle) -> None:
-    try:
-      viewer.clear_images()
-    except Exception:
-      pass
-
-  def close(self) -> None:
-    if self._rgb_pip_renderer is not None:
-      self._rgb_pip_renderer.close()
-      self._rgb_pip_renderer = None
-    if self._depth_pip_renderer is not None:
-      self._depth_pip_renderer.close()
-      self._depth_pip_renderer = None
 
 
 class CameraRobotController:
@@ -597,14 +323,11 @@ class CameraRobotController:
   def tick(
     self,
     viewer: mujoco.viewer.Handle | None = None,
-    overlay_manager: CameraOverlayManager | None = None,
   ) -> None:
     step_start = time.time()
     self.step()
     mujoco.mj_step(self.model, self.data)
     if viewer is not None:
-      if overlay_manager is not None:
-        overlay_manager.update(viewer)
       viewer.sync(state_only=True)
     remaining = self.model.opt.timestep - (time.time() - step_start)
     if remaining > 0:
@@ -662,16 +385,9 @@ def configure_viewer(viewer: mujoco.viewer.Handle, model: mujoco.MjModel) -> Non
 
 def run_manual(
   args: argparse.Namespace | None = None,
-  *,
-  detector=None,
 ) -> None:
   args = args or parse_args()
   controller = create_camera_robot_from_args(args)
-  overlay_manager = CameraOverlayManager(
-    controller,
-    detector=detector,
-    debug_test_pattern=args.overlay_debug,
-  )
   print("Controls: W/Up forward, S/Down backward, A/D strafe, Q/E or Left/Right turn.")
   print("           Space stop, R reset pose, 1 overview camera, 2 camera_robot RGB view.")
 
@@ -689,9 +405,8 @@ def run_manual(
       configure_viewer(viewer, controller.model)
       controller.set_view(viewer, first_person=True)
       while viewer.is_running():
-        controller.tick(viewer, overlay_manager=overlay_manager)
+        controller.tick(viewer)
   finally:
-    overlay_manager.close()
     controller.close()
 
 

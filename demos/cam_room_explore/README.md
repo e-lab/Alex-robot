@@ -1,6 +1,6 @@
 # Camera Room Explore
 
-MuJoCo demo for driving a simple camera robot around an iTHOR room, viewing RGB and depth renders, and optionally running YOLO-based object search.
+MuJoCo demo for driving a simple camera robot around an iTHOR room and optionally running YOLO-based object search.
 
 ## Files
 
@@ -13,7 +13,7 @@ MuJoCo demo for driving a simple camera robot around an iTHOR room, viewing RGB 
 Base dependencies:
 
 ```bash
-pip install mujoco numpy opencv-python
+pip install mujoco numpy
 ```
 
 Optional object detection:
@@ -26,7 +26,6 @@ Notes:
 
 - The demo expects a desktop session with a working OpenGL context.
 - The default scene is `scenes/ithor/FloorPlan1_physics_simple.xml`.
-- In manual mode, YOLO is optional. If `ultralytics` or the model weights are unavailable, the viewer still runs and the overlay is disabled.
 - In prompt mode, YOLO is required because exploration and target seeking depend on detections.
 
 ## Run
@@ -67,8 +66,7 @@ After the scan finishes, the script prints seen objects and asks whether to walk
 - `--turn-speed-deg`: turn speed in deg/s
 - `--fovy`: camera field of view in degrees
 - `--camera-width`, `--camera-height`: render resolution
-- `--depth-max-m`: max displayed and processed depth
-- `--overlay-debug`: show synthetic test overlays instead of live camera captures
+- `--depth-max-m`: max processed depth
 - `--yolo-model`: YOLO weights file or model name, default `yolov8n.pt`
 - `--target-labels`: labels to keep from detections
 - `--confidence-threshold`: minimum detection confidence
@@ -91,8 +89,6 @@ You can override these with `--target-labels`.
 Manual mode:
 
 - Drives the robot with the keyboard
-- Shows RGB and depth overlay windows
-- Optionally draws YOLO detections on the RGB view
 
 Prompt mode:
 

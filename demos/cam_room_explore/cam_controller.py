@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from demos.cam_room_explore.cam_room_explore import CameraOverlayManager, CameraRobotController
+from demos.cam_room_explore.cam_room_explore import CameraRobotController
 
 try:
   from ultralytics import YOLO
@@ -153,13 +153,11 @@ class AutoExploreController:
     detector: YoloDetector,
     target_labels: list[str] | None = None,
     max_depth_m: float | None = None,
-    overlay_manager: CameraOverlayManager | None = None,
   ) -> None:
     self.robot = robot
     self.detector = detector
     self.target_labels = target_labels or TARGET_OBJECTS
     self.max_depth_m = max_depth_m or robot.depth_max_m
-    self.overlay_manager = overlay_manager
     self.scene_graph = {
       "views": [],
       "object_index": {},
@@ -172,7 +170,7 @@ class AutoExploreController:
     while time.time() < end_time:
       if viewer is not None and not viewer.is_running():
         break
-      self.robot.tick(viewer, overlay_manager=self.overlay_manager)
+      self.robot.tick(viewer)
 
   def _run_action(self, action_name: str, duration_s: float, viewer=None) -> None:
     self.robot.set_action(action_name, duration_s)
@@ -182,8 +180,6 @@ class AutoExploreController:
   def _observe_scene(self) -> dict:
     rgb_image, depth_image = self.robot.capture_rgb_depth()
     detections = self.detector.detect(rgb_image)
-    if self.overlay_manager is not None:
-      self.overlay_manager.set_latest_capture(rgb_image, depth_image, detections)
     pose = self.robot.get_pose()
     self.occupancy_map.update_from_depth(
       pose,
