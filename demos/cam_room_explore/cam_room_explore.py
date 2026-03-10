@@ -28,6 +28,8 @@ DEFAULT_DEPTH_MAX_M = 6.0
 DASHBOARD_MARGIN_PX = 6
 DASHBOARD_GAP_PX = 6
 DASHBOARD_MAP_SIZE_PX = 360
+POINT_CLOUD_VOXEL_SIZE_M = 0.05
+POINT_CLOUD_SAMPLE_STRIDE_PX = 4
 
 ACTION_TO_MOTION = {
   "stop": (0.0, 0.0, 0.0),
@@ -176,6 +178,8 @@ class DashboardWindow:
     self._last_update_s = 0.0
     self._occupancy_cells: dict[tuple[int, int], int] = {}
     self._occupancy_resolution_m = 0.10
+    self._point_cloud_voxels: dict[tuple[int, int, int], int] = {}
+    self._point_cloud_voxel_size_m = POINT_CLOUD_VOXEL_SIZE_M
     self._object_index: dict[str, list[int]] = {}
     self._views: list[dict] = []
     self._map_owned_by_dashboard = True
@@ -188,64 +192,81 @@ class DashboardWindow:
     *,
     occupancy_cells: dict[tuple[int, int], int],
     resolution_m: float,
+    point_cloud_voxels: dict[tuple[int, int, int], int] | None = None,
+    voxel_size_m: float | None = None,
     object_index: dict[str, list[int]],
     views: list[dict],
   ) -> None:
     self._occupancy_cells = dict(occupancy_cells)
     self._occupancy_resolution_m = resolution_m
+    self._point_cloud_voxels = dict(point_cloud_voxels or {})
+    if voxel_size_m is not None:
+      self._point_cloud_voxel_size_m = voxel_size_m
     self._object_index = {label: list(ids) for label, ids in object_index.items()}
     self._views = [dict(view) for view in views]
     self._map_owned_by_dashboard = False
 
-  def _cell(self, x_m: float, y_m: float) -> tuple[int, int]:
+  def _xy_cell(self, x_m: float, y_m: float, resolution_m: float) -> tuple[int, int]:
     return (
-      int(math.floor(x_m / self._occupancy_resolution_m)),
-      int(math.floor(y_m / self._occupancy_resolution_m)),
+      int(math.floor(x_m / resolution_m)),
+      int(math.floor(y_m / resolution_m)),
     )
 
-  def _mark(self, cell: tuple[int, int], weight: int) -> None:
-    self._occupancy_cells[cell] = self._occupancy_cells.get(cell, 0) + weight
+  def _voxel(self, x_m: float, y_m: float, z_m: float) -> tuple[int, int, int]:
+    size_m = self._point_cloud_voxel_size_m
+    return (
+      int(math.floor(x_m / size_m)),
+      int(math.floor(y_m / size_m)),
+      int(math.floor(z_m / size_m)),
+    )
 
-  def _raytrace(self, start_xy: tuple[float, float], end_xy: tuple[float, float]) -> None:
-    dx = end_xy[0] - start_xy[0]
-    dy = end_xy[1] - start_xy[1]
-    dist = math.hypot(dx, dy)
-    if dist <= 1e-6:
-      return
-    steps = max(1, int(dist / self._occupancy_resolution_m))
-    for idx in range(steps):
-      alpha = idx / steps
-      sample = (start_xy[0] + alpha * dx, start_xy[1] + alpha * dy)
-      self._mark(self._cell(*sample), -1)
-    self._mark(self._cell(*end_xy), 3)
+  def _integrate_point(self, point_xyz: tuple[float, float, float]) -> None:
+    voxel = self._voxel(*point_xyz)
+    self._point_cloud_voxels[voxel] = self._point_cloud_voxels.get(voxel, 0) + 1
 
   def _update_map_from_depth(self, pose: dict, depth_image: np.ndarray) -> None:
     height, width = depth_image.shape
     cx = (width - 1) * 0.5
     fy = 0.5 * height / math.tan(0.5 * self.robot.fovy_rad)
     fx = fy
-    robot_xy = (float(pose["x"]), float(pose["y"]))
+    robot_x = float(pose["x"])
+    robot_y = float(pose["y"])
+    robot_z = float(pose["z"])
     yaw_rad = float(pose["yaw_rad"])
-    for col in range(0, width, 6):
-      band = depth_image[height // 3:(2 * height) // 3, col]
-      valid = band[np.isfinite(band)]
-      valid = valid[(valid > 0.15) & (valid < self.robot.depth_max_m)]
-      if valid.size == 0:
-        continue
-      distance_m = float(np.median(valid))
-      angle_offset = math.atan2(col - cx, fx)
-      ray_yaw = yaw_rad + angle_offset
-      end_xy = (
-        robot_xy[0] + distance_m * math.cos(ray_yaw),
-        robot_xy[1] + distance_m * math.sin(ray_yaw),
-      )
-      self._raytrace(robot_xy, end_xy)
+    cos_yaw = math.cos(yaw_rad)
+    sin_yaw = math.sin(yaw_rad)
+    cam_offset = self.robot.depth_camera_local_pos
+    cy = (height - 1) * 0.5
+    min_depth_m = 0.15
+    max_height_m = robot_z + cam_offset[2] + 0.75
+    for row in range(height // 4, height, POINT_CLOUD_SAMPLE_STRIDE_PX):
+      for col in range(0, width, POINT_CLOUD_SAMPLE_STRIDE_PX):
+        depth_m = float(depth_image[row, col])
+        if not np.isfinite(depth_m) or depth_m <= min_depth_m or depth_m >= self.robot.depth_max_m:
+          continue
+        local_forward_m = depth_m
+        local_right_m = ((col - cx) / fx) * depth_m
+        local_up_m = ((cy - row) / fy) * depth_m
+        local_x = cam_offset[0] + local_forward_m
+        local_y = cam_offset[1] + local_right_m
+        local_z = cam_offset[2] + local_up_m
+        world_x = robot_x + local_x * cos_yaw + local_y * sin_yaw
+        world_y = robot_y + local_x * sin_yaw - local_y * cos_yaw
+        world_z = robot_z + local_z
+        if world_z <= robot_z + 0.02 or world_z >= max_height_m:
+          continue
+        self._integrate_point((world_x, world_y, world_z))
 
   def _render_map_panel(self, pose: dict) -> np.ndarray:
     panel = np.full((DASHBOARD_MAP_SIZE_PX, DASHBOARD_MAP_SIZE_PX, 3), 24, dtype=np.uint8)
+    has_point_cloud = bool(self._point_cloud_voxels)
+    map_resolution_m = (
+      self._point_cloud_voxel_size_m if has_point_cloud else self._occupancy_resolution_m
+    )
+    map_title = "Point Cloud Map" if has_point_cloud else "Occupancy Map"
     cv2.putText(
       panel,
-      "Occupancy Map",
+      map_title,
       (10, 24),
       cv2.FONT_HERSHEY_SIMPLEX,
       0.7,
@@ -254,7 +275,7 @@ class DashboardWindow:
       cv2.LINE_AA,
     )
 
-    if not self._occupancy_cells:
+    if not has_point_cloud and not self._occupancy_cells:
       cv2.putText(
         panel,
         "No map data yet",
@@ -267,12 +288,20 @@ class DashboardWindow:
       )
       return panel
 
-    robot_cell = (
-      int(math.floor(float(pose["x"]) / self._occupancy_resolution_m)),
-      int(math.floor(float(pose["y"]) / self._occupancy_resolution_m)),
-    )
-    xs = [cell[0] for cell in self._occupancy_cells] + [robot_cell[0]]
-    ys = [cell[1] for cell in self._occupancy_cells] + [robot_cell[1]]
+    robot_cell = self._xy_cell(float(pose["x"]), float(pose["y"]), map_resolution_m)
+    if has_point_cloud:
+      projected_cells: dict[tuple[int, int], dict[str, int]] = {}
+      for (voxel_x, voxel_y, voxel_z), count in self._point_cloud_voxels.items():
+        cell = (voxel_x, voxel_y)
+        entry = projected_cells.setdefault(cell, {"count": 0, "max_z": voxel_z})
+        entry["count"] += count
+        entry["max_z"] = max(entry["max_z"], voxel_z)
+      xs = [cell[0] for cell in projected_cells] + [robot_cell[0]]
+      ys = [cell[1] for cell in projected_cells] + [robot_cell[1]]
+    else:
+      projected_cells = {}
+      xs = [cell[0] for cell in self._occupancy_cells] + [robot_cell[0]]
+      ys = [cell[1] for cell in self._occupancy_cells] + [robot_cell[1]]
     min_x = min(xs)
     max_x = max(xs)
     min_y = min(ys)
@@ -286,11 +315,28 @@ class DashboardWindow:
     origin_x = (DASHBOARD_MAP_SIZE_PX - map_width) // 2
     origin_y = (DASHBOARD_MAP_SIZE_PX - map_height) // 2
 
-    for (cell_x, cell_y), score in self._occupancy_cells.items():
-      x0 = origin_x + (cell_x - min_x) * cell_px
-      y0 = origin_y + (max_y - cell_y) * cell_px
-      color = (210, 210, 210) if score > 0 else (70, 70, 70)
-      cv2.rectangle(panel, (x0, y0), (x0 + cell_px - 1, y0 + cell_px - 1), color, -1)
+    if has_point_cloud:
+      z_values = [entry["max_z"] for entry in projected_cells.values()]
+      min_z = min(z_values)
+      max_z = max(z_values)
+      z_span = max(1, max_z - min_z)
+      for (cell_x, cell_y), entry in projected_cells.items():
+        x0 = origin_x + (cell_x - min_x) * cell_px
+        y0 = origin_y + (max_y - cell_y) * cell_px
+        density = min(1.0, entry["count"] / 8.0)
+        height_norm = (entry["max_z"] - min_z) / z_span
+        color = (
+          int(60 + 130 * height_norm),
+          int(140 + 100 * density),
+          int(120 + 110 * density),
+        )
+        cv2.rectangle(panel, (x0, y0), (x0 + cell_px - 1, y0 + cell_px - 1), color, -1)
+    else:
+      for (cell_x, cell_y), score in self._occupancy_cells.items():
+        x0 = origin_x + (cell_x - min_x) * cell_px
+        y0 = origin_y + (max_y - cell_y) * cell_px
+        color = (210, 210, 210) if score > 0 else (70, 70, 70)
+        cv2.rectangle(panel, (x0, y0), (x0 + cell_px - 1, y0 + cell_px - 1), color, -1)
 
     for label, view_ids in self._object_index.items():
       if not view_ids:
@@ -299,8 +345,7 @@ class DashboardWindow:
       if view_id >= len(self._views):
         continue
       robot_xy = self._views[view_id]["robot_xy"]
-      cell_x = int(math.floor(float(robot_xy[0]) / self._occupancy_resolution_m))
-      cell_y = int(math.floor(float(robot_xy[1]) / self._occupancy_resolution_m))
+      cell_x, cell_y = self._xy_cell(float(robot_xy[0]), float(robot_xy[1]), map_resolution_m)
       cx = origin_x + (cell_x - min_x) * cell_px + cell_px // 2
       cy = origin_y + (max_y - cell_y) * cell_px + cell_px // 2
       cv2.circle(panel, (cx, cy), max(2, cell_px // 2), (0, 220, 255), -1)
@@ -477,6 +522,11 @@ class CameraRobotController:
   @property
   def fovy_rad(self) -> float:
     return math.radians(float(self.model.cam_fovy[self._rgb_camera_id]))
+
+  @property
+  def depth_camera_local_pos(self) -> tuple[float, float, float]:
+    pos = self.model.cam_pos[self._depth_camera_id]
+    return (float(pos[0]), float(pos[1]), float(pos[2]))
 
   def _is_key_active(self, key_name: str, now_s: float) -> bool:
     return (now_s - self._last_key_time[key_name]) <= self.key_hold_timeout_s
