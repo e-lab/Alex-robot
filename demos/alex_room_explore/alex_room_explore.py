@@ -7,16 +7,22 @@ import argparse
 import os
 import sys
 import time
+import math
 from pathlib import Path
+from queue import Queue
+from threading import Thread
 
 import cv2
 import torch
 import mujoco
+import numpy as np
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
   sys.path.insert(0, str(_REPO_ROOT))
 
+from demos.cam_room_explore.cam_controller import AutoExploreController, TARGET_OBJECTS, YoloDetector
+from demos.cam_room_explore.cam_room_explore import DashboardWindow
 from alex_models import alex_sensors
 from controllers import alex_action_set, llm_brain_controller, locomotion_controller
 from mjlab.envs import ManagerBasedRlEnv
@@ -138,6 +144,10 @@ def parse_args() -> argparse.Namespace:
     action="store_true",
     help="Print verbose runtime logs including LLM interactions.",
   )
+  parser.add_argument("--prompt", default=None, help="Target object label, for example 'door'.")
+  parser.add_argument("--yolo-model", default="yolov8n.pt")
+  parser.add_argument("--target-labels", nargs="*", default=TARGET_OBJECTS)
+  parser.add_argument("--confidence-threshold", type=float, default=0.25)
   return parser.parse_args()
 
 
@@ -574,15 +584,238 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       super().close()
 
 
+def _quat_wxyz_to_yaw_rad(quat_wxyz: np.ndarray) -> float:
+  w, x, y, z = [float(v) for v in quat_wxyz]
+  siny_cosp = 2.0 * (w * z + x * y)
+  cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+  return math.atan2(siny_cosp, cosy_cosp)
+
+
+def _start_prompt_thread(
+  target_label: str,
+  scene_graph: dict,
+  response_queue: Queue[tuple[str, str | None]],
+) -> None:
+  found = target_label in scene_graph.get("object_index", {})
+  seen_objects = sorted(scene_graph.get("object_index", {}).keys())
+
+  def worker() -> None:
+    print(f"Seen objects: {seen_objects}")
+    print(f"Target '{target_label}' {'found' if found else 'not found'}.")
+    choice = input(
+      "Choose: (1) walk to object, (2) search for another object, blank to quit: "
+    ).strip()
+    if not choice:
+      response_queue.put(("quit", None))
+      return
+    if choice == "1":
+      if not found:
+        print(f"Cannot walk: '{target_label}' was not found in the scene graph.")
+        response_queue.put(("prompt_again", target_label))
+        return
+      response_queue.put(("walk", target_label))
+      return
+    if choice == "2":
+      next_target = input("Which object should I look for next? ").strip()
+      if not next_target:
+        response_queue.put(("quit", None))
+        return
+      response_queue.put(("search", next_target))
+      return
+    print("Unrecognized choice.")
+    response_queue.put(("prompt_again", target_label))
+
+  Thread(target=worker, daemon=True).start()
+
+
+def _step_native_viewer(viewer: FixedMainCameraViewer, dashboard: DashboardWindow | None = None) -> bool:
+  if not viewer.is_running():
+    return False
+  viewer._process_actions()
+  with viewer._render_timer.measure_time():
+    viewer.sync_viewer_to_env()
+    viewer.step_simulation()
+    if dashboard is not None and viewer.viewer is not None:
+      dashboard.update(viewer.viewer)
+    viewer.sync_env_to_viewer()
+  return True
+
+
+class AlexPolicyRobotController:
+  def __init__(self, viewer: FixedMainCameraViewer) -> None:
+    self._viewer = viewer
+    self._active_action = "stop"
+    self._action_until_s = 0.0
+    self.move_speed = viewer.lin_speed
+    self.turn_speed_rad = viewer.yaw_speed
+    self.depth_max_m = viewer._record_max_depth_m
+    self.camera_width = viewer._record_width
+    self.camera_height = viewer._record_height
+    self._camera_ids = None
+
+  def _ensure_initialized(self) -> None:
+    if self._camera_ids is None:
+      assert self._viewer.mjm is not None
+      self._camera_ids = alex_sensors.resolve_alex_camera_ids(self._viewer.mjm)
+
+  @property
+  def fovy_rad(self) -> float:
+    self._ensure_initialized()
+    assert self._camera_ids is not None
+    return math.radians(float(self._viewer.mjm.cam_fovy[self._camera_ids.rgb]))
+
+  @property
+  def depth_camera_local_pos(self) -> tuple[float, float, float]:
+    self._ensure_initialized()
+    assert self._camera_ids is not None
+    pos = self._viewer.mjm.cam_pos[self._camera_ids.depth]
+    return (float(pos[0]), float(pos[1]), float(pos[2]))
+
+  def _sync_viewer_data(self) -> None:
+    self._ensure_initialized()
+    self._viewer._sync_mj_data_for_active_env()
+    self._viewer._ensure_camera_pipeline(enable_recording_writers=False)
+
+  def _apply_active_action(self) -> None:
+    now_s = time.time()
+    if now_s > self._action_until_s:
+      self.stop()
+      return
+    if self._active_action == "forward":
+      cmd = locomotion_controller.TwistCommand(lin_x=self.move_speed)
+    elif self._active_action == "backward":
+      cmd = locomotion_controller.TwistCommand(lin_x=-self.move_speed)
+    elif self._active_action == "strafe_left":
+      cmd = locomotion_controller.TwistCommand(lin_y=self.move_speed)
+    elif self._active_action == "strafe_right":
+      cmd = locomotion_controller.TwistCommand(lin_y=-self.move_speed)
+    elif self._active_action == "turn_left":
+      cmd = locomotion_controller.TwistCommand(yaw=self.turn_speed_rad)
+    elif self._active_action == "turn_right":
+      cmd = locomotion_controller.TwistCommand(yaw=-self.turn_speed_rad)
+    else:
+      cmd = locomotion_controller.TwistCommand()
+    self._viewer._loco_ctrl.set_command(cmd)
+
+  def capture_rgb_depth(self) -> tuple[np.ndarray, np.ndarray]:
+    self._sync_viewer_data()
+    assert self._camera_ids is not None
+    assert self._viewer._camera_renderer is not None
+    renderer = self._viewer._camera_renderer
+    renderer.disable_depth_rendering()
+    renderer.update_scene(self._viewer.mjd, camera=self._camera_ids.rgb)
+    rgb = renderer.render().copy()
+    renderer.enable_depth_rendering()
+    renderer.update_scene(self._viewer.mjd, camera=self._camera_ids.depth)
+    depth = renderer.render().copy()
+    renderer.disable_depth_rendering()
+    depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+    depth = np.clip(depth, 0.0, self.depth_max_m)
+    return rgb, depth
+
+  def capture_depth(self) -> np.ndarray:
+    _, depth = self.capture_rgb_depth()
+    return depth
+
+  def get_pose(self) -> dict:
+    sim_data = self._viewer.env.unwrapped.sim.data
+    qpos = sim_data.qpos[self._viewer.env_idx].detach().cpu().numpy()
+    pos = np.asarray(qpos[0:3], dtype=np.float64)
+    quat = np.asarray(qpos[3:7], dtype=np.float64)
+    return {
+      "x": float(pos[0]),
+      "y": float(pos[1]),
+      "z": float(pos[2]),
+      "yaw_rad": _quat_wxyz_to_yaw_rad(quat),
+      "timestamp_s": time.time(),
+    }
+
+  def set_action(self, action_name: str, duration_s: float | None = None) -> None:
+    self._active_action = action_name
+    if duration_s is None:
+      self._action_until_s = float("inf")
+    else:
+      self._action_until_s = time.time() + max(0.0, duration_s)
+    self._apply_active_action()
+
+  def stop(self) -> None:
+    self._active_action = "stop"
+    self._action_until_s = 0.0
+    self._viewer._loco_ctrl.set_command(locomotion_controller.TwistCommand())
+
+  def tick(self, viewer: FixedMainCameraViewer | None = None, dashboard: DashboardWindow | None = None) -> None:
+    del viewer
+    self._apply_active_action()
+    if not _step_native_viewer(self._viewer, dashboard=dashboard):
+      time.sleep(0.001)
+
+
+def _run_viewer_loop(viewer: FixedMainCameraViewer, dashboard: DashboardWindow | None = None) -> None:
+  viewer.setup()
+  try:
+    while viewer.is_running():
+      if not _step_native_viewer(viewer, dashboard=dashboard):
+        time.sleep(0.001)
+  finally:
+    if dashboard is not None:
+      dashboard.close()
+    viewer.close()
+
+
+def _run_auto_loop(
+  viewer: FixedMainCameraViewer,
+  dashboard: DashboardWindow,
+  auto: AutoExploreController,
+  target_label: str,
+) -> None:
+  response_queue: Queue[tuple[str, str | None]] = Queue()
+  prompt_active = False
+  phase = "explore"
+  viewer.setup()
+  try:
+    while viewer.is_running():
+      if phase == "explore":
+        scene_graph = auto.explore_room(viewer=viewer)
+        print(f"Exploration complete. Seen objects: {sorted(scene_graph['object_index'].keys())}")
+        print(f"Point cloud map summary: {scene_graph['point_cloud_map']}")
+        phase = "prompt"
+        prompt_active = False
+        continue
+      if phase == "prompt":
+        if not prompt_active:
+          _start_prompt_thread(target_label, auto.scene_graph, response_queue)
+          prompt_active = True
+        if not response_queue.empty():
+          action, value = response_queue.get()
+          prompt_active = False
+          if action == "quit":
+            break
+          if action == "walk" and value is not None:
+            phase = "walk"
+          elif action == "search" and value is not None:
+            target_label = value
+            auto.scene_graph = {"views": [], "object_index": {}, "point_cloud_map": {}}
+            auto.point_cloud_map.voxels.clear()
+            phase = "explore"
+          else:
+            phase = "prompt"
+        else:
+          auto.robot.tick(viewer=viewer, dashboard=dashboard)
+        continue
+      if phase == "walk":
+        success = auto.walk_to_target(target_label, viewer=viewer)
+        print(f"walk_to_target('{target_label}') -> {success}")
+        phase = "prompt"
+        prompt_active = False
+        continue
+      auto.robot.tick(viewer=viewer, dashboard=dashboard)
+  finally:
+    dashboard.close()
+    viewer.close()
+
+
 def main() -> None:
   args = parse_args()
-  task_prompt = (args.brain_prompt or args.task).strip()
-  plan_output = llm_brain_controller.plan_task_prompt(
-    task_prompt=task_prompt,
-    model=args.brain_model,
-  )
-  print(plan_output)
-  return
 
   configure_torch_backends()
 
@@ -648,7 +881,7 @@ def main() -> None:
   try:
     if resolved_viewer == "native":
       record_dir = Path(args.record_dir).expanduser() if args.record_dir else None
-      FixedMainCameraViewer(
+      viewer = FixedMainCameraViewer(
         env,
         loco_ctrl,
         record_cameras=args.record_cameras,
@@ -663,7 +896,32 @@ def main() -> None:
         brain_max_steps=args.brain_max_steps,
         brain_step_interval_s=args.brain_step_interval_s,
         verbose=args.verbose,
-      ).run()
+      )
+      robot = AlexPolicyRobotController(viewer)
+      detector = None
+      try:
+        detector = YoloDetector(
+          model_name=args.yolo_model,
+          target_labels=args.target_labels,
+          confidence_threshold=args.confidence_threshold,
+        )
+      except Exception as exc:
+        if args.prompt:
+          raise
+        print(f"YOLO dashboard detections disabled: {exc}")
+      dashboard = DashboardWindow(robot, detector=detector)
+      if args.prompt:
+        assert detector is not None
+        auto = AutoExploreController(
+          robot,
+          detector=detector,
+          target_labels=args.target_labels,
+          max_depth_m=args.record_max_depth_m,
+          dashboard=dashboard,
+        )
+        _run_auto_loop(viewer, dashboard, auto, args.prompt)
+      else:
+        _run_viewer_loop(viewer, dashboard=dashboard)
     else:
       ViserPlayViewer(env, loco_ctrl.policy).run()
   finally:

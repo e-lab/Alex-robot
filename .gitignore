@@ -25,3 +25,4 @@ demos/cam_room_explore/yolov8n.pt
 demos/cam_room_explore/prompt.txt
 demos/cam_room_explore/MUJOCO_LOG.TXT
 MUJOCO_LOG.TXT
+yolov8n.pt
