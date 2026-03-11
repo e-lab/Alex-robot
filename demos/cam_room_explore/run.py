@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
   parser = build_arg_parser()
   parser.description = "Run the camera robot in manual mode or prompt-driven automatic mode."
   parser.add_argument("--prompt", default=None, help="Target object label, for example 'door'.")
-  parser.add_argument("--yolo-model", default="yolov8n.pt")
+  parser.add_argument("--yolo-model", default="../../pre_trained_models/yolov8n.pt")
   parser.add_argument("--target-labels", nargs="*", default=TARGET_OBJECTS)
   parser.add_argument("--confidence-threshold", type=float, default=0.25)
   return parser.parse_args()

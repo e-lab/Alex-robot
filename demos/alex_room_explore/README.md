@@ -28,6 +28,12 @@ cd training/alex-room-explore/
 mjpython play_alex_room.py
 ```
 
+Run to explore automatically for obejcts:
+
+```bash
+mjpython alex_room_explore.py --prompt oven
+```
+
 You can control the robot walking with manual "twist" commands:
 
   - ↑ / ↓: increase/decrease forward velocity (lin_vel_x)

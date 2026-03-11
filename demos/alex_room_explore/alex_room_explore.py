@@ -33,7 +33,7 @@ from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer, VerbosityLevel
 from mjlab.viewer.native import keys as viewer_keys
 
 DEFAULT_TASK = "Mjlab-Velocity-Flat-Alex-V1"
-DEFAULT_CHECKPOINT = "../../trained_policies/Mjlab_Velocity_Flat_Alex_V1/model.pt"
+DEFAULT_CHECKPOINT = "../../pre_trained_models/Mjlab_Velocity_Flat_Alex_V1/model.pt"
 DEFAULT_FLOORPLAN_XML = "scenes/ithor/FloorPlan1_physics_simple.xml"
 ROOM_ATTACH_Z_OFFSET_M = 0.1
 HEAD_PIP_WIDTH = 320
@@ -41,6 +41,9 @@ HEAD_PIP_HEIGHT = 180
 HEAD_PIP_MARGIN_PX = 12
 HEAD_PIP_WIDTH_FRACTION = 0.28
 HEAD_PIP_MAX_HEIGHT_FRACTION = 0.35
+STABILIZED_RGB_CAMERA_NAME = "alex_head_rgb_stabilized"
+STABILIZED_DEPTH_CAMERA_NAME = "alex_head_depth_stabilized"
+BASE_HEAD_CAMERA_QUAT_WXYZ = (-0.5, -0.5, 0.5, 0.5)
 
 
 def parse_args() -> argparse.Namespace:
@@ -145,7 +148,7 @@ def parse_args() -> argparse.Namespace:
     help="Print verbose runtime logs including LLM interactions.",
   )
   parser.add_argument("--prompt", default=None, help="Target object label, for example 'door'.")
-  parser.add_argument("--yolo-model", default="yolov8n.pt")
+  parser.add_argument("--yolo-model", default="../../pre_trained_models/yolov8n.pt")
   parser.add_argument("--target-labels", nargs="*", default=TARGET_OBJECTS)
   parser.add_argument("--confidence-threshold", type=float, default=0.25)
   return parser.parse_args()
@@ -172,8 +175,6 @@ def _ensure_alex_head_cameras(spec: mujoco.MjSpec) -> mujoco.MjSpec:
   }
   needs_rgb = "alex_head_rgb" not in camera_names
   needs_depth = "alex_head_depth" not in camera_names
-  if not (needs_rgb or needs_depth):
-    return spec
 
   head_body = None
   for body in spec.worldbody.find_all("body"):
@@ -181,20 +182,37 @@ def _ensure_alex_head_cameras(spec: mujoco.MjSpec) -> mujoco.MjSpec:
     if name == "head" or name.endswith("/head"):
       head_body = body
       break
-  if head_body is None:
-    return spec
 
-  if needs_rgb:
-    cam = head_body.add_camera()
-    cam.name = "alex_head_rgb"
-    cam.pos = (0.11, 0.0, 0.06)
-    cam.quat = (-0.5, -0.5, 0.5, 0.5)
+  if head_body is not None:
+    if needs_rgb:
+      cam = head_body.add_camera()
+      cam.name = "alex_head_rgb"
+      cam.pos = (0.11, 0.0, 0.06)
+      cam.quat = (-0.5, -0.5, 0.5, 0.5)
+      cam.fovy = 69.0
+    if needs_depth:
+      cam = head_body.add_camera()
+      cam.name = "alex_head_depth"
+      cam.pos = (0.11, 0.0, 0.06)
+      cam.quat = (-0.5, -0.5, 0.5, 0.5)
+      cam.fovy = 69.0
+
+  camera_names = {
+    cam.name
+    for cam in spec.worldbody.find_all("camera")
+    if getattr(cam, "name", None)
+  }
+  if STABILIZED_RGB_CAMERA_NAME not in camera_names:
+    cam = spec.worldbody.add_camera()
+    cam.name = STABILIZED_RGB_CAMERA_NAME
+    cam.pos = (0.0, 0.0, 1.6)
+    cam.quat = BASE_HEAD_CAMERA_QUAT_WXYZ
     cam.fovy = 69.0
-  if needs_depth:
-    cam = head_body.add_camera()
-    cam.name = "alex_head_depth"
-    cam.pos = (0.11, 0.0, 0.06)
-    cam.quat = (-0.5, -0.5, 0.5, 0.5)
+  if STABILIZED_DEPTH_CAMERA_NAME not in camera_names:
+    cam = spec.worldbody.add_camera()
+    cam.name = STABILIZED_DEPTH_CAMERA_NAME
+    cam.pos = (0.0, 0.0, 1.6)
+    cam.quat = BASE_HEAD_CAMERA_QUAT_WXYZ
     cam.fovy = 69.0
   return spec
 
@@ -204,6 +222,47 @@ def _resolve_viewer(viewer: str) -> str:
     return viewer
   has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
   return "native" if has_display else "viser"
+
+
+def _quat_mul_wxyz(
+  q1: tuple[float, float, float, float],
+  q2: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+  w1, x1, y1, z1 = q1
+  w2, x2, y2, z2 = q2
+  return (
+    w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+    w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+    w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+  )
+
+
+def _yaw_quat_wxyz(yaw_rad: float) -> tuple[float, float, float, float]:
+  half = 0.5 * yaw_rad
+  return (math.cos(half), 0.0, 0.0, math.sin(half))
+
+
+def _find_camera_id_by_name(model: mujoco.MjModel, name: str) -> int:
+  cam_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, name)
+  if cam_id >= 0:
+    return cam_id
+  for idx in range(model.ncam):
+    cam_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_CAMERA, idx)
+    if cam_name == name or (cam_name is not None and cam_name.endswith("/" + name)):
+      return idx
+  return -1
+
+
+def _find_body_id_by_name_suffix(model: mujoco.MjModel, target_name: str) -> int:
+  body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, target_name)
+  if body_id >= 0:
+    return body_id
+  for idx in range(model.nbody):
+    body_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, idx)
+    if body_name == target_name or (body_name is not None and body_name.endswith("/" + target_name)):
+      return idx
+  return -1
 
 
 class FixedMainCameraViewer(NativeMujocoViewer):
@@ -267,6 +326,8 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     self._pip_status_logged = False
     self._last_pip_update_s = 0.0
     self._pip_interval_s = 1.0 / 15.0
+    self._stabilized_camera_ids = None
+    self._head_body_id = -1
     self._brain = None
 
     if brain_prompt:
@@ -458,12 +519,41 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       self.mjd.mocap_pos[:] = sim_data.mocap_pos[self.env_idx].cpu().numpy()
       self.mjd.mocap_quat[:] = sim_data.mocap_quat[self.env_idx].cpu().numpy()
     mujoco.mj_forward(self.mjm, self.mjd)
+    self._update_stabilized_cameras()
+
+  def _resolve_stabilized_camera_ids(self) -> alex_sensors.AlexCameraIds:
+    if self._stabilized_camera_ids is None:
+      assert self.mjm is not None
+      rgb_id = _find_camera_id_by_name(self.mjm, STABILIZED_RGB_CAMERA_NAME)
+      depth_id = _find_camera_id_by_name(self.mjm, STABILIZED_DEPTH_CAMERA_NAME)
+      if rgb_id < 0 or depth_id < 0:
+        self._stabilized_camera_ids = alex_sensors.resolve_alex_camera_ids(self.mjm)
+      else:
+        self._stabilized_camera_ids = alex_sensors.AlexCameraIds(rgb=rgb_id, depth=depth_id)
+    return self._stabilized_camera_ids
+
+  def _update_stabilized_cameras(self) -> None:
+    if self.mjm is None or self.mjd is None:
+      return
+    camera_ids = self._resolve_stabilized_camera_ids()
+    if self._head_body_id < 0:
+      self._head_body_id = _find_body_id_by_name_suffix(self.mjm, "head")
+    if self._head_body_id < 0:
+      return
+    head_pos = self.mjd.xpos[self._head_body_id].copy()
+    base_quat = np.asarray(self.mjd.qpos[3:7], dtype=np.float64)
+    yaw_rad = _quat_wxyz_to_yaw_rad(base_quat)
+    stabilized_quat = _quat_mul_wxyz(_yaw_quat_wxyz(yaw_rad), BASE_HEAD_CAMERA_QUAT_WXYZ)
+    for cam_id in (camera_ids.rgb, camera_ids.depth):
+      self.mjm.cam_pos[cam_id] = head_pos
+      self.mjm.cam_quat[cam_id] = np.asarray(stabilized_quat, dtype=np.float64)
+    mujoco.mj_forward(self.mjm, self.mjd)
 
   def _ensure_camera_pipeline(self, enable_recording_writers: bool) -> None:
     if self.mjm is None or self.mjd is None:
       return
     if self._camera_renderer is None:
-      self._camera_ids = alex_sensors.resolve_alex_camera_ids(self.mjm)
+      self._camera_ids = self._resolve_stabilized_camera_ids()
       self._camera_renderer = mujoco.Renderer(
         self.mjm,
         width=self._record_width,
@@ -489,7 +579,7 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     if self.mjm is None or self.mjd is None:
       return
     if self._camera_ids is None:
-      self._camera_ids = alex_sensors.resolve_alex_camera_ids(self.mjm)
+      self._camera_ids = self._resolve_stabilized_camera_ids()
     if self._pip_renderer is None:
       self._pip_renderer = mujoco.Renderer(
         self.mjm,
