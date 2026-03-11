@@ -1,0 +1,26 @@
+# Core robotics & simulation
+mujoco
+gymnasium
+
+# Reinforcement learning
+stable-baselines3
+torch
+
+# Computer vision
+opencv-python
+mediapipe
+ultralytics
+
+# Scientific computing
+numpy
+scipy
+
+# AI / LLM
+openai
+
+# Note: the following packages are not available on PyPI and must be installed separately:
+# - isaaclab (Isaac Lab): https://isaac-sim.github.io/IsaacLab/
+# - omni (Omniverse / Isaac Sim): installed via NVIDIA Isaac Sim
+# - mjlab: local/internal package
+# - warp: pip install warp-lang
+# - mujoco-warp: https://github.com/google-deepmind/mujoco_warp
