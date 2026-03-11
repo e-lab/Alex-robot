@@ -1,5 +1,7 @@
 # Alex room explore
 
+![](demo.png)
+
 Requires [mjlab from e-Lab](https://github.com/e-lab/mjlab) with IHMC robot models and environments.
 
 If installing [mjlab from pip](https://mujocolab.github.io/mjlab/main/source/installation.html) with:
@@ -19,27 +21,26 @@ copy the robot and envs over:
 to the proper install location of your mjlab.
 
 
-Runs a walking tracking policy trained in mjlab "Mjlab-Velocity-Flat-Alex-V1", with checkpoint from [here](https://wandb.ai/culurciello/mjlab/runs/ib5nrc31/).
+Runs a walking policy for Alex in the room scene, with the same manual and prompt-driven exploration flow as `demos/cam_room_explore`, but using Alex locomotion instead of the camera robot.
 
 Run:
 
 ```bash
-cd training/alex-room-explore/
-mjpython play_alex_room.py
+cd demos/alex_room_explore/
+mjpython run.py
 ```
 
 Run to explore automatically for obejcts:
 
 ```bash
-mjpython alex_room_explore.py --prompt oven
+mjpython run.py --prompt oven
 ```
 
-You can control the robot walking with manual "twist" commands:
+You can control the robot walking with manual commands:
 
-  - ↑ / ↓: increase/decrease forward velocity (lin_vel_x)
-  - ← / →: increase/decrease yaw rate (ang_vel_z)
-  - CMD + ← / CMD + →: increase/decrease strafe (lin_vel_y)
-  - Delete (or Backspace): reset all twist commands to zero
+- `Up` / `Down`: forward / backward
+- `Left` / `Right`: turn left / right
+- `Cmd` + `Left` / `Right`: strafe left / right
 
 
 Tests:
@@ -48,4 +49,3 @@ Tests:
 cd training/alex-room-explore/
 mjpython tests/test_alex_room.py
 ```
-

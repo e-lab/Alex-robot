@@ -745,8 +745,7 @@ class AlexPolicyRobotController:
 
   def _ensure_initialized(self) -> None:
     if self._camera_ids is None:
-      assert self._viewer.mjm is not None
-      self._camera_ids = alex_sensors.resolve_alex_camera_ids(self._viewer.mjm)
+      self._camera_ids = self._viewer._resolve_stabilized_camera_ids()
 
   @property
   def fovy_rad(self) -> float:
