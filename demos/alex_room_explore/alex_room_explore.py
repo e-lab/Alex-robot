@@ -328,6 +328,8 @@ class FixedMainCameraViewer(NativeMujocoViewer):
     self._pip_interval_s = 1.0 / 15.0
     self._stabilized_camera_ids = None
     self._head_body_id = -1
+    self._external_command = locomotion_controller.TwistCommand()
+    self._external_command_until_s = 0.0
     self._brain = None
 
     if brain_prompt:
@@ -379,6 +381,25 @@ class FixedMainCameraViewer(NativeMujocoViewer):
         lin_x=cmd_lin_x, lin_y=cmd_lin_y, yaw=cmd_yaw
       )
     )
+
+  def set_external_command(
+    self,
+    command: locomotion_controller.TwistCommand,
+    *,
+    duration_s: float | None = None,
+  ) -> None:
+    self._external_command = self._loco_ctrl.clamp_command(command)
+    if duration_s is None:
+      self._external_command_until_s = float("inf")
+    else:
+      self._external_command_until_s = time.time() + max(0.0, duration_s)
+
+  def clear_external_command(self) -> None:
+    self._external_command = locomotion_controller.TwistCommand()
+    self._external_command_until_s = 0.0
+
+  def _has_active_external_command(self) -> bool:
+    return time.time() <= self._external_command_until_s
 
   def _on_manual_key(self, key: int) -> None:
     now_s = time.time()
@@ -481,7 +502,9 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       if self._brain is not None and self._brain.is_active:
         self._brain.tick()
       macro_applied = self._apply_macro_action()
-      if self._brain is None and not macro_applied:
+      if self._brain is None and not macro_applied and self._has_active_external_command():
+        self._loco_ctrl.set_command(self._external_command, clamp=False)
+      elif self._brain is None and not macro_applied:
         self._apply_manual_twist()
       self._loco_ctrl.step_policy()
       self._record_camera_frame_if_enabled()
@@ -737,7 +760,9 @@ class AlexPolicyRobotController:
     self._active_action = "stop"
     self._action_until_s = 0.0
     self.move_speed = viewer.lin_speed
-    self.turn_speed_rad = viewer.yaw_speed
+    self.turn_speed_rad = viewer._loco_ctrl.clamp_command(
+      locomotion_controller.TwistCommand(yaw=viewer.yaw_speed)
+    ).yaw
     self.depth_max_m = viewer._record_max_depth_m
     self.camera_width = viewer._record_width
     self.camera_height = viewer._record_height
@@ -784,7 +809,8 @@ class AlexPolicyRobotController:
       cmd = locomotion_controller.TwistCommand(yaw=-self.turn_speed_rad)
     else:
       cmd = locomotion_controller.TwistCommand()
-    self._viewer._loco_ctrl.set_command(cmd)
+    remaining_s = None if self._action_until_s == float("inf") else max(0.0, self._action_until_s - now_s)
+    self._viewer.set_external_command(cmd, duration_s=remaining_s)
 
   def capture_rgb_depth(self) -> tuple[np.ndarray, np.ndarray]:
     self._sync_viewer_data()
@@ -830,6 +856,7 @@ class AlexPolicyRobotController:
   def stop(self) -> None:
     self._active_action = "stop"
     self._action_until_s = 0.0
+    self._viewer.clear_external_command()
     self._viewer._loco_ctrl.set_command(locomotion_controller.TwistCommand())
 
   def tick(self, viewer: FixedMainCameraViewer | None = None, dashboard: DashboardWindow | None = None) -> None:
@@ -860,11 +887,20 @@ def _run_auto_loop(
   response_queue: Queue[tuple[str, str | None]] = Queue()
   prompt_active = False
   phase = "explore"
+  turn_step_s = 0.75
+  scan_steps = max(
+    16,
+    int(math.ceil((2.0 * math.pi) / max(auto.robot.turn_speed_rad * turn_step_s, 1e-6))),
+  )
   viewer.setup()
   try:
     while viewer.is_running():
       if phase == "explore":
-        scene_graph = auto.explore_room(viewer=viewer)
+        scene_graph = auto.explore_room(
+          num_scan_steps=scan_steps,
+          turn_step_s=turn_step_s,
+          viewer=viewer,
+        )
         print(f"Exploration complete. Seen objects: {sorted(scene_graph['object_index'].keys())}")
         print(f"Point cloud map summary: {scene_graph['point_cloud_map']}")
         phase = "prompt"
