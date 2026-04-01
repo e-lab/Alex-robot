@@ -18,7 +18,7 @@
   </default>
   <asset>
     <texture name="WornWood" type="2d" file="TexturesCom_WornWood2_albedo_S.png"/>
-    <material name="material_WornWood" class="/" texture="WornWood" specular="0.5" shininess="0.5" rgba="0.51470590000000005 0.39119739999999997 0.17030709999999999 1"/>
+    <material name="material_WornWood" class="/" specular="0.5" shininess="0.5" rgba="1 1 1 1"/>
     <mesh name="Door_6cb9ae3d_Door_6cb9ae3d" class="/" file="Door_6cb9ae3d_Door_6cb9ae3d/Door_6cb9ae3d_Door_6cb9ae3d.obj" scale="1 1 1" inertia="legacy"/>
   </asset>
   <worldbody>

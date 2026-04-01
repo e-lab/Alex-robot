@@ -21,8 +21,10 @@ action-collect-retarget/open_door1_alex_tracking_calibrated.npz
 *.mp4
 training/alex-room-explore/MUJOCO_LOG.TXT
 training/alex-room-explore/MUJOCO_LOG.TXT
-demos/cam_room_explore/yolov8n.pt
+demos/cam_room_explore/venv/
+yolov8n.pt
 demos/cam_room_explore/prompt.txt
 demos/cam_room_explore/MUJOCO_LOG.TXT
 MUJOCO_LOG.TXT
+venv/
 yolov8n.pt

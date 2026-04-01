@@ -22,7 +22,10 @@ except Exception:
   YOLO = None
 
 
-TARGET_OBJECTS = ["person", "dining table", "microwave", "oven", "toaster", "sink"]
+TARGET_OBJECTS = [
+  "door_panel", "door_lever", "door_knob", "door_push_bar", "door_pull_handle",
+  "person", "trash_can", "bottle", "storage_container", "traffic_barrier",
+]
 
 
 def _normalize_angle(angle_rad: float) -> float:
@@ -44,15 +47,22 @@ class YoloDetector:
         "ultralytics is not available. Install it or provide an environment with YOLOv8."
       )
     try:
-      self._model = YOLO(model_name)
-    except Exception as exc:
-      raise RuntimeError(
-        f"Failed to load YOLO model '{model_name}'. Provide a local weights path or "
-        "ensure the default model is already available."
-      ) from exc
+      import onnx as _onnx
+      _m = _onnx.load(model_name)
+      _meta = {p.key: p.value for p in _m.metadata_props}
+      _task = _meta.get("task", "detect")
+      _imgsz = _meta.get("imgsz", None)
+      self._imgsz = eval(_imgsz) if _imgsz else None  # e.g. [736, 1280]
+    except Exception:
+      _task = "detect"
+      self._imgsz = None
+    self._model = YOLO(model_name, task=_task)
 
   def detect(self, rgb_image: np.ndarray) -> list[dict]:
-    result = self._model.predict(rgb_image, verbose=False)[0]
+    kwargs = {"verbose": False}
+    if self._imgsz is not None:
+      kwargs["imgsz"] = self._imgsz
+    result = self._model.predict(rgb_image, **kwargs)[0]
     detections: list[dict] = []
     names = result.names
     for box in result.boxes:

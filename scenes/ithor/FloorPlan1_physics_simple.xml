@@ -138,6 +138,7 @@
     <material name="material_Toaster_Secondary1_Mat" rgba="0.0483076 0.0475208 0.0537975 1" />
     <material name="material_Toaster_Primary1_Mat" texture="Toaster_Primary1_Mat" rgba="0.860294 0.41117 0.41117 1" />
     <material name="material_BlackWood" rgba="0.147059 0.147059 0.147059 1" />
+    <!-- <material name="material_WornWood" rgba="1 1 1 1" /> -->
     <material name="material_WornWood" texture="WornWood" rgba="0.514706 0.391197 0.170307 1" />
     <material name="material_Apple1_Mat1" texture="Apple1_Mat1" />
     <material name="material_HousePlant_Pot_Secondary1_Mat" rgba="0.00735295 0.00735295 0.00735295 1" />

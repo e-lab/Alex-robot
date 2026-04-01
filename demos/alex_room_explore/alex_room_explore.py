@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import sys
 import time
@@ -148,7 +149,10 @@ def parse_args() -> argparse.Namespace:
     help="Print verbose runtime logs including LLM interactions.",
   )
   parser.add_argument("--prompt", default=None, help="Target object label, for example 'door'.")
-  parser.add_argument("--yolo-model", default="../../pre_trained_models/yolov8n.pt")
+  parser.add_argument(
+    "--yolo-model",
+    default="/home/sravani/nadia/repository-group/ihmc-open-robotics-software/ihmc-perception/src/main/resources/yolo/best_multi_02_17_2026/best_multi_02_17_2026.onnx",
+  )
   parser.add_argument("--target-labels", nargs="*", default=TARGET_OBJECTS)
   parser.add_argument("--confidence-threshold", type=float, default=0.25)
   return parser.parse_args()
@@ -265,6 +269,15 @@ def _find_body_id_by_name_suffix(model: mujoco.MjModel, target_name: str) -> int
   return -1
 
 
+class _NoOpTimer:
+  """Compatibility shim for mjlab timer objects missing in older pip installs."""
+  measured_time: float = 0.0
+
+  @contextlib.contextmanager
+  def measure_time(self):
+    yield
+
+
 class FixedMainCameraViewer(NativeMujocoViewer):
   def __init__(
     self,
@@ -291,6 +304,15 @@ class FixedMainCameraViewer(NativeMujocoViewer):
       verbosity=viewer_verbosity,
     )
     self._loco_ctrl = loco_ctrl
+    # Compatibility shim: older mjlab versions don't have these attributes
+    if not hasattr(self, "_render_timer"):
+      self._render_timer = _NoOpTimer()
+    if not hasattr(self, "_sim_timer"):
+      self._sim_timer = _NoOpTimer()
+    if not hasattr(self, "_accumulated_sim_time"):
+      self._accumulated_sim_time = 0.0
+    if not hasattr(self, "_step_count"):
+      self._step_count = 0
     self.lin_speed = 0.6
     self.yaw_speed = 0.8
     self.key_hold_timeout_s = 0.60

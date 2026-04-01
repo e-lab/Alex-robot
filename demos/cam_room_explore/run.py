@@ -29,9 +29,14 @@ def parse_args() -> argparse.Namespace:
   parser = build_arg_parser()
   parser.description = "Run the camera robot in manual mode or prompt-driven automatic mode."
   parser.add_argument("--prompt", default=None, help="Target object label, for example 'door'.")
-  parser.add_argument("--yolo-model", default="../../pre_trained_models/yolov8n.pt")
+  parser.add_argument(
+    "--yolo-model",
+    default="/home/sravani/nadia/repository-group/ihmc-open-robotics-software/ihmc-perception/src/main/resources/yolo/best_multi_02_17_2026/best_multi_02_17_2026.onnx",
+  )
   parser.add_argument("--target-labels", nargs="*", default=TARGET_OBJECTS)
   parser.add_argument("--confidence-threshold", type=float, default=0.25)
+  parser.add_argument("--num-scan-steps", type=int, default=16, help="Number of rotation steps during room scan.")
+  parser.add_argument("--turn-step-s", type=float, default=0.25, help="Duration of each turn step in seconds (slower = more stable detections).")
   return parser.parse_args()
 
 
@@ -104,7 +109,7 @@ def _run_auto(args: argparse.Namespace) -> None:
 
       while viewer.is_running():
         if phase == "explore":
-          scene_graph = auto.explore_room(viewer=viewer)
+          scene_graph = auto.explore_room(viewer=viewer, num_scan_steps=args.num_scan_steps, turn_step_s=args.turn_step_s)
           print(f"Exploration complete. Seen objects: {sorted(scene_graph['object_index'].keys())}")
           print(f"Point cloud map summary: {scene_graph['point_cloud_map']}")
           phase = "prompt"

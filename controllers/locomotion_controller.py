@@ -91,7 +91,7 @@ class VelocityPolicyLocomotionController:
     cfg = agent_cfg or load_rl_cfg(task)
     runner_cls = load_runner_cls(task) or MjlabOnPolicyRunner
     runner = runner_cls(env, asdict(cfg), device=device)
-    runner.load(str(checkpoint), load_cfg={"actor": True}, strict=True, map_location=device)
+    runner.load(str(checkpoint), load_cfg={"actor": True}, strict=False, map_location=device)
     policy = runner.get_inference_policy(device=device)
     return cls(
       env=env,
