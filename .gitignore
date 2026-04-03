@@ -28,3 +28,4 @@ demos/cam_room_explore/MUJOCO_LOG.TXT
 MUJOCO_LOG.TXT
 venv/
 yolov8n.pt
+isaac-sim-rl-bringup/models/*/
