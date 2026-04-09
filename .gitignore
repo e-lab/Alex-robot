@@ -29,3 +29,11 @@ MUJOCO_LOG.TXT
 venv/
 yolov8n.pt
 isaac-sim-rl-bringup/models/*/
+scenes/ithor/FloorPlan1_physics_simple.usd
+scenes/ithor/ithor_usd/
+scenes/ithor/configuration/
+scenes/ithor/config.yaml
+scenes/ithor/ithor_usd/
+scenes/ithor/_floorplan_sanitized.xml
+# molmospaces downloaded assets (symlinks to ~/.molmospaces cache)
+assets/usd/

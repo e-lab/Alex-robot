@@ -102,7 +102,21 @@ Optional CLI args:
 
 # Start stationary (velocity = 0)
 ./isaaclab.sh -p .../alex_onnx_walking_policy.py --vx 0.0
+
+# Load the molmospaces ithor room scene (FloorPlan1)
+./isaaclab.sh -p .../alex_onnx_walking_policy.py --scene room
 ```
+
+**`--scene room` note:** Uses the pre-built USD from `molmospaces` (downloaded via `ms-download`). The scene includes full structural collision (ConvexHull colliders, `CollisionAPI`). Robot spawns at `z=0.93 m` on the kitchen floor.
+
+**Prerequisite — download the room USD once:**
+```bash
+cd /path/to/molmospaces/molmo_spaces_isaac
+pip install -e .[dev,sim]
+pip install -e /path/to/molmospaces/   # installs molmospaces_resources
+ms-download --type usd --install-dir /path/to/Alex-robot/assets/usd --scenes ithor
+```
+This downloads to `~/.molmospaces/usd/scenes/ithor/` and symlinks to `assets/usd/scenes/ithor/`.
 
 ### Keyboard controls (focus the Isaac Sim viewport first)
 
@@ -133,6 +147,7 @@ Optional CLI args:
 | Control | PD position targets at 50 Hz (4 physics substeps × 5 ms) |
 | Keyboard | `isaaclab.devices.Se2Keyboard` via carb — live velocity updates each tick |
 | Command | `[vx, vy, yaw, standing_flag]` — set by CLI args, updated by keyboard |
+| Scene | `--scene groundplane` (default) or `--scene room` (ithor FloorPlan1, pre-built molmospaces USD with full collision physics) |
 
 ---
 

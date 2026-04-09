@@ -23,6 +23,10 @@ CLI args (override defaults):
     --vy FLOAT      initial lateral velocity  (default 0.0 m/s)
     --yaw FLOAT     initial yaw rate          (default 0.0 rad/s)
     --standing      start in standing mode    (standing_flag = 1)
+    --scene STR     scene to load: 'groundplane' (default) or 'room'
+                    'room' loads scenes/ithor/FloorPlan1_physics_simple.xml,
+                    converting to USD on first run (~30s) and caching in
+                    isaac-sim-rl-bringup/scenes/.
 
 Close the viewer window to exit.
 """
@@ -36,6 +40,9 @@ parser.add_argument("--vx",       type=float, default=0.3,  help="Initial forwar
 parser.add_argument("--vy",       type=float, default=0.0,  help="Initial lateral velocity (m/s)")
 parser.add_argument("--yaw",      type=float, default=0.0,  help="Initial yaw rate (rad/s)")
 parser.add_argument("--standing", action="store_true",       help="Start in standing mode")
+parser.add_argument("--scene",    type=str, default="groundplane",
+                    choices=["groundplane", "room"],
+                    help="Scene to load: 'groundplane' or 'room' (ithor FloorPlan1)")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
@@ -134,6 +141,19 @@ SPAWN_HEIGHT = 0.93   # metres — adjust if robot spawns with feet above/below 
 SIM_DT     = 0.005
 DECIMATION = 4         # 4 × 5 ms = 20 ms per policy tick = 50 Hz
 
+# ── Scene paths ───────────────────────────────────────────────────────────────
+# Pre-built USD from molmospaces (ms-download --type usd --scenes ithor).
+# Symlinked to assets/usd/scenes/ithor/FloorPlan1_physics/ by ms-download.
+_ROOM_USD = _ALEX_ROBOT / "assets" / "usd" / "scenes" / "ithor" / "FloorPlan1_physics" / "scene.usda"
+
+# Robot spawn position inside the room scene.
+# Floor of FloorPlan1_physics is at z=0 → spawn CoM at z=0.93 m.
+SPAWN_POS_ROOM = (1.2, -0.8, 0.93)
+
+# Room camera: inside room, near far wall corner, looking toward robot spawn.
+ROOM_CAM_EYE    = (2.2, 2.2, 2.0)
+ROOM_CAM_TARGET = (0.5, -0.5, 0.8)
+
 # ── Mutable command state (updated by keyboard at runtime) ────────────────────
 # [vx, vy, yaw_rate, standing_flag]  — populated in main() from CLI args
 _cmd = np.zeros(4, dtype=np.float32)   # [vx, vy, yaw, standing]
@@ -171,13 +191,27 @@ def resolve_urdf() -> str:
 
 
 # ── Scene setup ───────────────────────────────────────────────────────────────
-def setup_scene():
+def setup_scene(scene: str):
     sim_cfg = sim_utils.SimulationCfg(dt=SIM_DT, device="cpu")
     sim = SimulationContext(sim_cfg)
-    # sim.set_camera_view(eye=[-2.0, 8.0, 2.5], target=[4.0, 0.0, 0.5])
-    sim.set_camera_view(eye=[10.0, 8.0, 2.5], target=[4.0, 0.0, 0.5])
 
-    sim_utils.GroundPlaneCfg().func("/World/defaultGroundPlane", sim_utils.GroundPlaneCfg())
+    if scene == "room":
+        sim.set_camera_view(eye=ROOM_CAM_EYE, target=ROOM_CAM_TARGET)
+        assert _ROOM_USD.exists(), (
+            f"Room USD not found: {_ROOM_USD}\n"
+            "Run: ms-download --type usd --install-dir assets/usd --scenes ithor"
+        )
+        sim_utils.UsdFileCfg(usd_path=str(_ROOM_USD)).func(
+            "/World/Room", sim_utils.UsdFileCfg(usd_path=str(_ROOM_USD))
+        )
+        spawn_pos = SPAWN_POS_ROOM
+        print(f"[scene] Loaded room scene (FloorPlan1). Robot spawn {spawn_pos}")
+    else:
+        sim.set_camera_view(eye=[10.0, 8.0, 2.5], target=[4.0, 0.0, 0.5])
+        sim_utils.GroundPlaneCfg().func("/World/defaultGroundPlane", sim_utils.GroundPlaneCfg())
+        spawn_pos = (0.0, 0.0, SPAWN_HEIGHT)
+        print(f"[scene] Loaded ground plane. Robot spawn {spawn_pos}")
+
     sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)).func(
         "/World/Light", sim_utils.DomeLightCfg(intensity=2000.0)
     )
@@ -185,7 +219,7 @@ def setup_scene():
     robot_cfg = copy.deepcopy(alex_cfg.ALEX_V1_NUBS_DEFAULT_CFG)
     robot_cfg.spawn.asset_path = resolve_urdf()
     robot_cfg.init_state.joint_pos = HOME_POS   # non-zero home pose (bent-knee standing)
-    robot_cfg.init_state.pos = (0.0, 0.0, SPAWN_HEIGHT)
+    robot_cfg.init_state.pos = spawn_pos
     robot = Articulation(robot_cfg.replace(prim_path="/World/Alex"))
 
     left_contact  = ContactSensor(ContactSensorCfg(prim_path="/World/Alex/LEFT_FOOT",  update_period=0.0, history_length=1))
@@ -335,7 +369,7 @@ def main():
     print(f"  obs_size={OBS_SIZE}  action_scale={ACTION_SCALE}")
     print(f"  initial cmd: vx={_cmd[0]:.2f} vy={_cmd[1]:.2f} yaw={_cmd[2]:.2f} standing={int(_cmd[3])}")
 
-    sim, robot, left_contact, right_contact = setup_scene()
+    sim, robot, left_contact, right_contact = setup_scene(args_cli.scene)
     sim.reset()
 
     # Cap render FPS to 60 at runtime — prevents "fast forward" visual effect.
