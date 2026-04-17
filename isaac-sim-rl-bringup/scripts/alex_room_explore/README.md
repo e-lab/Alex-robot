@@ -14,11 +14,11 @@ everything else is a Hydra override (`key=value`).
 ## Run
 
 ```bash
-cd ~/alex/repository-group/IsaacLab
+cd ~/pathtoFolder/IsaacLab
 
 # groundplane + default walking cmd (vx=0.3 m/s)
 ./isaaclab.sh -p \
-  /home/sravani/E-Lab/Spring2026/repos/Alex-robot/isaac-sim-rl-bringup/scripts/alex_room_explore/alex_onnx_walking_policy.py
+  /pathtoFolder/Alex-robot/isaac-sim-rl-bringup/scripts/alex_room_explore/alex_onnx_walking_policy.py
 
 # ithor FloorPlan1 kitchen
 ./isaaclab.sh -p .../alex_onnx_walking_policy.py scene=room
