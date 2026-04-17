@@ -44,28 +44,28 @@ isaac-sim-rl-bringup/
 ## One-time setup
 
 ### Isaac Sim 5.1
-Built output at `~/alex/repository-group/IsaacSim/_build/linux-x86_64/release/`.
+Built output at `~/pathtoFolder/IsaacSim/_build/linux-x86_64/release/`.
 
 ```bash
 pip install isaacsim --extra-index-url https://pypi.nvidia.com
 # OR build from source:
-git clone <isaac-sim-source-repo> ~/alex/repository-group/IsaacSim
-cd ~/alex/repository-group/IsaacSim && ./build.sh
+git clone <isaac-sim-source-repo> ~/pathtoFolder/IsaacSim
+cd ~/pathtoFolder/IsaacSim && ./build.sh
 ```
 
 ### IsaacLab (IHMC fork — includes Alex robot config)
 ```bash
-git clone https://github.com/ihmcrobotics/IsaacLab.git ~/alex/repository-group/IsaacLab
-cd ~/alex/repository-group/IsaacLab && ./isaaclab.sh --install
+git clone https://github.com/ihmcrobotics/IsaacLab.git ~/pathtoFolder/IsaacLab
+cd ~/pathtoFolder/IsaacLab && ./isaaclab.sh --install
 
 # Symlink Isaac Sim build into IsaacLab
-ln -s ~/alex/repository-group/IsaacSim/_build/linux-x86_64/release \
-      ~/alex/repository-group/IsaacLab/_isaac_sim
+ln -s ~/pathtoFolder/IsaacSim/_build/linux-x86_64/release \
+      ~/pathtoFolder/IsaacLab/_isaac_sim
 ```
 
 ### Extra Python packages (into IsaacLab's bundled Kit python)
 ```bash
-cd ~/alex/repository-group/IsaacLab
+cd ~/pathtoFolder/IsaacLab
 ./isaaclab.sh -p -m pip install onnxruntime rerun-sdk hydra-core
 ```
 
@@ -74,13 +74,13 @@ See [scripts/cam_room_explore/README.md](scripts/cam_room_explore/README.md).
 
 ### Verify Alex robot config loads
 ```bash
-cd ~/alex/repository-group/IsaacLab
+cd ~/pathtoFolder/IsaacLab
 ./isaaclab.sh -p -c "from isaaclab_assets.ihmc.robots.alex import alex; print('OK')"
 ```
 
 ## Troubleshooting
 
 - **`isaaclab_assets` import error** — use the IHMC fork, not upstream IsaacLab
-- **ONNX model not found** — copy `policy.onnx` from the lab machine into
+- **ONNX model not found** — copy `policy.onnx` from the E-Lab folder into
   `models/2026-03-17_23-20-27_flatfeet/`
 - **`_isaac_sim` symlink missing** — see IsaacLab setup above
