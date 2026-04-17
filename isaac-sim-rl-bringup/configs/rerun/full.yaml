@@ -1,0 +1,6 @@
+# @package rerun
+# Stream everything to Rerun: RGB, depth, SAM3 masks, point cloud, scalars.
+enabled: true
+pointcloud: true
+pointcloud_stride: 8
+pointcloud_max_depth: 8.0

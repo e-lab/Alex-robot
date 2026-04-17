@@ -1,0 +1,8 @@
+# @package policy
+# 2026-03-17_23-20-27_flatfeet — 80-dim obs, 23-dim action walking policy.
+# Initial velocity command matches the old script defaults (walk forward 0.3 m/s).
+onnx_path: ${repo_root}/isaac-sim-rl-bringup/models/2026-03-17_23-20-27_flatfeet/policy.onnx
+vx: 0.3
+vy: 0.0
+yaw: 0.0
+standing: false

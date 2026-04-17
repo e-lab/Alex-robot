@@ -37,3 +37,5 @@ scenes/ithor/ithor_usd/
 scenes/ithor/_floorplan_sanitized.xml
 # molmospaces downloaded assets (symlinks to ~/.molmospaces cache)
 assets/usd/
+# generated at runtime by cam_room_explore_isaac.py
+isaac-sim-rl-bringup/scene_graph.json

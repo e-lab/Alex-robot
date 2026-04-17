@@ -1,0 +1,23 @@
+# Top-level experiment config for alex_onnx_walking_policy.py.
+# Composes scene + policy + detector + yolo + rerun groups.
+# Override any leaf from the CLI, e.g.
+#   scene=hallway policy.vx=0.5 detector=sam3 rerun=full
+
+defaults:
+  - base_alex_app          # structured schema (dataclasses)
+  - scene: groundplane     # groundplane | room | hallway
+  - policy: flatfeet       # ONNX policy + initial velocity cmd
+  - detector: sam3     # disabled | sam3
+  - yolo: disabled         # disabled | ihmc (mutually exclusive with detector)
+  - rerun: disabled        # disabled | full
+  - _self_
+
+repo_root: "???"   # overridden at runtime by the entry script
+
+# Hydra runtime — don't cd into outputs/YYYY-MM-DD/..., keep cwd.
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

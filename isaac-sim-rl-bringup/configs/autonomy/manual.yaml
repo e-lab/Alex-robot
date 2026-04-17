@@ -1,0 +1,5 @@
+# @package autonomy
+# Keyboard-only mode. The controller loop is skipped entirely; user drives the
+# camera with arrows / Q / E / R / F / L.
+mode: manual
+target: null

@@ -1,0 +1,13 @@
+# @package autonomy
+# Prompt-driven FSM: rotate + tilt-sweep searching for `target`, then walk to it.
+# Override target on the CLI: autonomy=approach autonomy.target=sofa
+mode: approach
+target: null           # must be set; e.g. `autonomy.target=oven`
+stop_dist: 1.0
+walk_speed: 0.4
+search_yaw: 0.6
+heading_kp: 1.5
+stale_s: 5.0
+lock_conf: 0.6
+tilt_deg: 20.0
+tilt_period_s: 10.0

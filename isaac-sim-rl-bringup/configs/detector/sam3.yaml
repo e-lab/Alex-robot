@@ -1,0 +1,6 @@
+# @package detector
+# SAM3 open-vocabulary segmentation. Prompts are comma-separated; every
+# detection whose score ≥ conf is fed into the scene graph.
+enabled: true
+prompts: "door, sofa, armchair, coffee table, dining table, oven, chair, plant, bottle"
+conf: 0.3

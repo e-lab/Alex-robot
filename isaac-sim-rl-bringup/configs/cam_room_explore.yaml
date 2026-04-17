@@ -1,0 +1,39 @@
+# Top-level experiment config for cam_room_explore_isaac.py.
+# Composes scene + detector + rerun + autonomy groups. Override any leaf
+# from the CLI, e.g. `scene=hallway autonomy=approach autonomy.target=sofa`.
+
+defaults:
+  - base_config           # structured schema (dataclasses)
+  - scene: room           # which USD world
+  - detector: sam3        # object detector (disabled | sam3)
+  - rerun: full           # disabled | full
+  - autonomy: manual      # manual | approach
+  - _self_
+
+# Root paths — other configs interpolate via ${repo_root}.
+# Set at runtime by the entry script (not ${hydra:runtime.cwd}, which only
+# resolves inside @hydra.main). We hardcode a sentinel and override it in code.
+repo_root: "???"
+
+# Spawn pose — override per-scene if needed: spawn.x=2.0 spawn.yaw_deg=90
+spawn:
+  x: 0.0
+  y: 0.0
+  z: 1.5
+  yaw_deg: 0.0
+
+motion:
+  move_speed: 1.0
+  turn_speed_deg: 60.0
+
+output:
+  scene_graph_path: ${repo_root}/isaac-sim-rl-bringup/scene_graph.json
+  save_every_s: 30.0
+
+# Don't cd into outputs/YYYY-MM-DD/... — keep scene_graph.json next to bringup.
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

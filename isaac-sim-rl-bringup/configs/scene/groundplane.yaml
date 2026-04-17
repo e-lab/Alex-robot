@@ -1,0 +1,5 @@
+# @package scene
+# Flat ground only — useful for testing camera motion without a room.
+name: groundplane
+usd_path: null
+doors: open

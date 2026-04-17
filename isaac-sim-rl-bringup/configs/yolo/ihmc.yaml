@@ -1,0 +1,7 @@
+# @package yolo
+# IHMC custom 12-class YOLOv8 ONNX (robot_hand, door_panel, door_lever,
+# person, charge, traffic_barrier, door_knob, door_push_bar, door_pull_handle,
+# trash_can, bottle, storage_container).
+enabled: true
+weights: /home/sravani/nadia/repository-group/ihmc-open-robotics-software/ihmc-perception/src/main/resources/yolo/best_multi_02_17_2026/best_multi_02_17_2026.onnx
+conf: 0.35

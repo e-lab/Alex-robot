@@ -1,0 +1,5 @@
+# @package rerun
+enabled: true
+pointcloud: false
+pointcloud_stride: 8
+pointcloud_max_depth: 8.0

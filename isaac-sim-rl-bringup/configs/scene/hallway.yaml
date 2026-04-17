@@ -1,0 +1,5 @@
+# @package scene
+# Multi-room hallway with revolute-joint doors that PhysX can drive open.
+name: hallway
+usd_path: ${repo_root}/scenes/HallwayScene/Hallway.usdc
+doors: closed   # open | closed — drives joint target to -90° or 0°

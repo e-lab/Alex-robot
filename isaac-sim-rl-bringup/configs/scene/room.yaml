@@ -1,0 +1,5 @@
+# @package scene
+# ithor FloorPlan1 kitchen — pre-built USD from molmospaces
+name: room
+usd_path: ${repo_root}/assets/usd/scenes/ithor/FloorPlan1_physics/scene.usda
+doors: open   # unused for room, here for shared schema

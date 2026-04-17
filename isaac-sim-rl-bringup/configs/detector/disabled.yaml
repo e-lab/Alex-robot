@@ -1,0 +1,4 @@
+# @package detector
+enabled: false
+prompts: ""
+conf: 0.3
