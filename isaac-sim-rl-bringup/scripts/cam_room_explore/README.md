@@ -19,8 +19,8 @@ Hydra override (`key=value`).
 
 **Manual teleop in the ithor kitchen (defaults):**
 ```bash
-cd ~/alex/repository-group/IsaacLab
-./isaaclab.sh -p /home/sravani/E-Lab/Spring2026/repos/Alex-robot/isaac-sim-rl-bringup/scripts/cam_room_explore/cam_room_explore_isaac.py \
+cd ~/pathtoFolder/IsaacLab
+./isaaclab.sh -p /pathtoFolder/Alex-robot/isaac-sim-rl-bringup/scripts/cam_room_explore/cam_room_explore_isaac.py \
     --enable_cameras
 ```
 
