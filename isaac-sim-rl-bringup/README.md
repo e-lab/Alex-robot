@@ -69,8 +69,51 @@ cd ~/pathtoFolder/IsaacLab
 ./isaaclab.sh -p -m pip install onnxruntime rerun-sdk hydra-core
 ```
 
-**For `cam_room_explore`:** SAM3 must be cloned and installed into Kit python.
-See [scripts/cam_room_explore/README.md](scripts/cam_room_explore/README.md).
+Optional (needed if you use `detector=sam3` or `yolo=ihmc`):
+```bash
+./isaaclab.sh -p -m pip install ultralytics onnx          # YOLO
+```
+
+### SAM3 (needed for `detector=sam3` in either script)
+
+SAM3 is a text-promptable segmentation model from Meta — required to run
+open-vocabulary detection on the head camera. Access-gated on HuggingFace,
+so **request access first:** https://huggingface.co/facebook/sam3
+
+Install the SAM3 package into IsaacLab's Kit python:
+```bash
+# 1. Clone SAM3 (we use ~/E-Lab/Spring2026/repos/sam3)
+git clone https://github.com/facebookresearch/sam3.git ~/pathtoFolder/sam3
+
+# 2. Install into Kit python (editable — path stays linked)
+cd ~/pathtoFolder/IsaacLab
+./isaaclab.sh -p -m pip install -e ~/pathtoFolder/sam3
+./isaaclab.sh -p -m pip install decord pycocotools    # transitive deps
+
+# 3. Log in to HuggingFace (one-off; saves a token under ~/.huggingface)
+./isaaclab.sh -p -m pip install huggingface_hub
+./isaaclab.sh -p -c "from huggingface_hub import login; login()"
+# paste your HF access token when prompted
+```
+
+The SAM3 checkpoint (~3.3 GB) auto-downloads to `~/.cache/huggingface/hub/
+models--facebook--sam3/` on first use. After that, `detector=sam3` works
+offline. Verify:
+```bash
+./isaaclab.sh -p -c "from sam3.model_builder import build_sam3_image_model; print('SAM3 OK')"
+```
+
+If pip downgrades torch/numpy/nvidia-cu* wheels and Isaac crashes with
+`undefined symbol` errors, uninstall the mismatched versions so Isaac's
+bundled `torch 2.7.0+cu128` resolves:
+```bash
+./isaaclab.sh -p -m pip uninstall -y torch triton \
+    nvidia-cublas-cu12 nvidia-cuda-cupti-cu12 nvidia-cuda-nvrtc-cu12 \
+    nvidia-cuda-runtime-cu12 nvidia-cudnn-cu12 nvidia-cufft-cu12 \
+    nvidia-cufile-cu12 nvidia-curand-cu12 nvidia-cusolver-cu12 \
+    nvidia-cusparse-cu12 nvidia-cusparselt-cu12 nvidia-nccl-cu12 \
+    nvidia-nvjitlink-cu12 nvidia-nvtx-cu12
+```
 
 ### Verify Alex robot config loads
 ```bash
@@ -84,3 +127,9 @@ cd ~/pathtoFolder/IsaacLab
 - **ONNX model not found** — copy `policy.onnx` from the E-Lab folder into
   `models/2026-03-17_23-20-27_flatfeet/`
 - **`_isaac_sim` symlink missing** — see IsaacLab setup above
+- **SAM3 `HFValidationError`** / `401 unauthorized` — you haven't been granted
+  access on HuggingFace or haven't logged in; see SAM3 install section
+- **Isaac crashes with `libcusparse.so ... undefined symbol __nvJitLinkCreate`
+  after installing SAM3 / ultralytics** — pip pulled CUDA 12.6 wheels that
+  conflict with Isaac's bundled CUDA 12.8; uninstall the mismatched wheels
+  (see SAM3 section)
