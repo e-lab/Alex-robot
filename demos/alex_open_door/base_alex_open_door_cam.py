@@ -35,13 +35,51 @@ HEAD_VIEW_HEIGHT = 180
 HEAD_VIEW_MAX_DEPTH_M = 5.0
 HEAD_CAMERA_WINDOW_NAME = "Alex Head Cameras"
 CAMERA_STATE_PATH = Path(__file__).resolve().with_name("main_camera_view.json")
-LEFT_ARM_JOINT_NAMES = (
-  "left_shoulder_y",
-  "left_shoulder_x",
-  "left_shoulder_z",
-  "left_elbow_y",
-  "left_wrist_z",
-  "left_wrist_x",
+LEFT_ARM_SEQUENCE = (
+  (
+    1.2,
+    {
+      "left_shoulder_y": -0.35,
+      "left_shoulder_x": 0.18,
+      "left_shoulder_z": -0.55,
+      "left_elbow_y": 1.05,
+      "left_wrist_z": 0.10,
+      "left_wrist_x": -0.10,
+    },
+  ),
+  (
+    1.0,
+    {
+      "left_shoulder_y": -0.58,
+      "left_shoulder_x": 0.30,
+      "left_shoulder_z": -0.82,
+      "left_elbow_y": 1.32,
+      "left_wrist_z": 0.18,
+      "left_wrist_x": -0.22,
+    },
+  ),
+  (
+    1.0,
+    {
+      "left_shoulder_y": -0.62,
+      "left_shoulder_x": 0.36,
+      "left_shoulder_z": -1.05,
+      "left_elbow_y": 1.45,
+      "left_wrist_z": 0.42,
+      "left_wrist_x": -0.30,
+    },
+  ),
+  (
+    0.9,
+    {
+      "left_shoulder_y": -0.50,
+      "left_shoulder_x": 0.34,
+      "left_shoulder_z": -0.72,
+      "left_elbow_y": 1.18,
+      "left_wrist_z": 0.20,
+      "left_wrist_x": -0.12,
+    },
+  ),
 )
 
 
@@ -263,91 +301,8 @@ def _set_default_head_pitch(model: mujoco.MjModel, data: mujoco.MjData) -> None:
   )
 
 
-def _door_target_in_head_camera(
-  model: mujoco.MjModel,
-  data: mujoco.MjData,
-  door_body_name: str,
-) -> tuple[np.ndarray, float]:
-  door_body_id = _find_body_id_by_name_suffix(model, door_body_name)
-  geom_id = _resolve_door_geom_id(model, door_body_id)
-  target_world = np.asarray(data.geom_xpos[geom_id], dtype=np.float64)
-
-  camera_ids = alex_sensors.resolve_alex_camera_ids(model)
-  rgb_id = camera_ids.rgb
-  cam_pos = np.asarray(data.cam_xpos[rgb_id], dtype=np.float64)
-  cam_axes = np.asarray(data.cam_xmat[rgb_id], dtype=np.float64).reshape(3, 3)
-
-  rel_world = target_world - cam_pos
-  rel_cam = cam_axes.T @ rel_world
-  depth_m = float(np.linalg.norm(rel_world))
-  return rel_cam, depth_m
-
-
-def _build_left_arm_sequence(
-  model: mujoco.MjModel,
-  data: mujoco.MjData,
-  door_body_name: str,
-) -> list[tuple[float, dict[str, float]]]:
-  rel_cam, depth_m = _door_target_in_head_camera(model, data, door_body_name)
-  lateral_m = float(rel_cam[0])
-  downward_m = max(0.0, float(-rel_cam[1]))
-  forward_m = max(0.0, float(-rel_cam[2]))
-
-  reach = np.clip((forward_m - 0.25) / 0.75, 0.0, 1.0)
-  down = np.clip((downward_m - 0.10) / 0.35, 0.0, 1.0)
-  center = np.clip(-lateral_m / 0.35, -1.0, 1.0)
-  depth_gain = np.clip((depth_m - 0.55) / 0.65, 0.0, 1.0)
-
-  pregrasp = {
-    "left_shoulder_y": -0.55 - 0.35 * reach,
-    "left_shoulder_x": -0.05 + 0.20 * down,
-    "left_shoulder_z": -0.35 - 0.40 * center,
-    "left_elbow_y": 0.80 + 0.35 * reach,
-    "left_wrist_z": -0.08 - 0.10 * center,
-    "left_wrist_x": -0.08 - 0.06 * down,
-  }
-  reach_pose = {
-    "left_shoulder_y": -0.95 - 0.30 * depth_gain,
-    "left_shoulder_x": -0.10 + 0.25 * down,
-    "left_shoulder_z": -0.55 - 0.55 * center,
-    "left_elbow_y": 1.05 + 0.35 * reach,
-    "left_wrist_z": -0.18 - 0.12 * center,
-    "left_wrist_x": -0.14 - 0.10 * down,
-  }
-  handle_pose = {
-    "left_shoulder_y": -1.10 - 0.15 * depth_gain,
-    "left_shoulder_x": -0.12 + 0.28 * down,
-    "left_shoulder_z": -0.78 - 0.65 * center,
-    "left_elbow_y": 1.20 + 0.30 * reach,
-    "left_wrist_z": -0.32 - 0.16 * center,
-    "left_wrist_x": -0.22 - 0.06 * down,
-  }
-  open_pose = {
-    "left_shoulder_y": -0.95 - 0.10 * depth_gain,
-    "left_shoulder_x": -0.05 + 0.20 * down,
-    "left_shoulder_z": -1.00 - 0.60 * center,
-    "left_elbow_y": 1.05 + 0.22 * reach,
-    "left_wrist_z": -0.48 - 0.18 * center,
-    "left_wrist_x": -0.18 - 0.05 * down,
-  }
-
-  return [
-    (1.0, pregrasp),
-    (1.0, reach_pose),
-    (1.0, handle_pose),
-    (0.9, open_pose),
-  ]
-
-
 class InteractivePlacementViewer:
-  def __init__(
-    self,
-    model: mujoco.MjModel,
-    data: mujoco.MjData,
-    base_z_m: float,
-    scene_xml: str,
-    door_body_name: str,
-  ):
+  def __init__(self, model: mujoco.MjModel, data: mujoco.MjData, base_z_m: float, scene_xml: str):
     self.model = model
     self.data = data
     self.base_z_m = base_z_m
@@ -362,9 +317,8 @@ class InteractivePlacementViewer:
     self.viewport = mujoco.MjrRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
     self._camera_parent_conn = None
     self._camera_process = None
-    self._door_body_name = door_body_name
-    self._left_arm_sequence = _build_left_arm_sequence(model, data, self._door_body_name)
-    self._left_arm_joint_names = LEFT_ARM_JOINT_NAMES
+    self._left_arm_sequence = list(LEFT_ARM_SEQUENCE)
+    self._left_arm_joint_names = tuple(self._left_arm_sequence[0][1].keys())
     self._sequence_active = False
     self._sequence_segment_index = 0
     self._sequence_segment_elapsed_s = 0.0
@@ -409,9 +363,9 @@ class InteractivePlacementViewer:
       glfw.set_key_callback(self.window, self._key_callback)
 
       print("Controls:")
-      print("  Left drag: rotate camera")
-      print("  Right drag: pan camera")
-      print("  Middle drag or Mouse wheel: zoom camera")
+      print("  Left drag: move Alex on the scene")
+      print("  Right drag: rotate camera")
+      print("  Middle drag or Shift+Right drag: pan camera")
       print("  Mouse wheel: zoom")
       print("  Q / E: rotate Alex in place")
       print("  P: run left-arm door-open sequence")
@@ -500,7 +454,6 @@ class InteractivePlacementViewer:
     }
 
   def _start_left_arm_sequence(self) -> None:
-    self._left_arm_sequence = _build_left_arm_sequence(self.model, self.data, self._door_body_name)
     self._sequence_active = True
     self._sequence_segment_index = 0
     self._sequence_segment_elapsed_s = 0.0
@@ -538,22 +491,66 @@ class InteractivePlacementViewer:
     if alpha >= 1.0:
       self._advance_left_arm_sequence()
 
+  def _place_robot_at_cursor(self, xpos: float, ypos: float) -> None:
+    if self.viewport.width <= 0 or self.viewport.height <= 0:
+      return
+
+    relx = xpos / self.viewport.width
+    rely = (self.viewport.height - ypos) / self.viewport.height
+    aspect_ratio = self.viewport.width / max(1, self.viewport.height)
+    selpnt = np.zeros(3, dtype=np.float64)
+    geomid = np.array([-1], dtype=np.int32)
+    flexid = np.array([-1], dtype=np.int32)
+    skinid = np.array([-1], dtype=np.int32)
+
+    body_id = mujoco.mjv_select(
+      self.model,
+      self.data,
+      self.opt,
+      aspect_ratio,
+      relx,
+      rely,
+      self.scn,
+      selpnt,
+      geomid,
+      flexid,
+      skinid,
+    )
+    if body_id < 0:
+      return
+
+    current_quat = tuple(float(v) for v in self.data.qpos[3:7])
+    alex_sensors.set_base_pose(
+      self.model,
+      self.data,
+      pos_xyz=(float(selpnt[0]), float(selpnt[1]), float(self.base_z_m)),
+      quat_wxyz=current_quat,
+      forward=True,
+    )
+
   def _cursor_pos_callback(self, _window, xpos: float, ypos: float) -> None:
     dx = xpos - self.last_x
     dy = ypos - self.last_y
     self.last_x = xpos
     self.last_y = ypos
 
-    if not (self.left_drag_active or self.right_drag_active or self.middle_drag_active):
+    if self.left_drag_active:
+      self._place_robot_at_cursor(xpos, ypos)
+      return
+
+    if not (self.right_drag_active or self.middle_drag_active):
       return
 
     width = max(1, self.viewport.width)
     height = max(1, self.viewport.height)
     reldx = dx / height
     reldy = dy / height
-    if self.middle_drag_active:
-      action = mujoco.mjtMouse.mjMOUSE_ZOOM
-    elif self.right_drag_active:
+    shift_pressed = (
+      glfw.get_key(self.window, glfw.KEY_LEFT_SHIFT) == glfw.PRESS
+      or glfw.get_key(self.window, glfw.KEY_RIGHT_SHIFT) == glfw.PRESS
+    )
+
+    if self.middle_drag_active or shift_pressed:
       action = mujoco.mjtMouse.mjMOUSE_MOVE_H if abs(dx) >= abs(dy) else mujoco.mjtMouse.mjMOUSE_MOVE_V
     else:
       action = mujoco.mjtMouse.mjMOUSE_ROTATE_H if abs(dx) >= abs(dy) else mujoco.mjtMouse.mjMOUSE_ROTATE_V
@@ -568,6 +565,8 @@ class InteractivePlacementViewer:
     is_press = action == glfw.PRESS
     if button == glfw.MOUSE_BUTTON_LEFT:
       self.left_drag_active = is_press
+      if is_press:
+        self._place_robot_at_cursor(xpos, ypos)
     elif button == glfw.MOUSE_BUTTON_RIGHT:
       self.right_drag_active = is_press
     elif button == glfw.MOUSE_BUTTON_MIDDLE:
@@ -651,13 +650,7 @@ def main() -> None:
   print(f"Initial door geom: {geom_name}")
   print(f"Initial robot pose: pos={pos_xyz}, quat={quat_wxyz}")
 
-  InteractivePlacementViewer(
-    model,
-    data,
-    args.base_z_m,
-    str(Path(args.scene_xml).resolve()),
-    args.door_body,
-  ).run()
+  InteractivePlacementViewer(model, data, args.base_z_m, str(Path(args.scene_xml).resolve())).run()
 
 
 if __name__ == "__main__":
