@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import math
+import multiprocessing as mp
 import sys
 from pathlib import Path
 
+import cv2
 import mujoco
 import numpy as np
 from mujoco.glfw import glfw
@@ -24,6 +26,49 @@ DEFAULT_STANDOFF_M = 0.9
 DEFAULT_BASE_Z_M = 1.0
 WINDOW_WIDTH = 1440
 WINDOW_HEIGHT = 900
+HEAD_VIEW_WIDTH = 320
+HEAD_VIEW_HEIGHT = 180
+HEAD_VIEW_MAX_DEPTH_M = 5.0
+
+
+def _camera_view_worker(conn, scene_xml: str) -> None:
+  model = mujoco.MjModel.from_xml_path(scene_xml)
+  data = mujoco.MjData(model)
+  camera_ids = alex_sensors.resolve_alex_camera_ids(model)
+  renderer = mujoco.Renderer(
+    model,
+    width=HEAD_VIEW_WIDTH,
+    height=HEAD_VIEW_HEIGHT,
+  )
+
+  try:
+    while True:
+      try:
+        message = conn.recv()
+      except EOFError:
+        break
+      if message is None:
+        break
+
+      qpos, qvel = message
+      data.qpos[:] = qpos
+      data.qvel[:] = qvel
+      mujoco.mj_forward(model, data)
+
+      rgb_bgr, depth_bgr = alex_sensors.render_alex_rgb_depth(
+        renderer=renderer,
+        data=data,
+        camera_ids=camera_ids,
+        max_depth_m=HEAD_VIEW_MAX_DEPTH_M,
+      )
+      cv2.imshow("Alex Head RGB", rgb_bgr)
+      cv2.imshow("Alex Head Depth", depth_bgr)
+      if cv2.waitKey(1) & 0xFF == 27:
+        break
+  finally:
+    renderer.close()
+    cv2.destroyAllWindows()
+    conn.close()
 
 
 def parse_args() -> argparse.Namespace:
@@ -134,10 +179,11 @@ def _compute_spawn_pose(
 
 
 class InteractivePlacementViewer:
-  def __init__(self, model: mujoco.MjModel, data: mujoco.MjData, base_z_m: float):
+  def __init__(self, model: mujoco.MjModel, data: mujoco.MjData, base_z_m: float, scene_xml: str):
     self.model = model
     self.data = data
     self.base_z_m = base_z_m
+    self.scene_xml = scene_xml
 
     self.window = None
     self.cam = mujoco.MjvCamera()
@@ -146,6 +192,8 @@ class InteractivePlacementViewer:
     self.scn = mujoco.MjvScene(model, maxgeom=20_000)
     self.ctx = None
     self.viewport = mujoco.MjrRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+    self._camera_parent_conn = None
+    self._camera_process = None
 
     self.last_x = 0.0
     self.last_y = 0.0
@@ -173,6 +221,7 @@ class InteractivePlacementViewer:
       glfw.make_context_current(self.window)
       glfw.swap_interval(1)
       self.ctx = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150.value)
+      self._start_camera_process()
       glfw.set_cursor_pos_callback(self.window, self._cursor_pos_callback)
       glfw.set_mouse_button_callback(self.window, self._mouse_button_callback)
       glfw.set_scroll_callback(self.window, self._scroll_callback)
@@ -185,6 +234,7 @@ class InteractivePlacementViewer:
       print("  Mouse wheel: zoom")
       print("  Q / E: rotate Alex in place")
       print("  R: reset free camera")
+      print("  Alex RGB/depth views open in separate windows")
       print("  Esc: quit")
 
       while not glfw.window_should_close(self.window):
@@ -201,11 +251,51 @@ class InteractivePlacementViewer:
         )
         mujoco.mjr_render(self.viewport, self.scn, self.ctx)
         glfw.swap_buffers(self.window)
+        self._send_camera_state()
         glfw.poll_events()
     finally:
+      self._stop_camera_process()
       if self.window is not None:
         glfw.destroy_window(self.window)
       glfw.terminate()
+
+  def _start_camera_process(self) -> None:
+    ctx = mp.get_context("spawn")
+    parent_conn, child_conn = ctx.Pipe()
+    process = ctx.Process(
+      target=_camera_view_worker,
+      args=(child_conn, self.scene_xml),
+      daemon=True,
+    )
+    process.start()
+    child_conn.close()
+    self._camera_parent_conn = parent_conn
+    self._camera_process = process
+
+  def _stop_camera_process(self) -> None:
+    if self._camera_parent_conn is not None:
+      try:
+        self._camera_parent_conn.send(None)
+      except Exception:
+        pass
+      self._camera_parent_conn.close()
+      self._camera_parent_conn = None
+    if self._camera_process is not None:
+      self._camera_process.join(timeout=1.0)
+      if self._camera_process.is_alive():
+        self._camera_process.terminate()
+      self._camera_process = None
+
+  def _send_camera_state(self) -> None:
+    if self._camera_parent_conn is None:
+      return
+    try:
+      self._camera_parent_conn.send((
+        np.array(self.data.qpos, copy=True),
+        np.array(self.data.qvel, copy=True),
+      ))
+    except (BrokenPipeError, EOFError):
+      self._camera_parent_conn = None
 
   def _place_robot_at_cursor(self, xpos: float, ypos: float) -> None:
     if self.viewport.width <= 0 or self.viewport.height <= 0:
@@ -358,7 +448,7 @@ def main() -> None:
   print(f"Initial door geom: {geom_name}")
   print(f"Initial robot pose: pos={pos_xyz}, quat={quat_wxyz}")
 
-  InteractivePlacementViewer(model, data, args.base_z_m).run()
+  InteractivePlacementViewer(model, data, args.base_z_m, str(Path(args.scene_xml).resolve())).run()
 
 
 if __name__ == "__main__":
