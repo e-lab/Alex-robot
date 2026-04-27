@@ -8,7 +8,6 @@ import math
 import sys
 from pathlib import Path
 
-import cv2
 import mujoco
 import numpy as np
 from mujoco.glfw import glfw
@@ -25,9 +24,6 @@ DEFAULT_STANDOFF_M = 0.9
 DEFAULT_BASE_Z_M = 1.0
 WINDOW_WIDTH = 1440
 WINDOW_HEIGHT = 900
-HEAD_VIEW_WIDTH = 320
-HEAD_VIEW_HEIGHT = 180
-HEAD_VIEW_MAX_DEPTH_M = 5.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -121,7 +117,9 @@ def _compute_spawn_pose(
   geom_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or f"geom-{geom_id}"
   geom_center = np.asarray(data.geom_xpos[geom_id], dtype=np.float64)
   geom_axes = np.asarray(data.geom_xmat[geom_id], dtype=np.float64).reshape(3, 3)
-  normal_xy = geom_axes[:2, 2]
+
+  normal = geom_axes[:, 2]
+  normal_xy = normal[:2]
   normal_xy_norm = np.linalg.norm(normal_xy)
   if normal_xy_norm < 1e-6:
     raise ValueError(f"Door geom '{geom_name}' has no usable horizontal normal.")
@@ -148,8 +146,6 @@ class InteractivePlacementViewer:
     self.scn = mujoco.MjvScene(model, maxgeom=20_000)
     self.ctx = None
     self.viewport = mujoco.MjrRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
-    self.head_renderer = None
-    self.head_camera_ids = None
 
     self.last_x = 0.0
     self.last_y = 0.0
@@ -158,10 +154,6 @@ class InteractivePlacementViewer:
     self.middle_drag_active = False
 
     mujoco.mjv_defaultFreeCamera(model, self.cam)
-    self.main_camera_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, "main")
-    if self.main_camera_id >= 0:
-      self.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
-      self.cam.fixedcamid = self.main_camera_id
 
   def run(self) -> None:
     if not glfw.init():
@@ -181,12 +173,6 @@ class InteractivePlacementViewer:
       glfw.make_context_current(self.window)
       glfw.swap_interval(1)
       self.ctx = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150.value)
-      self.head_camera_ids = alex_sensors.resolve_alex_camera_ids(self.model)
-      self.head_renderer = mujoco.Renderer(
-        self.model,
-        width=HEAD_VIEW_WIDTH,
-        height=HEAD_VIEW_HEIGHT,
-      )
       glfw.set_cursor_pos_callback(self.window, self._cursor_pos_callback)
       glfw.set_mouse_button_callback(self.window, self._mouse_button_callback)
       glfw.set_scroll_callback(self.window, self._scroll_callback)
@@ -194,17 +180,16 @@ class InteractivePlacementViewer:
 
       print("Controls:")
       print("  Left drag: move Alex on the scene")
-      print("  Right drag / Middle drag / Mouse wheel: camera controls")
+      print("  Right drag: rotate camera")
+      print("  Middle drag or Shift+Right drag: pan camera")
+      print("  Mouse wheel: zoom")
       print("  Q / E: rotate Alex in place")
-      print("  R: reset to the scene main camera")
-      print("  Alex RGB/depth views open in separate windows")
+      print("  R: reset free camera")
       print("  Esc: quit")
 
       while not glfw.window_should_close(self.window):
-        glfw.make_context_current(self.window)
         width, height = glfw.get_framebuffer_size(self.window)
         self.viewport = mujoco.MjrRect(0, 0, width, height)
-        mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_WINDOW, self.ctx)
         mujoco.mjv_updateScene(
           self.model,
           self.data,
@@ -215,32 +200,12 @@ class InteractivePlacementViewer:
           self.scn,
         )
         mujoco.mjr_render(self.viewport, self.scn, self.ctx)
-        self._show_head_camera_views()
         glfw.swap_buffers(self.window)
         glfw.poll_events()
-        if cv2.waitKey(1) & 0xFF == 27:
-          glfw.set_window_should_close(self.window, True)
     finally:
-      if self.head_renderer is not None:
-        self.head_renderer.close()
-      cv2.destroyAllWindows()
       if self.window is not None:
         glfw.destroy_window(self.window)
       glfw.terminate()
-
-  def _show_head_camera_views(self) -> None:
-    if self.head_renderer is None or self.head_camera_ids is None:
-      return
-    mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, self.ctx)
-    rgb_bgr, depth_bgr = alex_sensors.render_alex_rgb_depth(
-      renderer=self.head_renderer,
-      data=self.data,
-      camera_ids=self.head_camera_ids,
-      max_depth_m=HEAD_VIEW_MAX_DEPTH_M,
-    )
-    mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_WINDOW, self.ctx)
-    cv2.imshow("Alex Head RGB", rgb_bgr)
-    cv2.imshow("Alex Head Depth", depth_bgr)
 
   def _place_robot_at_cursor(self, xpos: float, ypos: float) -> None:
     if self.viewport.width <= 0 or self.viewport.height <= 0:
@@ -291,8 +256,6 @@ class InteractivePlacementViewer:
 
     if not (self.right_drag_active or self.middle_drag_active):
       return
-    if self.cam.type == mujoco.mjtCamera.mjCAMERA_FIXED:
-      return
 
     width = max(1, self.viewport.width)
     height = max(1, self.viewport.height)
@@ -326,8 +289,6 @@ class InteractivePlacementViewer:
       self.middle_drag_active = is_press
 
   def _scroll_callback(self, _window, _xoffset: float, yoffset: float) -> None:
-    if self.cam.type == mujoco.mjtCamera.mjCAMERA_FIXED:
-      return
     mujoco.mjv_moveCamera(
       self.model,
       mujoco.mjtMouse.mjMOUSE_ZOOM,
@@ -358,11 +319,7 @@ class InteractivePlacementViewer:
     if key == glfw.KEY_ESCAPE:
       glfw.set_window_should_close(window, True)
     elif key == glfw.KEY_R:
-      if self.main_camera_id >= 0:
-        self.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
-        self.cam.fixedcamid = self.main_camera_id
-      else:
-        mujoco.mjv_defaultFreeCamera(self.model, self.cam)
+      mujoco.mjv_defaultFreeCamera(self.model, self.cam)
     elif key == glfw.KEY_Q:
       self._rotate_robot(+0.1)
     elif key == glfw.KEY_E:
