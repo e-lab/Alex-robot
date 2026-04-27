@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import multiprocessing as mp
 import sys
@@ -24,11 +25,14 @@ DEFAULT_SCENE_XML = _REPO_ROOT / "scenes" / "alex_scenes" / "scene_alex_v1_full_
 DEFAULT_DOOR_NAME = "door_f2d4ffc256f54f0897c1add29e9536e8_1_1_0"
 DEFAULT_STANDOFF_M = 0.9
 DEFAULT_BASE_Z_M = 1.0
+DEFAULT_CAMERA_OFFSET_M = 3.0
+DEFAULT_CAMERA_FOCUS_DISTANCE_M = 2.0
 WINDOW_WIDTH = 1440
 WINDOW_HEIGHT = 900
 HEAD_VIEW_WIDTH = 320
 HEAD_VIEW_HEIGHT = 180
 HEAD_VIEW_MAX_DEPTH_M = 5.0
+CAMERA_STATE_PATH = Path(__file__).resolve().with_name("main_camera_view.json")
 
 
 def _camera_view_worker(conn, scene_xml: str) -> None:
@@ -146,6 +150,68 @@ def _quat_from_yaw(yaw_rad: float) -> tuple[float, float, float, float]:
   return (math.cos(half), 0.0, 0.0, math.sin(half))
 
 
+def _forward_from_rgb_camera(model: mujoco.MjModel, data: mujoco.MjData) -> tuple[np.ndarray, np.ndarray]:
+  camera_ids = alex_sensors.resolve_alex_camera_ids(model)
+  rgb_id = camera_ids.rgb
+  cam_pos = np.asarray(data.cam_xpos[rgb_id], dtype=np.float64)
+  cam_axes = np.asarray(data.cam_xmat[rgb_id], dtype=np.float64).reshape(3, 3)
+  forward = -cam_axes[:, 2]
+  forward_norm = np.linalg.norm(forward)
+  if forward_norm < 1e-6:
+    forward = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+  else:
+    forward = forward / forward_norm
+  return cam_pos, forward
+
+
+def _default_camera_state(model: mujoco.MjModel, data: mujoco.MjData) -> dict[str, object]:
+  cam_pos, forward = _forward_from_rgb_camera(model, data)
+  camera_pos = cam_pos - forward * DEFAULT_CAMERA_OFFSET_M
+  lookat = camera_pos + forward * DEFAULT_CAMERA_FOCUS_DISTANCE_M
+  azimuth = math.degrees(math.atan2(float(forward[1]), float(forward[0])))
+  elevation = math.degrees(math.atan2(float(forward[2]), float(np.linalg.norm(forward[:2]))))
+  return {
+    "type": int(mujoco.mjtCamera.mjCAMERA_FREE),
+    "fixedcamid": -1,
+    "trackbodyid": -1,
+    "distance": float(DEFAULT_CAMERA_FOCUS_DISTANCE_M),
+    "azimuth": float(azimuth),
+    "elevation": float(elevation),
+    "lookat": [float(v) for v in lookat],
+  }
+
+
+def _load_camera_state() -> dict[str, object] | None:
+  if not CAMERA_STATE_PATH.exists():
+    return None
+  with CAMERA_STATE_PATH.open("r", encoding="utf-8") as f:
+    return json.load(f)
+
+
+def _save_camera_state(cam: mujoco.MjvCamera) -> None:
+  state = {
+    "type": int(cam.type),
+    "fixedcamid": int(cam.fixedcamid),
+    "trackbodyid": int(cam.trackbodyid),
+    "distance": float(cam.distance),
+    "azimuth": float(cam.azimuth),
+    "elevation": float(cam.elevation),
+    "lookat": [float(v) for v in cam.lookat],
+  }
+  with CAMERA_STATE_PATH.open("w", encoding="utf-8") as f:
+    json.dump(state, f, indent=2)
+
+
+def _apply_camera_state(cam: mujoco.MjvCamera, state: dict[str, object]) -> None:
+  cam.type = int(state["type"])
+  cam.fixedcamid = int(state["fixedcamid"])
+  cam.trackbodyid = int(state["trackbodyid"])
+  cam.distance = float(state["distance"])
+  cam.azimuth = float(state["azimuth"])
+  cam.elevation = float(state["elevation"])
+  cam.lookat[:] = np.asarray(state["lookat"], dtype=np.float64)
+
+
 def _compute_spawn_pose(
   model: mujoco.MjModel,
   data: mujoco.MjData,
@@ -202,6 +268,9 @@ class InteractivePlacementViewer:
     self.middle_drag_active = False
 
     mujoco.mjv_defaultFreeCamera(model, self.cam)
+    self.default_camera_state = _default_camera_state(model, data)
+    saved_camera_state = _load_camera_state()
+    _apply_camera_state(self.cam, saved_camera_state or self.default_camera_state)
 
   def run(self) -> None:
     if not glfw.init():
@@ -233,7 +302,8 @@ class InteractivePlacementViewer:
       print("  Middle drag or Shift+Right drag: pan camera")
       print("  Mouse wheel: zoom")
       print("  Q / E: rotate Alex in place")
-      print("  R: reset free camera")
+      print("  R: reset chase camera behind Alex")
+      print("  C: save current main camera view")
       print("  Alex RGB/depth views open in separate windows")
       print("  Esc: quit")
 
@@ -409,7 +479,11 @@ class InteractivePlacementViewer:
     if key == glfw.KEY_ESCAPE:
       glfw.set_window_should_close(window, True)
     elif key == glfw.KEY_R:
-      mujoco.mjv_defaultFreeCamera(self.model, self.cam)
+      self.default_camera_state = _default_camera_state(self.model, self.data)
+      _apply_camera_state(self.cam, self.default_camera_state)
+    elif key == glfw.KEY_C:
+      _save_camera_state(self.cam)
+      print(f"Saved camera view to {CAMERA_STATE_PATH}")
     elif key == glfw.KEY_Q:
       self._rotate_robot(+0.1)
     elif key == glfw.KEY_E:
