@@ -25,6 +25,7 @@ DEFAULT_SCENE_XML = _REPO_ROOT / "scenes" / "alex_scenes" / "scene_alex_v1_full_
 DEFAULT_DOOR_NAME = "door_f2d4ffc256f54f0897c1add29e9536e8_1_1_0"
 DEFAULT_STANDOFF_M = 0.7
 DEFAULT_BASE_Z_M = 1.0
+DEFAULT_HEAD_PITCH_RAD = math.radians(25.0)
 DEFAULT_CAMERA_OFFSET_M = 3.0
 DEFAULT_CAMERA_FOCUS_DISTANCE_M = 2.0
 WINDOW_WIDTH = 1440
@@ -289,6 +290,15 @@ def _compute_spawn_pose(
   pos_xyz = (float(spawn_xy[0]), float(spawn_xy[1]), float(base_z_m))
   quat_wxyz = _quat_from_yaw(yaw_rad)
   return pos_xyz, quat_wxyz, geom_name
+
+
+def _set_default_head_pitch(model: mujoco.MjModel, data: mujoco.MjData) -> None:
+  alex_sensors.set_joint_positions(
+    model,
+    data,
+    {"neck_y": DEFAULT_HEAD_PITCH_RAD},
+    forward=True,
+  )
 
 
 class InteractivePlacementViewer:
@@ -633,6 +643,7 @@ def main() -> None:
     quat_wxyz=quat_wxyz,
     forward=True,
   )
+  _set_default_head_pitch(model, data)
 
   print(f"Scene: {Path(args.scene_xml).resolve()}")
   print(f"Initial door body: {args.door_body}")
