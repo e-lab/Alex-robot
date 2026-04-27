@@ -31,9 +31,21 @@ class CastObsToFloat32(VecEnvWrapper):
 
 ENV_NAME  = "Humanoid-v5"
 SCRIPT_DIR = Path(__file__).resolve().parent
-XML_FILE = str(
-    (SCRIPT_DIR / "../../alex-models" / "alex_V1_description" / "mjcf" / "alex_v1_humanoid_train.xml").resolve()
-)
+REPO_ROOT = SCRIPT_DIR.parents[1]
+
+
+def resolve_training_xml() -> Path:
+    candidates = [
+        REPO_ROOT / "alex_models" / "alex_V1_description" / "mjcf" / "alex_v1_humanoid_train.xml",
+        REPO_ROOT / "alex-models" / "alex_V1_description" / "mjcf" / "alex_v1_humanoid_train.xml",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
+
+
+XML_FILE = str(resolve_training_xml())
 ENV_KWARGS = {
     "xml_file": XML_FILE,
     "healthy_z_range": (0.80, 2.20),

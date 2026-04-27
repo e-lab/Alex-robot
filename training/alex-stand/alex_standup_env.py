@@ -15,11 +15,29 @@ DEFAULT_CAMERA_CONFIG = {
 }
 
 DEFAULT_XML = (
-    Path(__file__).resolve().parents[2]
-    / "alex-models"
-    / "alex_V1_description"
-    / "mjcf"
-    / "alex_v1_humanoid_train.xml"
+    next(
+        (
+            path
+            for path in (
+                Path(__file__).resolve().parents[2]
+                / "alex_models"
+                / "alex_V1_description"
+                / "mjcf"
+                / "alex_v1_humanoid_train.xml",
+                Path(__file__).resolve().parents[2]
+                / "alex-models"
+                / "alex_V1_description"
+                / "mjcf"
+                / "alex_v1_humanoid_train.xml",
+            )
+            if path.exists()
+        ),
+        Path(__file__).resolve().parents[2]
+        / "alex_models"
+        / "alex_V1_description"
+        / "mjcf"
+        / "alex_v1_humanoid_train.xml",
+    )
 )
 
 
