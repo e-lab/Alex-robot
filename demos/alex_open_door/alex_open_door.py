@@ -32,6 +32,7 @@ WINDOW_HEIGHT = 900
 HEAD_VIEW_WIDTH = 320
 HEAD_VIEW_HEIGHT = 180
 HEAD_VIEW_MAX_DEPTH_M = 5.0
+HEAD_CAMERA_WINDOW_NAME = "Alex Head Cameras"
 CAMERA_STATE_PATH = Path(__file__).resolve().with_name("main_camera_view.json")
 
 
@@ -65,8 +66,8 @@ def _camera_view_worker(conn, scene_xml: str) -> None:
         camera_ids=camera_ids,
         max_depth_m=HEAD_VIEW_MAX_DEPTH_M,
       )
-      cv2.imshow("Alex Head RGB", rgb_bgr)
-      cv2.imshow("Alex Head Depth", depth_bgr)
+      tiled = np.hstack((rgb_bgr, depth_bgr))
+      cv2.imshow(HEAD_CAMERA_WINDOW_NAME, tiled)
       if cv2.waitKey(1) & 0xFF == 27:
         break
   finally:
