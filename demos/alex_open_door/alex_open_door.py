@@ -216,8 +216,8 @@ def _default_camera_state(model: mujoco.MjModel, data: mujoco.MjData) -> dict[st
   cam_pos, forward = _forward_from_rgb_camera(model, data)
   camera_pos = cam_pos - forward * DEFAULT_CAMERA_OFFSET_M
   lookat = camera_pos + forward * DEFAULT_CAMERA_FOCUS_DISTANCE_M
-  azimuth = 0.0 #math.degrees(math.atan2(float(forward[1]), float(forward[0])))
-  elevation = -25.0 #math.degrees(math.atan2(float(forward[2]), float(np.linalg.norm(forward[:2]))))
+  azimuth = math.degrees(math.atan2(float(forward[1]), float(forward[0])))
+  elevation = math.degrees(math.atan2(float(forward[2]), float(np.linalg.norm(forward[:2]))))
   return {
     "type": int(mujoco.mjtCamera.mjCAMERA_FREE),
     "fixedcamid": -1,
