@@ -264,7 +264,6 @@ class InteractivePlacementViewer:
 
     self.last_x = 0.0
     self.last_y = 0.0
-    self.left_drag_active = False
     self.right_drag_active = False
     self.middle_drag_active = False
 
@@ -298,7 +297,6 @@ class InteractivePlacementViewer:
       glfw.set_key_callback(self.window, self._key_callback)
 
       print("Controls:")
-      print("  Left drag: move Alex on the scene")
       print("  Right drag: rotate camera")
       print("  Middle drag or Shift+Right drag: pan camera")
       print("  Mouse wheel: zoom")
@@ -368,52 +366,11 @@ class InteractivePlacementViewer:
     except (BrokenPipeError, EOFError):
       self._camera_parent_conn = None
 
-  def _place_robot_at_cursor(self, xpos: float, ypos: float) -> None:
-    if self.viewport.width <= 0 or self.viewport.height <= 0:
-      return
-
-    relx = xpos / self.viewport.width
-    rely = (self.viewport.height - ypos) / self.viewport.height
-    aspect_ratio = self.viewport.width / max(1, self.viewport.height)
-    selpnt = np.zeros(3, dtype=np.float64)
-    geomid = np.array([-1], dtype=np.int32)
-    flexid = np.array([-1], dtype=np.int32)
-    skinid = np.array([-1], dtype=np.int32)
-
-    body_id = mujoco.mjv_select(
-      self.model,
-      self.data,
-      self.opt,
-      aspect_ratio,
-      relx,
-      rely,
-      self.scn,
-      selpnt,
-      geomid,
-      flexid,
-      skinid,
-    )
-    if body_id < 0:
-      return
-
-    current_quat = tuple(float(v) for v in self.data.qpos[3:7])
-    alex_sensors.set_base_pose(
-      self.model,
-      self.data,
-      pos_xyz=(float(selpnt[0]), float(selpnt[1]), float(self.base_z_m)),
-      quat_wxyz=current_quat,
-      forward=True,
-    )
-
   def _cursor_pos_callback(self, _window, xpos: float, ypos: float) -> None:
     dx = xpos - self.last_x
     dy = ypos - self.last_y
     self.last_x = xpos
     self.last_y = ypos
-
-    if self.left_drag_active:
-      self._place_robot_at_cursor(xpos, ypos)
-      return
 
     if not (self.right_drag_active or self.middle_drag_active):
       return
@@ -440,11 +397,7 @@ class InteractivePlacementViewer:
     self.last_y = ypos
 
     is_press = action == glfw.PRESS
-    if button == glfw.MOUSE_BUTTON_LEFT:
-      self.left_drag_active = is_press
-      if is_press:
-        self._place_robot_at_cursor(xpos, ypos)
-    elif button == glfw.MOUSE_BUTTON_RIGHT:
+    if button == glfw.MOUSE_BUTTON_RIGHT:
       self.right_drag_active = is_press
     elif button == glfw.MOUSE_BUTTON_MIDDLE:
       self.middle_drag_active = is_press
