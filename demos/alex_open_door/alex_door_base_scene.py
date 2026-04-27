@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load Alex in the room scene and allow mouse-based placement."""
+"""Load Alex in the room scene in front of a door and allow mouse-based placement."""
 
 from __future__ import annotations
 
@@ -34,52 +34,6 @@ HEAD_VIEW_HEIGHT = 180
 HEAD_VIEW_MAX_DEPTH_M = 5.0
 HEAD_CAMERA_WINDOW_NAME = "Alex Head Cameras"
 CAMERA_STATE_PATH = Path(__file__).resolve().with_name("main_camera_view.json")
-LEFT_ARM_SEQUENCE = (
-  (
-    1.2,
-    {
-      "left_shoulder_y": -0.35,
-      "left_shoulder_x": 0.18,
-      "left_shoulder_z": -0.55,
-      "left_elbow_y": 1.05,
-      "left_wrist_z": 0.10,
-      "left_wrist_x": -0.10,
-    },
-  ),
-  (
-    1.0,
-    {
-      "left_shoulder_y": -0.58,
-      "left_shoulder_x": 0.30,
-      "left_shoulder_z": -0.82,
-      "left_elbow_y": 1.32,
-      "left_wrist_z": 0.18,
-      "left_wrist_x": -0.22,
-    },
-  ),
-  (
-    1.0,
-    {
-      "left_shoulder_y": -0.62,
-      "left_shoulder_x": 0.36,
-      "left_shoulder_z": -1.05,
-      "left_elbow_y": 1.45,
-      "left_wrist_z": 0.42,
-      "left_wrist_x": -0.30,
-    },
-  ),
-  (
-    0.9,
-    {
-      "left_shoulder_y": -0.50,
-      "left_shoulder_x": 0.34,
-      "left_shoulder_z": -0.72,
-      "left_elbow_y": 1.18,
-      "left_wrist_z": 0.20,
-      "left_wrist_x": -0.12,
-    },
-  ),
-)
 
 
 def _camera_view_worker(conn, scene_xml: str) -> None:
@@ -307,15 +261,6 @@ class InteractivePlacementViewer:
     self.viewport = mujoco.MjrRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
     self._camera_parent_conn = None
     self._camera_process = None
-    self._left_arm_sequence = list(LEFT_ARM_SEQUENCE)
-    self._left_arm_joint_names = tuple(self._left_arm_sequence[0][1].keys())
-    self._sequence_active = False
-    self._sequence_segment_index = 0
-    self._sequence_segment_elapsed_s = 0.0
-    self._sequence_segment_duration_s = 0.0
-    self._sequence_start_targets = {}
-    self._sequence_end_targets = {}
-    self._last_frame_time = None
 
     self.last_x = 0.0
     self.last_y = 0.0
@@ -358,17 +303,12 @@ class InteractivePlacementViewer:
       print("  Middle drag or Shift+Right drag: pan camera")
       print("  Mouse wheel: zoom")
       print("  Q / E: rotate Alex in place")
-      print("  P: run left-arm door-open sequence")
       print("  R: reset chase camera behind Alex")
       print("  C: save current main camera view")
       print("  Alex RGB/depth views open in separate windows")
       print("  Esc: quit")
 
-      self._start_left_arm_sequence()
-
       while not glfw.window_should_close(self.window):
-        dt = self._frame_dt()
-        self._update_left_arm_sequence(dt)
         width, height = glfw.get_framebuffer_size(self.window)
         self.viewport = mujoco.MjrRect(0, 0, width, height)
         mujoco.mjv_updateScene(
@@ -427,59 +367,6 @@ class InteractivePlacementViewer:
       ))
     except (BrokenPipeError, EOFError):
       self._camera_parent_conn = None
-
-  def _frame_dt(self) -> float:
-    now = glfw.get_time()
-    if self._last_frame_time is None:
-      self._last_frame_time = now
-      return 0.0
-    dt = max(0.0, min(0.05, now - self._last_frame_time))
-    self._last_frame_time = now
-    return dt
-
-  def _current_left_arm_targets(self) -> dict[str, float]:
-    return {
-      name: alex_sensors.get_joint_position(self.model, self.data, name)
-      for name in self._left_arm_joint_names
-    }
-
-  def _start_left_arm_sequence(self) -> None:
-    self._sequence_active = True
-    self._sequence_segment_index = 0
-    self._sequence_segment_elapsed_s = 0.0
-    self._sequence_start_targets = self._current_left_arm_targets()
-    self._sequence_segment_duration_s, first_targets = self._left_arm_sequence[0]
-    self._sequence_end_targets = dict(first_targets)
-
-  def _advance_left_arm_sequence(self) -> None:
-    self._sequence_segment_index += 1
-    if self._sequence_segment_index >= len(self._left_arm_sequence):
-      self._sequence_active = False
-      return
-    self._sequence_segment_elapsed_s = 0.0
-    self._sequence_start_targets = self._current_left_arm_targets()
-    self._sequence_segment_duration_s, next_targets = self._left_arm_sequence[self._sequence_segment_index]
-    self._sequence_end_targets = dict(next_targets)
-
-  def _update_left_arm_sequence(self, dt: float) -> None:
-    if not self._sequence_active:
-      return
-    self._sequence_segment_elapsed_s += dt
-    duration = max(1e-6, self._sequence_segment_duration_s)
-    alpha = min(1.0, self._sequence_segment_elapsed_s / duration)
-    joint_targets = {}
-    for name in self._left_arm_joint_names:
-      start = self._sequence_start_targets[name]
-      end = self._sequence_end_targets[name]
-      joint_targets[name] = (1.0 - alpha) * start + alpha * end
-    alex_sensors.set_joint_positions(
-      self.model,
-      self.data,
-      joint_targets,
-      forward=True,
-    )
-    if alpha >= 1.0:
-      self._advance_left_arm_sequence()
 
   def _place_robot_at_cursor(self, xpos: float, ypos: float) -> None:
     if self.viewport.width <= 0 or self.viewport.height <= 0:
@@ -598,9 +485,6 @@ class InteractivePlacementViewer:
     elif key == glfw.KEY_C:
       _save_camera_state(self.cam)
       print(f"Saved camera view to {CAMERA_STATE_PATH}")
-    elif key == glfw.KEY_P:
-      self._start_left_arm_sequence()
-      print("Running left-arm door-open sequence")
     elif key == glfw.KEY_Q:
       self._rotate_robot(+0.1)
     elif key == glfw.KEY_E:
