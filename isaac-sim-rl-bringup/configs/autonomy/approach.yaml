@@ -20,6 +20,7 @@ heading_walk_deg: 30.0          # only walk forward when |err| < this many deg
 # Goal state machine
 stale_s:    5.0
 lock_conf:  0.6
+min_observations: 3      # SAM3 must see the same object N times before locking
 tilt_deg:   20.0
 tilt_period_s: 10.0
 

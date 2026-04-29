@@ -62,6 +62,29 @@ cd ~/pathtoFolder/IsaacLab
 In autonomy mode, any keyboard press pauses the FSM for ~1 s — useful for
 nudging the robot or interrupting before the goal.
 
+**Phase 2 autonomy — SAM3-detected goal in a real scene:**
+```bash
+# Walk to the oven in the FloorPlan1 kitchen.
+./isaaclab.sh -p .../alex_onnx_walking_policy.py --enable_cameras \
+    scene=room autonomy=approach autonomy.target=oven \
+    detector=sam3 rerun=full
+
+# Looser lock (faster acquisition, more false positives):
+./isaaclab.sh -p .../alex_onnx_walking_policy.py --enable_cameras \
+    scene=room autonomy=approach autonomy.target=oven \
+    detector=sam3 rerun=full \
+    autonomy.lock_conf=0.5 autonomy.min_observations=2
+```
+
+The FSM starts in SEARCH (rotates yaw at `autonomy.search_yaw` rad/s). On
+each camera tick, SAM3 segmentations are projected to world XYZ via the
+vendored scene-graph package and accumulated into a per-run `SceneGraph`.
+Once one ObjectNode matching `autonomy.target` reaches confidence ≥
+`autonomy.lock_conf` *and* has been observed ≥ `autonomy.min_observations`
+times, the goal latches and the FSM transitions to APPROACH. The scene
+graph is saved to `output.scene_graph_path` (default
+`isaac-sim-rl-bringup/scene_graph.json`) on clean exit and on Ctrl+C.
+
 **`--scene room` prerequisite** — download the USD once:
 ```bash
 cd /path/to/molmospaces/molmo_spaces_isaac
@@ -106,7 +129,7 @@ configs/
 └── autonomy/                  ← FSM controller (this script)
     ├── manual.yaml            (default — keyboard only)
     ├── fixed_xyz.yaml         ← Phase 1: walk to a hardcoded XYZ
-    └── approach.yaml          ← Phase 2+: SAM3-driven (NOT yet wired)
+    └── approach.yaml          ← Phase 2: SAM3-detected goal
 ```
 
 **Common overrides:**
@@ -141,43 +164,62 @@ The ONNX policy is not in git. Copy `policy.onnx` from the lab machine into
 
 ## Autonomy module (`autonomy/` sibling package)
 
-Phase-1 logic is split into a sibling Python package — pure code, no Isaac
-imports — so it stays unit-testable:
+Pure-logic Python (plus one Isaac adapter for the head camera) so most of
+the controller stays unit-testable without the simulator:
 
 ```
 scripts/alex_room_explore/autonomy/
-├── pose.py        yaw_from_quat(), FallMonitor (height + tilt)
-├── translator.py  fsm_mode_to_cmd() + GaitLimits (vx≤0.4, vy≤0.3, yaw≤0.4)
-├── goal.py        GoalState (Phase-1 fixed_xyz; Phase-2 will add SAM3 lock)
-├── fsm.py         FSMController: search → approach → arrived → fallen
+├── pose.py           yaw_from_quat(), FallMonitor (height + tilt)
+├── translator.py     fsm_mode_to_cmd() + GaitLimits (vx≤0.4, vy≤0.3, yaw≤0.4)
+├── goal.py           GoalState — set_fixed (Phase 1) + update_from_object (Phase 2)
+├── fsm.py            FSMController: search → approach → arrived → fallen
+├── target_picker.py  pick_goal_for_target — graph → ObjectNode by label + lock
+├── perception.py     get_head_cam_pose_K, read_rgb_depth   (Isaac-coupled)
 └── __init__.py
 ```
 
-The main script's autonomy hook is two functions only:
-`_build_autonomy_bundle()` constructs the bundle from `cfg.autonomy`, and
-`_step_autonomy(bundle, robot)` runs one tick and writes `_cmd` in place. If
-`cfg.autonomy.mode == "manual"`, the bundle is `None` and the keyboard path is
-unchanged.
+Phase-2 perception substrate (SAM3 → mask → unproject → dedup) is provided
+by the **vendored** `scene_graph/` package — see
+`isaac-sim-rl-bringup/scene_graph/VENDORED.md`.
+
+The main script's autonomy hooks:
+- `_build_autonomy_bundle()` constructs FSM + GoalState + FallMonitor and
+  (in `approach` mode) a SceneGraph + target metadata.
+- `_step_autonomy(bundle, robot)` runs every policy tick (50 Hz), writes
+  `_cmd` in place from the FSM.
+- `_step_perception(bundle, head_cam, tick)` runs every camera tick
+  (~12.5 Hz), invokes `process_one_frame` from the vendored package, then
+  picks the highest-confidence matching ObjectNode and updates the goal.
+
+If `cfg.autonomy.mode == "manual"` the bundle is `None`, both hooks are
+no-ops, and the keyboard path is unchanged.
 
 ### Tests
 
 ```bash
 cd isaac-sim-rl-bringup
-python -m pytest tests/autonomy/ -v
+python -m pytest tests/autonomy/ -v   # autonomy package (Phase 1 + 2)
+python -m pytest tests/unit/ -v       # vendored scene_graph package
+python -m pytest tests/ -q            # both, ~214 tests
 ```
 
-56 tests, ~100 % line coverage of the autonomy package. All pure-logic; no
-Isaac required.
+Autonomy package: 100 % coverage on every pure-logic module
+(pose / translator / goal / fsm / target_picker). The Isaac adapter
+(`perception.py`) is intentionally not unit-tested — it's exercised end-
+to-end by the sim acceptance trial.
 
 ## Roadmap
 
 - [x] Hydra config system (shared with `cam_room_explore`)
 - [x] Hallway scene support
-- [x] **Phase 1**: FSM (search/approach/arrived/fallen) ported, `_cmd`
-      translator with gait-limit clamping, fall-detection stub, `autonomy=fixed_xyz`
+- [x] **Phase 1**: FSM (search/approach/arrived/fallen), `_cmd` translator
+      with gait-limit clamping, fall-detection stub, `autonomy=fixed_xyz`
       preset, 56 unit tests at 100 % coverage
-- [ ] **Phase 2**: SAM3 → goal XYZ (port `_pixel_to_world` + SceneGraph,
-      enable `autonomy=approach autonomy.target=<label>`)
+- [x] **Phase 2**: SAM3 → goal XYZ via the vendored `scene_graph/` package.
+      `autonomy=approach autonomy.target=<label>` walks to the highest-
+      confidence ObjectNode of that label. Goal latches at
+      `score >= lock_conf` after `>= min_observations` sightings. Scene
+      graph saved to `output.scene_graph_path` on exit.
 - [ ] **Phase 3**: forward-cone obstacle check on head-cam depth
 - [ ] **Phase 4**: full fall-recovery sequence (extend the Phase-1 stub)
 - [ ] **Phase 5** (optional): LLM task agent for multi-target chains
@@ -193,4 +235,18 @@ Isaac required.
 ```bash
 ./isaaclab.sh -p .../alex_onnx_walking_policy.py \
     scene=groundplane autonomy=fixed_xyz
+```
+
+### Phase 2 acceptance criterion
+
+(from `PLAN/autonomous_navigation_plan.md`)
+
+> Scene: `room` (FloorPlan1 kitchen). Pass: 3/5 trials detect the oven
+> within 30 s of scanning, lock the goal, walk to within 1.0 m, no falls.
+> Scene-graph JSON contains the oven with reasonable XYZ.
+
+```bash
+./isaaclab.sh -p .../alex_onnx_walking_policy.py --enable_cameras \
+    scene=room autonomy=approach autonomy.target=oven \
+    detector=sam3 rerun=full
 ```

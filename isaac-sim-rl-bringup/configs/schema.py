@@ -80,9 +80,13 @@ class AutonomyConfig:
     heading_kp: float = 0.8            # rad/s per rad (cam used 1.5)
     heading_walk_deg: float = 30.0     # only walk forward when |err|< this many deg
 
-    # --- Goal state machine (Phase 2 — kept here for stable schema) -----------
+    # --- Goal state machine ---------------------------------------------------
     stale_s:    float = 5.0
     lock_conf:  float = 0.6
+    # Phase-2 lock-on: require this many distinct SAM3 sightings of the same
+    # object before allowing the goal to latch. Mitigates single-frame mis-
+    # projections (e.g. mask leaking onto the wall behind a glass oven door).
+    min_observations: int = 3
     tilt_deg:   float = 20.0
     tilt_period_s: float = 10.0
 

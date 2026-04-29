@@ -1,11 +1,15 @@
 """Goal state container.
 
-Phase 1: only the ``fixed_xyz`` source is implemented — the goal is set once at
-startup and never changes.
+Phase 1: ``fixed_xyz`` source — goal set once at startup, never changes.
+Phase 2: ``approach`` source — goal updated from SAM3-detected ObjectNodes
+via :meth:`GoalState.update_from_object`. Lock-on triggers when the
+detection's confidence reaches ``lock_conf``; once locked, further updates
+are ignored (the goal latches even if SAM3 stops seeing the target — fixes
+the cam-script's mid-approach oscillation when the object fills view and
+mask quality drops).
 
-Phase 2 will extend this class with: SAM3 detection updates, score, freshness
-(stale_s), and lock-on (score >= lock_conf). Keeping the surface stable now so
-the FSM doesn't have to change in Phase 2.
+The FSM consumes only ``GoalState`` — it never knows whether the goal came
+from a config constant or live perception.
 """
 from __future__ import annotations
 
@@ -57,3 +61,23 @@ class GoalState:
             return True
         now = time.time() if now is None else now
         return (now - self.last_update_t) < stale_s
+
+    def update_from_object(self, obj, *, lock_conf: float = 0.6) -> None:
+        """Update goal state from a SceneGraph ObjectNode (Phase 2).
+
+        Once the goal is locked (``self.locked == True``), subsequent updates
+        are silently ignored — the goal latches even if a different (or
+        higher-scoring) object appears later in the same label class. To
+        retarget, call :meth:`clear` first.
+
+        ``obj`` is duck-typed: must have ``.position_xyz`` (length-3 sequence)
+        and ``.confidence`` (float). The vendored
+        ``scene_graph.graph.node_types.ObjectNode`` satisfies this.
+        """
+        if self.locked:
+            return
+        x, y, z = obj.position_xyz[0], obj.position_xyz[1], obj.position_xyz[2]
+        self.xyz = (float(x), float(y), float(z))
+        self.score = float(obj.confidence)
+        self.last_update_t = time.time()
+        self.locked = self.score >= lock_conf

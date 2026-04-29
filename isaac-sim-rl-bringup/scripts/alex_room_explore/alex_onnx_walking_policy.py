@@ -162,18 +162,25 @@ args_cli.heading_kp         = cfg.autonomy.heading_kp
 args_cli.heading_walk_deg   = cfg.autonomy.heading_walk_deg
 args_cli.fall_height_m      = cfg.autonomy.fall_height_m
 args_cli.fall_tilt_norm     = cfg.autonomy.fall_tilt_norm
+args_cli.lock_conf          = cfg.autonomy.lock_conf
+args_cli.min_observations   = cfg.autonomy.min_observations
+# Phase-2 perception goal: scene_graph save path (already exposed in schema)
+args_cli.scene_graph_path   = cfg.output.scene_graph_path
 
-# Phase 1 only supports `manual` and `fixed_xyz`. `approach` mode requires the
-# Phase-2 SAM3 perception path which is not wired yet — fail fast.
+# `autonomy=approach` requires SAM3 (perception path). Fail fast on misconfig.
 if args_cli.autonomy_mode == "approach":
-    print("\n[config error] autonomy=approach requires SAM3 perception "
-          "(Phase 2 in PLAN/autonomous_navigation_plan.md) which is not yet wired.\n"
-          "Phase 1 supports `autonomy=manual` (keyboard) and "
-          "`autonomy=fixed_xyz` (FSM walks to a hardcoded XYZ on a flat plane).\n"
-          "Aborting.\n")
-    simulation_app.close()
-    import sys as _sysabort
-    _sysabort.exit(2)
+    if not cfg.detector.enabled:
+        print("\n[config error] autonomy=approach requires detector=sam3 "
+              "(SAM3 supplies the goal XYZ). Add detector=sam3 to the command.\n")
+        simulation_app.close()
+        import sys as _sysabort
+        _sysabort.exit(2)
+    if cfg.autonomy.target in (None, ""):
+        print("\n[config error] autonomy=approach requires autonomy.target=<label>.\n"
+              "Example: autonomy=approach autonomy.target=oven\n")
+        simulation_app.close()
+        import sys as _sysabort
+        _sysabort.exit(2)
 
 # ── Isaac imports (after AppLauncher) ────────────────────────────────────────
 import copy
@@ -233,6 +240,7 @@ from isaaclab_assets.ihmc.robots.alex import alex as alex_cfg
 # ── Autonomy package (sibling dir to this script) ────────────────────────────
 # Phase 1: FSM controller + _cmd translator + fall monitor. Pure logic; no
 # Isaac imports inside the package, so it stays unit-testable.
+# Phase 2: target_picker + goal.update_from_object + perception adapter.
 _SCRIPT_DIR = str(_pathlib.Path(__file__).resolve().parent)
 if _SCRIPT_DIR not in _sys.path:
     _sys.path.insert(0, _SCRIPT_DIR)
@@ -242,9 +250,19 @@ from autonomy import (   # noqa: E402
     FSMMode,
     GaitLimits,
     GoalState,
+    pick_goal_for_target,
     yaw_from_quat,
 )
-from autonomy.fsm import FSMParams   # noqa: E402
+from autonomy.fsm import FSMParams                                # noqa: E402
+from autonomy.perception import get_head_cam_pose_K, read_rgb_depth  # noqa: E402
+
+# Vendored scene-graph package (see isaac-sim-rl-bringup/scene_graph/VENDORED.md).
+# Provides the Phase-2 perception substrate: SAM3 → mask → unproject → dedup.
+_BRINGUP = str(_pathlib.Path(__file__).resolve().parents[2])
+if _BRINGUP not in _sys.path:
+    _sys.path.insert(0, _BRINGUP)
+from scene_graph import SceneGraph, serialize                     # noqa: E402
+from scene_graph.pipeline.frame_loop import process_one_frame     # noqa: E402
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _BRINGUP_ROOT = pathlib.Path(__file__).resolve().parents[2]   # .../isaac-sim-rl-bringup
@@ -328,7 +346,7 @@ _HALLWAY_USD = _ALEX_ROBOT / "scenes" / "HallwayScene" / "Hallway.usdc"
 
 # Robot spawn position inside the room scene.
 # Floor of FloorPlan1_physics is at z=0 → spawn CoM at z=0.93 m.
-SPAWN_POS_ROOM = (1.0, -0.8, 0.93)
+SPAWN_POS_ROOM = (+1.47, -0.24, 0.93)
 
 # Hallway spawn — centre corridor at standing CoM height. Hallway floor is z=0.
 SPAWN_POS_HALLWAY = (0.0, 0.0, 0.93)
@@ -345,6 +363,12 @@ HALLWAY_CAM_TARGET = (0.0, 0.0, 0.9)
 HEAD_CAM_OFFSET = (0.1, 0.0, 0.0)
 HEAD_CAM_W, HEAD_CAM_H = 640, 480
 CAMERA_DECIMATION = 4  # camera update every 4 policy ticks (~12.5 Hz)
+
+# OpenGL-convention quat (wxyz) that points the camera along HEAD_LINK's +X.
+# Cached at import so _step_perception can compose live world pose without
+# recomputing each frame; matches what's passed to CameraCfg.OffsetCfg.rot.
+# (Filled in below right after _lookat_quat_wxyz is defined.)
+_HEAD_CAM_OFFSET_QUAT: tuple = (1.0, 0.0, 0.0, 0.0)  # placeholder
 
 
 def _lookat_quat_wxyz(eye, target) -> tuple:
@@ -373,6 +397,11 @@ def _lookat_quat_wxyz(eye, target) -> tuple:
         s = 2.0 * np.sqrt(1.0 + R[2,2] - R[0,0] - R[1,1])
         w = (R[1,0]-R[0,1])/s; qx = (R[0,2]+R[2,0])/s; qy = (R[1,2]+R[2,1])/s; qz = 0.25*s
     return (float(w), float(qx), float(qy), float(qz))
+
+# Resolve the head-cam offset quat now that _lookat_quat_wxyz is defined.
+# Same call CameraCfg uses below — keeping them identical means the live world
+# pose we compute matches what the renderer actually uses.
+_HEAD_CAM_OFFSET_QUAT = _lookat_quat_wxyz(HEAD_CAM_OFFSET, (1.0, 0.0, 0.0))
 
 # ── Mutable command state (updated by keyboard at runtime) ────────────────────
 # [vx, vy, yaw_rate, standing_flag]  — populated in main() from CLI args
@@ -647,13 +676,82 @@ def _build_autonomy_bundle():
         fall_height_m=args_cli.fall_height_m,
         fall_tilt_norm=args_cli.fall_tilt_norm,
     )
+    bundle = {"fsm": fsm, "goal": goal, "fall": fall}
 
     if args_cli.autonomy_mode == "fixed_xyz":
         goal.set_fixed(args_cli.autonomy_fixed_xyz)
         print(f"[autonomy] mode=fixed_xyz  goal_xyz={args_cli.autonomy_fixed_xyz}  "
               f"stop_dist={args_cli.stop_dist}m  walk_speed={args_cli.walk_speed}m/s")
+    elif args_cli.autonomy_mode == "approach":
+        # Phase 2: live SAM3 perception → SceneGraph → goal XYZ.
+        sg = SceneGraph(scene=args_cli.scene, vocabulary=list(_sam3_prompts))
+        bundle["scene_graph"] = sg
+        bundle["target"] = args_cli.autonomy_target
+        bundle["lock_conf"] = args_cli.lock_conf
+        bundle["min_observations"] = args_cli.min_observations
+        bundle["sam3_conf"] = args_cli.sam3_conf
+        print(f"[autonomy] mode=approach  target='{args_cli.autonomy_target}'  "
+              f"lock_conf={args_cli.lock_conf}  min_obs={args_cli.min_observations}  "
+              f"stop_dist={args_cli.stop_dist}m  walk_speed={args_cli.walk_speed}m/s")
+        print(f"[autonomy] SAM3 prompts: {_sam3_prompts}")
 
-    return {"fsm": fsm, "goal": goal, "fall": fall}
+    return bundle
+
+
+def _step_perception(bundle: dict, head_cam, tick: int) -> None:
+    """One perception tick (camera-rate): SAM3 → SceneGraph → goal update.
+
+    No-op unless we're in `approach` mode and a head camera is attached.
+    """
+    if bundle is None or "scene_graph" not in bundle:
+        return
+    if head_cam is None or _sam3_processor is None:
+        return
+
+    rgb_depth = read_rgb_depth(head_cam)
+    if rgb_depth is None:
+        return  # camera not warm yet
+    rgb, depth = rgb_depth
+
+    try:
+        cam_pos, cam_quat_wxyz, K = get_head_cam_pose_K(
+            head_cam,
+            robot=bundle.get("_robot_for_debug"),
+            body_name="HEAD_LINK",
+            cam_offset_pos=HEAD_CAM_OFFSET,
+            cam_offset_quat_wxyz=_HEAD_CAM_OFFSET_QUAT,
+        )
+    except Exception as e:
+        if tick == 0:
+            print(f"[autonomy] perception: head-cam pose unavailable yet: {e}")
+        return
+
+    sg: SceneGraph = bundle["scene_graph"]
+    process_one_frame(
+        sg, rgb=rgb, depth=depth, K=K,
+        cam_pos=cam_pos, cam_quat_wxyz=cam_quat_wxyz,
+        tick=tick,
+        sam3_processor=_sam3_processor,
+        prompts=list(_sam3_prompts),
+        conf_threshold=bundle["sam3_conf"],
+    )
+
+    # Goal selection: highest-confidence object whose label matches `target`
+    # and which has been observed >= min_observations times.
+    obj = pick_goal_for_target(
+        sg, bundle["target"],
+        lock_conf=bundle["lock_conf"],
+        min_observations=bundle["min_observations"],
+    )
+    if obj is not None:
+        goal: GoalState = bundle["goal"]
+        was_locked = goal.locked
+        goal.update_from_object(obj, lock_conf=bundle["lock_conf"])
+        if goal.locked and not was_locked:
+            xyz_s = ", ".join(f"{v:+.2f}" for v in obj.position_xyz)
+            print(f"[autonomy] goal LOCKED on '{obj.label}' id={obj.id}  "
+                  f"xyz=({xyz_s})  score={obj.confidence:.2f}  "
+                  f"n_obs={obj.n_observations}")
 
 
 def _step_autonomy(bundle: dict, robot) -> None:
@@ -983,6 +1081,16 @@ def main():
         print("[rerun] Viewer spawned — streaming telemetry")
 
     autonomy_bundle = _build_autonomy_bundle()
+    # Stash for atexit-style scene-graph save (Phase 2). Works even on Ctrl+C
+    # or simulation crash — the atexit hook below picks up whatever's been
+    # accumulated.
+    global _autonomy_bundle_for_save
+    _autonomy_bundle_for_save = autonomy_bundle
+    # Phase-2 debug: let _step_perception print robot pose alongside the
+    # locked goal so we can sanity-check geometry without re-instrumenting.
+    if autonomy_bundle is not None:
+        autonomy_bundle["_robot_for_debug"] = robot
+
     # Manual override: any keyboard press pauses autonomy for 1 s. Lets the
     # user wrest control without fighting the FSM.
     manual_override_until = 0.0
@@ -1039,6 +1147,10 @@ def main():
 
         if head_cam is not None and tick % CAMERA_DECIMATION == 0:
             head_cam.update(SIM_DT)
+            # Phase-2 perception: SAM3 → SceneGraph → goal update. Runs at
+            # camera rate (~12.5 Hz). The next tick's _step_autonomy reads
+            # the freshly-updated GoalState; one-tick lag is acceptable.
+            _step_perception(autonomy_bundle, head_cam, tick)
 
         if args_cli.rerun:
             _rerun_log(tick, robot, joint_map, left_contact, right_contact, raw_action, head_cam)
@@ -1083,6 +1195,33 @@ def main():
             last_print = now
 
         tick += 1
+
+
+# ── atexit fallback — save the scene graph on Ctrl+C / kill / clean exit ────
+# Mirrors cam_room_explore_isaac.py pattern. Catches the common case where
+# the user closes the Isaac viewer mid-run; we still get a JSON snapshot of
+# whatever objects SAM3 had detected.
+_autonomy_bundle_for_save: "dict | None" = None
+
+
+def _save_scene_graph_on_exit() -> None:
+    bundle = _autonomy_bundle_for_save
+    if bundle is None or "scene_graph" not in bundle:
+        return
+    sg = bundle["scene_graph"]
+    if not sg.objects:
+        return  # nothing detected — skip the empty file
+    try:
+        sg.scan_complete = True
+        serialize.save(sg, args_cli.scene_graph_path)
+        print(f"[autonomy] scene graph saved → {args_cli.scene_graph_path}  "
+              f"({len(sg.objects)} objects)")
+    except Exception as e:
+        print(f"[autonomy] scene graph save failed: {e}")
+
+
+import atexit as _atexit   # noqa: E402
+_atexit.register(_save_scene_graph_on_exit)
 
 
 if __name__ == "__main__":
