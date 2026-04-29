@@ -1,0 +1,30 @@
+# @package autonomy
+# Phase-1 acceptance preset: FSM walks to a hardcoded world-frame XYZ on a
+# flat plane. No perception involved — isolates locomotion bugs from perception
+# bugs. Override the goal with `autonomy.fixed_xyz=[2,0,0]` if needed.
+#
+# Run:
+#   ./isaaclab.sh -p alex_onnx_walking_policy.py scene=groundplane autonomy=fixed_xyz
+mode: fixed_xyz
+target: null
+fixed_xyz: [3.0, 0.0, 0.0]      # 3 m straight ahead from spawn
+
+# Geometry
+stop_dist: 1.0
+
+# Alex-tuned velocities (within gait limits)
+walk_speed: 0.30
+search_yaw: 0.30
+yaw_max:    0.40
+heading_kp: 0.8
+heading_walk_deg: 30.0
+
+# Goal staleness — irrelevant in fixed_xyz mode (locked=True), kept for schema consistency
+stale_s: 5.0
+lock_conf: 0.6
+tilt_deg:  0.0
+tilt_period_s: 10.0
+
+# Phase-1 fall stub
+fall_height_m:  0.5
+fall_tilt_norm: 0.7

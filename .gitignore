@@ -39,3 +39,8 @@ scenes/ithor/_floorplan_sanitized.xml
 assets/usd/
 # generated at runtime by cam_room_explore_isaac.py
 isaac-sim-rl-bringup/scene_graph.json
+# local planning docs
+isaac-sim-rl-bringup/PLAN/
+# test/coverage artifacts
+isaac-sim-rl-bringup/.coverage
+isaac-sim-rl-bringup/.pytest_cache/

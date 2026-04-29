@@ -7,9 +7,10 @@ defaults:
   - base_alex_app          # structured schema (dataclasses)
   - scene: groundplane     # groundplane | room | hallway
   - policy: flatfeet       # ONNX policy + initial velocity cmd
-  - detector: sam3     # disabled | sam3
+  - detector: sam3         # disabled | sam3
   - yolo: disabled         # disabled | ihmc (mutually exclusive with detector)
   - rerun: disabled        # disabled | full
+  - autonomy: manual       # manual | approach | fixed_xyz
   - _self_
 
 repo_root: "???"   # overridden at runtime by the entry script

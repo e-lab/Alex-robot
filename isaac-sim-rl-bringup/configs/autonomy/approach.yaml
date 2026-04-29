@@ -1,13 +1,28 @@
 # @package autonomy
-# Prompt-driven FSM: rotate + tilt-sweep searching for `target`, then walk to it.
-# Override target on the CLI: autonomy=approach autonomy.target=sofa
+# SAM3-driven FSM (Phase 2+): rotate + tilt-sweep searching for `target`, lock
+# the goal when SAM3 returns score>=lock_conf, then walk to it. Phase 1 doesn't
+# use this preset — use `autonomy=fixed_xyz` for the locomotion-only acceptance.
+#
+# Override target on the CLI: autonomy=approach autonomy.target=oven
 mode: approach
-target: null           # must be set; e.g. `autonomy.target=oven`
+target: null                    # MUST be set in approach mode (e.g. autonomy.target=oven)
+
+# Geometry
 stop_dist: 1.0
-walk_speed: 0.4
-search_yaw: 0.6
-heading_kp: 1.5
-stale_s: 5.0
-lock_conf: 0.6
-tilt_deg: 20.0
+
+# Alex-tuned velocities (cam values were too aggressive — see plan)
+walk_speed: 0.30                # m/s   (was 0.4 for cam — exceeded gait stability)
+search_yaw: 0.30                # rad/s (was 0.6 for cam — exceeded gait limit 0.4)
+yaw_max:    0.40                # rad/s hard cap on APPROACH yaw_rate
+heading_kp: 0.8                 # rad/s per rad (was 1.5 for cam)
+heading_walk_deg: 30.0          # only walk forward when |err| < this many deg
+
+# Goal state machine
+stale_s:    5.0
+lock_conf:  0.6
+tilt_deg:   20.0
 tilt_period_s: 10.0
+
+# Phase-1 fall stub
+fall_height_m:  0.5
+fall_tilt_norm: 0.7

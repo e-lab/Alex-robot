@@ -150,6 +150,31 @@ args_cli.yolo_conf = cfg.yolo.conf
 args_cli.sam3      = cfg.detector.prompts if cfg.detector.enabled else None
 args_cli.sam3_conf = cfg.detector.conf
 
+# Autonomy (Phase 1: manual | fixed_xyz; Phase 2 will wire `approach`)
+args_cli.autonomy_mode      = cfg.autonomy.mode
+args_cli.autonomy_target    = cfg.autonomy.target
+args_cli.autonomy_fixed_xyz = tuple(cfg.autonomy.fixed_xyz)
+args_cli.stop_dist          = cfg.autonomy.stop_dist
+args_cli.walk_speed         = cfg.autonomy.walk_speed
+args_cli.search_yaw         = cfg.autonomy.search_yaw
+args_cli.yaw_max            = cfg.autonomy.yaw_max
+args_cli.heading_kp         = cfg.autonomy.heading_kp
+args_cli.heading_walk_deg   = cfg.autonomy.heading_walk_deg
+args_cli.fall_height_m      = cfg.autonomy.fall_height_m
+args_cli.fall_tilt_norm     = cfg.autonomy.fall_tilt_norm
+
+# Phase 1 only supports `manual` and `fixed_xyz`. `approach` mode requires the
+# Phase-2 SAM3 perception path which is not wired yet — fail fast.
+if args_cli.autonomy_mode == "approach":
+    print("\n[config error] autonomy=approach requires SAM3 perception "
+          "(Phase 2 in PLAN/autonomous_navigation_plan.md) which is not yet wired.\n"
+          "Phase 1 supports `autonomy=manual` (keyboard) and "
+          "`autonomy=fixed_xyz` (FSM walks to a hardcoded XYZ on a flat plane).\n"
+          "Aborting.\n")
+    simulation_app.close()
+    import sys as _sysabort
+    _sysabort.exit(2)
+
 # ── Isaac imports (after AppLauncher) ────────────────────────────────────────
 import copy
 import math
@@ -204,6 +229,22 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import quat_apply_inverse
 
 from isaaclab_assets.ihmc.robots.alex import alex as alex_cfg
+
+# ── Autonomy package (sibling dir to this script) ────────────────────────────
+# Phase 1: FSM controller + _cmd translator + fall monitor. Pure logic; no
+# Isaac imports inside the package, so it stays unit-testable.
+_SCRIPT_DIR = str(_pathlib.Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in _sys.path:
+    _sys.path.insert(0, _SCRIPT_DIR)
+from autonomy import (   # noqa: E402
+    FallMonitor,
+    FSMController,
+    FSMMode,
+    GaitLimits,
+    GoalState,
+    yaw_from_quat,
+)
+from autonomy.fsm import FSMParams   # noqa: E402
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _BRINGUP_ROOT = pathlib.Path(__file__).resolve().parents[2]   # .../isaac-sim-rl-bringup
@@ -573,13 +614,78 @@ def _make_keyboard(sim_device: str) -> Se2Keyboard:
     return kb
 
 
-def _update_cmd_from_keyboard(kb: Se2Keyboard) -> None:
-    """Pull latest velocity from keyboard and write into _cmd."""
-    vel = kb.advance().numpy()   # [vx, vy, yaw]
-    _cmd[0] = float(vel[0])
-    _cmd[1] = float(vel[1])
-    _cmd[2] = float(vel[2])
-    # _cmd[3] (standing_flag) is toggled by the S callback — leave it alone here
+# ── Autonomy bundle ──────────────────────────────────────────────────────────
+def _build_autonomy_bundle():
+    """Construct FSM controller + GoalState + FallMonitor from the Hydra config.
+
+    Returns ``None`` if autonomy is disabled (mode='manual'). Returns a dict
+    otherwise, with keys: fsm, goal, fall_monitor.
+    """
+    if args_cli.autonomy_mode == "manual":
+        return None
+
+    params = FSMParams(
+        stop_dist=args_cli.stop_dist,
+        walk_speed=args_cli.walk_speed,
+        search_yaw=args_cli.search_yaw,
+        heading_kp=args_cli.heading_kp,
+        yaw_max=args_cli.yaw_max,
+        heading_walk_deg=args_cli.heading_walk_deg,
+        limits=GaitLimits(),  # plan-defined hard caps
+    )
+
+    def _on_transition(old: str, new: str, info: dict) -> None:
+        dist = info.get("forward_dist")
+        deg  = info.get("heading_err_deg")
+        dist_s = f"{dist:.2f}" if dist is not None else "—"
+        deg_s  = f"{deg:+.1f}" if deg  is not None else "—"
+        print(f"[autonomy] state {old} → {new}  dist={dist_s}m  heading_err={deg_s}°")
+
+    fsm = FSMController(params, on_transition=_on_transition)
+    goal = GoalState()
+    fall = FallMonitor(
+        fall_height_m=args_cli.fall_height_m,
+        fall_tilt_norm=args_cli.fall_tilt_norm,
+    )
+
+    if args_cli.autonomy_mode == "fixed_xyz":
+        goal.set_fixed(args_cli.autonomy_fixed_xyz)
+        print(f"[autonomy] mode=fixed_xyz  goal_xyz={args_cli.autonomy_fixed_xyz}  "
+              f"stop_dist={args_cli.stop_dist}m  walk_speed={args_cli.walk_speed}m/s")
+
+    return {"fsm": fsm, "goal": goal, "fall": fall}
+
+
+def _step_autonomy(bundle: dict, robot) -> None:
+    """One autonomy tick: read robot pose, run FSM, write _cmd in place."""
+    fsm: FSMController = bundle["fsm"]
+    goal: GoalState = bundle["goal"]
+    fall: FallMonitor = bundle["fall"]
+
+    pos  = robot.data.root_pos_w[0].cpu().numpy()
+    quat = robot.data.root_quat_w[0].cpu().numpy()   # (w, x, y, z)
+
+    # Projected gravity in base frame — used to detect tilt > ~45°.
+    dev = robot.data.root_quat_w.device
+    grav_world = torch.tensor([[0.0, 0.0, -1.0]], dtype=torch.float32, device=dev)
+    pg = quat_apply_inverse(robot.data.root_quat_w[0:1], grav_world)[0].cpu().numpy()
+
+    is_fallen = fall.update(float(pos[2]), proj_grav_xy=(float(pg[0]), float(pg[1])))
+    if is_fallen and fsm.mode != FSMMode.FALLEN:
+        print(f"[autonomy] [FALL] root_z={pos[2]:.2f}m  "
+              f"proj_grav_xy=({pg[0]:+.2f},{pg[1]:+.2f}) — exiting autonomy "
+              f"(Phase 4 will add recovery).")
+
+    yaw = yaw_from_quat(quat)
+    vx, vy, yawr, standing = fsm.step(
+        float(pos[0]), float(pos[1]), float(yaw),
+        goal=goal,
+        fallen=is_fallen,
+    )
+    _cmd[0] = vx
+    _cmd[1] = vy
+    _cmd[2] = yawr
+    _cmd[3] = standing
 
 
 _PC_LOG_ONCE = {"done": False}
@@ -876,6 +982,11 @@ def main():
         _rerun_init()
         print("[rerun] Viewer spawned — streaming telemetry")
 
+    autonomy_bundle = _build_autonomy_bundle()
+    # Manual override: any keyboard press pauses autonomy for 1 s. Lets the
+    # user wrest control without fighting the FSM.
+    manual_override_until = 0.0
+
     last_action = np.zeros(23, dtype=np.float32)  # zero-init, matches training episode start
     tick = 0
     last_print = time.time()
@@ -885,8 +996,28 @@ def main():
     while simulation_app.is_running():
         robot.update(SIM_DT)
 
-        # Update velocity command from keyboard
-        _update_cmd_from_keyboard(kb)
+        # Choose command source: autonomy FSM or keyboard.
+        # Manual override: peek the keyboard *before* deciding so any human
+        # input pauses autonomy for ~1 s.
+        kb_vel = kb.advance().numpy()       # (vx, vy, yaw)
+        kb_active = bool(np.any(np.abs(kb_vel) > 1e-6))
+        if kb_active:
+            manual_override_until = time.time() + 1.0
+
+        use_auto = (
+            autonomy_bundle is not None
+            and time.time() > manual_override_until
+        )
+
+        if use_auto:
+            _step_autonomy(autonomy_bundle, robot)
+        else:
+            # Fall back to keyboard. Reuse the keyboard reading we just took
+            # rather than calling kb.advance() again.
+            _cmd[0] = float(kb_vel[0])
+            _cmd[1] = float(kb_vel[1])
+            _cmd[2] = float(kb_vel[2])
+            # _cmd[3] (standing_flag) is toggled by the S callback only.
 
         # Build observation
         obs = build_obs(robot, joint_map, last_action)

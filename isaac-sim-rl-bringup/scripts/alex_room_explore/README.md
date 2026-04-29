@@ -42,6 +42,26 @@ cd ~/pathtoFolder/IsaacLab
     scene=room rerun=full detector=sam3
 ```
 
+**Phase 1 autonomy — fixed-XYZ goal on a flat plane** (no perception):
+```bash
+# Walk to (3, 0, 0) on the ground plane. Acceptance test for Phase 1 of
+# PLAN/autonomous_navigation_plan.md.
+./isaaclab.sh -p .../alex_onnx_walking_policy.py \
+    scene=groundplane autonomy=fixed_xyz
+
+# Override goal:
+./isaaclab.sh -p .../alex_onnx_walking_policy.py \
+    scene=groundplane autonomy=fixed_xyz 'autonomy.fixed_xyz=[2.0,1.0,0.0]'
+
+# Tighter stop, slower walk:
+./isaaclab.sh -p .../alex_onnx_walking_policy.py \
+    scene=groundplane autonomy=fixed_xyz \
+    autonomy.stop_dist=0.5 autonomy.walk_speed=0.20
+```
+
+In autonomy mode, any keyboard press pauses the FSM for ~1 s — useful for
+nudging the robot or interrupting before the goal.
+
 **`--scene room` prerequisite** — download the USD once:
 ```bash
 cd /path/to/molmospaces/molmo_spaces_isaac
@@ -80,9 +100,13 @@ configs/
 ├── yolo/
 │   ├── disabled.yaml          (default)
 │   └── ihmc.yaml              ← IHMC 12-class custom ONNX
-└── rerun/                     ← shared
-    ├── disabled.yaml          (default)
-    └── full.yaml              ← RGB + depth + SAM3 + pointcloud
+├── rerun/                     ← shared
+│   ├── disabled.yaml          (default)
+│   └── full.yaml              ← RGB + depth + SAM3 + pointcloud
+└── autonomy/                  ← FSM controller (this script)
+    ├── manual.yaml            (default — keyboard only)
+    ├── fixed_xyz.yaml         ← Phase 1: walk to a hardcoded XYZ
+    └── approach.yaml          ← Phase 2+: SAM3-driven (NOT yet wired)
 ```
 
 **Common overrides:**
@@ -115,12 +139,58 @@ The ONNX policy is not in git. Copy `policy.onnx` from the lab machine into
 `isaac-sim-rl-bringup/models/2026-03-17_23-20-27_flatfeet/`. Override
 `policy.onnx_path=...` if it lives elsewhere.
 
+## Autonomy module (`autonomy/` sibling package)
+
+Phase-1 logic is split into a sibling Python package — pure code, no Isaac
+imports — so it stays unit-testable:
+
+```
+scripts/alex_room_explore/autonomy/
+├── pose.py        yaw_from_quat(), FallMonitor (height + tilt)
+├── translator.py  fsm_mode_to_cmd() + GaitLimits (vx≤0.4, vy≤0.3, yaw≤0.4)
+├── goal.py        GoalState (Phase-1 fixed_xyz; Phase-2 will add SAM3 lock)
+├── fsm.py         FSMController: search → approach → arrived → fallen
+└── __init__.py
+```
+
+The main script's autonomy hook is two functions only:
+`_build_autonomy_bundle()` constructs the bundle from `cfg.autonomy`, and
+`_step_autonomy(bundle, robot)` runs one tick and writes `_cmd` in place. If
+`cfg.autonomy.mode == "manual"`, the bundle is `None` and the keyboard path is
+unchanged.
+
+### Tests
+
+```bash
+cd isaac-sim-rl-bringup
+python -m pytest tests/autonomy/ -v
+```
+
+56 tests, ~100 % line coverage of the autonomy package. All pure-logic; no
+Isaac required.
+
 ## Roadmap
 
 - [x] Hydra config system (shared with `cam_room_explore`)
 - [x] Hallway scene support
-- [ ] Port `cam_room_explore`'s search/approach FSM (replace teleport
-      actuation with `_cmd` velocity-command writes so the walking robot
-      actually walks to targets)
-- [ ] Fall detector + recovery state
-- [ ] Forward-depth obstacle check
+- [x] **Phase 1**: FSM (search/approach/arrived/fallen) ported, `_cmd`
+      translator with gait-limit clamping, fall-detection stub, `autonomy=fixed_xyz`
+      preset, 56 unit tests at 100 % coverage
+- [ ] **Phase 2**: SAM3 → goal XYZ (port `_pixel_to_world` + SceneGraph,
+      enable `autonomy=approach autonomy.target=<label>`)
+- [ ] **Phase 3**: forward-cone obstacle check on head-cam depth
+- [ ] **Phase 4**: full fall-recovery sequence (extend the Phase-1 stub)
+- [ ] **Phase 5** (optional): LLM task agent for multi-target chains
+
+### Phase 1 acceptance criterion
+
+(from `PLAN/autonomous_navigation_plan.md`)
+
+> Scene: `groundplane`, no obstacles. Goal: `(3, 0, 0)`. Pass: 4/5 trials reach
+> within `stop_dist = 1.0 m` of the goal, no falls, no `vx`/`yaw_rate` clamps
+> hit.
+
+```bash
+./isaaclab.sh -p .../alex_onnx_walking_policy.py \
+    scene=groundplane autonomy=fixed_xyz
+```

@@ -59,18 +59,43 @@ class RerunConfig:
 # ── Autonomy ──────────────────────────────────────────────────────────────────
 @dataclass
 class AutonomyConfig:
-    """Either 'manual' (keyboard only) or 'approach' (FSM that walks toward target)."""
-    mode: str = "manual"               # manual | approach
-    # When mode=approach:
-    target: Optional[str] = None       # prompt label to search for
+    """Modes:
+      - manual:    keyboard only, FSM disabled (default).
+      - approach:  SAM3-driven FSM that walks toward `target` (Phase 2+).
+      - fixed_xyz: FSM with hardcoded goal (Phase 1 acceptance — locomotion only).
+    """
+    mode: str = "manual"               # manual | approach | fixed_xyz
+
+    # --- Goal source -----------------------------------------------------------
+    target: Optional[str] = None                       # used when mode=approach
+    fixed_xyz: Tuple[float, float, float] = (3.0, 0.0, 0.0)  # used when mode=fixed_xyz
+
+    # --- Geometry --------------------------------------------------------------
     stop_dist: float = 1.0
-    walk_speed: float = 0.4
-    search_yaw: float = 0.6
-    heading_kp: float = 1.5
-    stale_s: float = 5.0
-    lock_conf: float = 0.6
-    tilt_deg: float = 20.0
+
+    # --- Velocities (Alex gait limits — tighter than the cam robot's) ----------
+    walk_speed: float = 0.30           # m/s   (cam used 0.4 — too aggressive)
+    search_yaw: float = 0.30           # rad/s (cam used 0.6 — exceeded gait limit)
+    yaw_max:    float = 0.40           # rad/s hard cap on APPROACH yaw_rate
+    heading_kp: float = 0.8            # rad/s per rad (cam used 1.5)
+    heading_walk_deg: float = 30.0     # only walk forward when |err|< this many deg
+
+    # --- Goal state machine (Phase 2 — kept here for stable schema) -----------
+    stale_s:    float = 5.0
+    lock_conf:  float = 0.6
+    tilt_deg:   float = 20.0
     tilt_period_s: float = 10.0
+
+    # --- Obstacle avoidance (Phase 3) -----------------------------------------
+    obstacle_stop_dist: float = 1.5
+    obstacle_cone_h_deg: float = 20.0
+    obstacle_cone_v_deg: float = 10.0
+
+    # --- Recovery / fall detection (Phase 1 stub, Phase 4 full) ---------------
+    fall_height_m:  float = 0.5
+    fall_tilt_norm: float = 0.7
+    stuck_window_s: float = 5.0
+    stuck_dist_m:   float = 0.2
 
 
 # ── Output / scene graph save path ────────────────────────────────────────────
@@ -116,6 +141,8 @@ class AlexAppConfig:
     detector:  DetectorConfig = field(default_factory=DetectorConfig)   # SAM3
     yolo:      YoloConfig     = field(default_factory=YoloConfig)       # YOLO (mutex w/ SAM3)
     rerun:     RerunConfig    = field(default_factory=RerunConfig)
+    autonomy:  AutonomyConfig = field(default_factory=AutonomyConfig)
+    output:    OutputConfig   = field(default_factory=OutputConfig)
 
 
 # ── Root (cam_room_explore) ──────────────────────────────────────────────────
