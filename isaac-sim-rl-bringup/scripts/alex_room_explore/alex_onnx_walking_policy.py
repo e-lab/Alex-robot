@@ -893,7 +893,14 @@ def _build_autonomy_bundle():
                 occ, gf = _build_or_load_room_occupancy(usd_path=_ROOM_USD)
                 bundle["occ"] = occ
                 bundle["grid_frame"] = gf
-                bundle["plan_inflation_m"] = 0.40
+                # Inflation = robot footprint clearance for A*. 0.45 m
+                # is a small bump from the original 0.40 to add a bit of
+                # swing-leg margin in the FloorPlan1 kitchen's marginal
+                # corridors. 0.55 was tried first and proved too tight —
+                # A* found no path at all from spawn to stove. 0.45
+                # threads the needle: still finds a path, slightly less
+                # likely to clip on near-misses than 0.40.
+                bundle["plan_inflation_m"] = 0.45
                 bundle["plan_waypoint_radius_m"] = 0.40
                 bundle["path"] = None        # filled in on first goal-lock
                 bundle["path_index"] = 0

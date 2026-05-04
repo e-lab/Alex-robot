@@ -32,7 +32,7 @@ fall_tilt_norm: 0.7
 # Phase-4 recovery agent (groundplane has no obstacles; stuck won't fire,
 # but the keys must be present for schema consistency)
 stuck_window_s:        5.0
-stuck_dist_m:          0.2
+stuck_dist_m:          0.1
 recovery_stand_s:      3.0
 recovery_max_attempts: 2
 recovery_rotation_yaw: 0.4
