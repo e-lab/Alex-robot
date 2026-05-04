@@ -879,6 +879,11 @@ def _build_autonomy_bundle():
         bundle["lock_conf"] = args_cli.lock_conf
         bundle["min_observations"] = args_cli.min_observations
         bundle["sam3_conf"] = args_cli.sam3_conf
+        # Cache for the rerun SAM3 overlay — populated each camera tick by
+        # ``_step_perception``. ``_log_sam3`` reads from here instead of
+        # invoking SAM3 a second time.
+        bundle["sam3_dets"] = None
+        bundle["sam3_rgb_shape"] = None
         # Phase 3.5a: USD-derived 2D occupancy grid for the deliberative
         # planner. Built once at startup; reused for every plan call.
         # Only meaningful for the room scene (groundplane has no obstacles);
@@ -959,7 +964,7 @@ def _step_perception(bundle: dict, head_cam, chest_cam, tick: int) -> None:
 
     sg: SceneGraph = bundle["scene_graph"]
     with _TIMINGS.time("scene_graph.process_one_frame"):
-        process_one_frame(
+        dets = process_one_frame(
             sg, rgb=rgb, depth=depth, K=K,
             cam_pos=cam_pos, cam_quat_wxyz=cam_quat_wxyz,
             tick=tick,
@@ -967,6 +972,11 @@ def _step_perception(bundle: dict, head_cam, chest_cam, tick: int) -> None:
             prompts=list(_sam3_prompts),
             conf_threshold=bundle["sam3_conf"],
         )
+    # Cache detections + frame shape for the rerun overlay so ``_log_sam3``
+    # can reuse them instead of re-running SAM3 on the same RGB frame.
+    # Halves SAM3 wall-clock per camera tick.
+    bundle["sam3_dets"] = dets
+    bundle["sam3_rgb_shape"] = rgb.shape[:2]
 
     # Phase 3: forward-cone obstacle distance. Prefer the chest cam — its
     # 30°-downward pitch sees counter-tops and tables from much farther away
@@ -1377,80 +1387,48 @@ def _step_autonomy(bundle: dict, robot) -> None:
 
 _PC_LOG_ONCE = {"done": False}
 
-def _get_head_cam_world_pose(head_cam) -> "tuple[np.ndarray, np.ndarray]":
-    """Read the head camera's world transform directly from the USD prim.
-
-    Returns (pos_xyz, quat_wxyz). The quaternion is in USD/OpenGL convention:
-    camera +X right, +Y up, -Z forward (same convention CameraCfg was created with).
-    """
-    import omni.usd
-    from pxr import UsdGeom
-
-    stage = omni.usd.get_context().get_stage()
-    prim = stage.GetPrimAtPath(head_cam.cfg.prim_path)
-    xform = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0)
-    t = xform.ExtractTranslation()
-    r = xform.ExtractRotationQuat()
-    img = r.GetImaginary()
-    pos  = np.array([float(t[0]), float(t[1]), float(t[2])], dtype=np.float32)
-    quat = np.array([float(r.GetReal()), float(img[0]), float(img[1]), float(img[2])],
-                    dtype=np.float32)
-    return pos, quat
-
 
 _SAM3_WARN_ONCE = {"done": False}
 
-def _log_sam3(rgb: np.ndarray) -> None:
-    """Run SAM3 text-prompted segmentation on the head camera RGB and log to Rerun.
+def _log_sam3(dets, rgb_shape) -> None:
+    """Render the latest SAM3 detections as a Rerun overlay (segmentation
+    mask + bounding boxes). Consumes the cached ``RawDetection`` list
+    produced by ``scene_graph.process_one_frame`` in ``_step_perception``
+    — no second SAM3 inference. Cuts ~50% of per-frame SAM3 wall-clock.
 
-    Logs one set of Boxes2D + SegmentationImage per prompt (merged into a single
-    mask layer with per-prompt class ids so Rerun draws distinct colours).
+    Parameters
+    ----------
+    dets
+        ``List[RawDetection]`` from the most recent perception tick.
+        ``None`` or empty → mask is cleared and bbox layer is cleared.
+    rgb_shape
+        ``(H, W)`` of the source RGB frame; needed to size the mask
+        layer. Pulled from the same cache so the call site doesn't have
+        to keep the RGB array around.
     """
-    from PIL import Image as _PIL
-
+    if dets is None or rgb_shape is None:
+        return
     try:
-        with _TIMINGS.time("sam3.preprocess"):
-            img = _PIL.fromarray(rgb.astype(np.uint8))
-        with _TIMINGS.time("sam3.set_image"):
-            state = _sam3_processor.set_image(img)
+        with _TIMINGS.time("sam3.postprocess"):
+            mask_layer = np.zeros(rgb_shape, dtype=np.uint16)
+            all_boxes = []
+            all_labels = []
+            all_class_ids = []
+            # Stable label → class_id map so the same prompt renders the
+            # same colour across frames.
+            label_to_id = {p: i + 1 for i, p in enumerate(_sam3_prompts)}
+            for det in dets:
+                cls_id = label_to_id.get(det.label, 0)
+                if cls_id == 0:
+                    continue   # unknown label — shouldn't happen, but be safe
+                m = det.mask
+                if m is not None and m.shape == rgb_shape:
+                    mask_layer[m] = cls_id
+                all_boxes.append(np.asarray(det.bbox_xyxy, dtype=np.float32).reshape(-1)[:4])
+                all_labels.append(f"{det.label} {det.score:.2f}")
+                all_class_ids.append(cls_id)
 
-        all_boxes  = []
-        all_labels = []
-        all_scores = []
-        all_class_ids = []
-        mask_layer = np.zeros(rgb.shape[:2], dtype=np.uint16)
-
-        for cls_id, prompt in enumerate(_sam3_prompts, start=1):
-            with _TIMINGS.time("sam3.set_text_prompt"):
-                out = _sam3_processor.set_text_prompt(state=state, prompt=prompt)
-            with _TIMINGS.time("sam3.postprocess"):
-                masks  = out.get("masks")
-                boxes  = out.get("boxes")
-                scores = out.get("scores")
-                if masks is None or len(masks) == 0:
-                    continue
-                for i, s in enumerate(scores):
-                    s = float(s)
-                    if s < args_cli.sam3_conf:
-                        continue
-                    m = masks[i]
-                    if hasattr(m, "cpu"):
-                        m = m.cpu().numpy()
-                    m = np.asarray(m)
-                    if m.ndim == 3:
-                        m = m[0]
-                    mask_layer[m > 0.5] = cls_id
-
-                    b = boxes[i]
-                    if hasattr(b, "cpu"):
-                        b = b.cpu().numpy()
-                    all_boxes.append(np.asarray(b).reshape(-1)[:4])
-                    all_labels.append(f"{prompt} {s:.2f}")
-                    all_scores.append(s)
-                    all_class_ids.append(cls_id)
-
-        rr.log("camera/head/rgb/sam3_mask",
-               rr.SegmentationImage(mask_layer))
+        rr.log("camera/head/rgb/sam3_mask", rr.SegmentationImage(mask_layer))
         if all_boxes:
             rr.log("camera/head/rgb/sam3", rr.Boxes2D(
                 array=np.stack(all_boxes),
@@ -1462,7 +1440,7 @@ def _log_sam3(rgb: np.ndarray) -> None:
             rr.log("camera/head/rgb/sam3", rr.Clear(recursive=False))
     except Exception as e:
         if not _SAM3_WARN_ONCE["done"]:
-            print(f"[sam3] inference failed: {e}")
+            print(f"[sam3] overlay failed: {e}")
             _SAM3_WARN_ONCE["done"] = True
 
 
@@ -1546,7 +1524,8 @@ def _rerun_init() -> None:
 def _rerun_log(tick: int, robot, joint_map: dict, left_contact, right_contact,
                raw_action: np.ndarray, head_cam=None, chest_cam=None,
                obstacle_dist: float = float("inf"),
-               emergency_dist: float = float("inf")) -> None:
+               emergency_dist: float = float("inf"),
+               sam3_dets=None, sam3_rgb_shape=None) -> None:
     """Log one frame of telemetry to Rerun."""
     rr.set_time("tick", sequence=tick)
     rr.set_time("sim_time", duration=tick * SIM_DT * DECIMATION)
@@ -1616,7 +1595,12 @@ def _rerun_log(tick: int, robot, joint_map: dict, left_contact, right_contact,
                             rr.log("camera/head/rgb/yolo", rr.Clear(recursive=False))
 
                     if _sam3_model is not None:
-                        _log_sam3(rgb)
+                        # Reuse the detections produced by the autonomy
+                        # perception step instead of re-running SAM3 on
+                        # the same frame. ``sam3_dets`` is None on ticks
+                        # before the first perception update; the
+                        # overlay is silently skipped in that window.
+                        _log_sam3(sam3_dets, sam3_rgb_shape)
 
                 if "distance_to_image_plane" in output:
                     depth = output["distance_to_image_plane"][0].cpu().numpy().astype(np.float32)
@@ -1794,8 +1778,11 @@ def main():
         if args_cli.rerun:
             _ob_d = autonomy_bundle.get("obstacle_dist", float("inf")) if autonomy_bundle else float("inf")
             _em_d = autonomy_bundle.get("emergency_dist", float("inf")) if autonomy_bundle else float("inf")
+            _dets = autonomy_bundle.get("sam3_dets") if autonomy_bundle else None
+            _rgb_shape = autonomy_bundle.get("sam3_rgb_shape") if autonomy_bundle else None
             _rerun_log(tick, robot, joint_map, left_contact, right_contact, raw_action,
-                       head_cam, chest_cam, obstacle_dist=_ob_d, emergency_dist=_em_d)
+                       head_cam, chest_cam, obstacle_dist=_ob_d, emergency_dist=_em_d,
+                       sam3_dets=_dets, sam3_rgb_shape=_rgb_shape)
 
         # Per-second diagnostic print
         now = time.time()
