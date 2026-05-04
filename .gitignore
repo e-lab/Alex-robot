@@ -37,8 +37,10 @@ scenes/ithor/ithor_usd/
 scenes/ithor/_floorplan_sanitized.xml
 # molmospaces downloaded assets (symlinks to ~/.molmospaces cache)
 assets/usd/
-# generated at runtime by cam_room_explore_isaac.py
+# generated at runtime by cam_room_explore_isaac.py / alex_onnx_walking_policy.py
 isaac-sim-rl-bringup/scene_graph.json
+isaac-sim-rl-bringup/scene_graph_objects.npz
+isaac-sim-rl-bringup/scene_graph_objects/
 # local planning docs
 isaac-sim-rl-bringup/PLAN/
 # test/coverage artifacts

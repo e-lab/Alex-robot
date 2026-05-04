@@ -2,5 +2,5 @@
 # SAM3 open-vocabulary segmentation. Prompts are comma-separated; every
 # detection whose score ≥ conf is fed into the scene graph.
 enabled: true
-prompts: "door, oven, stove, chair, plant, bottle"
+prompts: "door, oven, stove, sink, plant, bottle"
 conf: 0.3

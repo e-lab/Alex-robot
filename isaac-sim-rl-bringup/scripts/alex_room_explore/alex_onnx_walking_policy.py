@@ -190,6 +190,7 @@ if args_cli.autonomy_mode == "approach":
 import copy
 import math
 import pathlib
+from pathlib import Path
 import time
 
 import numpy as np
@@ -255,10 +256,25 @@ from autonomy import (   # noqa: E402
     GaitLimits,
     GoalState,
     forward_cone_distance,
+    fsm_mode_to_cmd,
+    heading_error,
     pick_goal_for_target,
     yaw_from_quat,
 )
 from autonomy.fsm import FSMParams                                # noqa: E402
+from autonomy.planner import plan_path                            # noqa: E402
+from autonomy.timing import (                                     # noqa: E402
+    Timings,
+    format_memory_report,
+    format_timing_report,
+)
+from autonomy.usd_occupancy import (                              # noqa: E402
+    GridFrame,
+    load_occupancy_npz,
+    occupancy_from_usd,
+    save_occupancy_npz,
+    save_topdown_png,
+)
 from autonomy.perception import (  # noqa: E402
     get_cam_pose_K,
     read_depth,
@@ -438,6 +454,11 @@ _CHEST_CAM_OFFSET_QUAT = _lookat_quat_wxyz(
 # [vx, vy, yaw_rate, standing_flag]  — populated in main() from CLI args
 _cmd = np.zeros(4, dtype=np.float32)   # [vx, vy, yaw, standing]
 
+# ── Per-run wall-clock + call-count accumulator ───────────────────────────────
+# Wraps every hot path (ONNX, physics, SAM3, scene_graph, planner, occupancy
+# build). The atexit hook at the bottom of this file prints the summary.
+_TIMINGS = Timings()
+
 
 # ── URDF resolution (same logic as alex_onnx_policy_test.py) ─────────────────
 def resolve_urdf() -> str:
@@ -471,6 +492,74 @@ def resolve_urdf() -> str:
 
 
 # ── Scene setup ───────────────────────────────────────────────────────────────
+def _occupancy_npz_path(usd_path) -> "Path":
+    """Where the cached occupancy NPZ for ``usd_path`` lives.
+
+    Sits next to the USD so it's findable but stays out of the source
+    tree's tracked assets via ``.gitignore`` patterns
+    (``*.occupancy.npz`` / ``*.topdown.png``).
+    """
+    p = Path(str(usd_path))
+    return p.parent / "room.occupancy.npz"
+
+
+def _build_or_load_room_occupancy(
+    *,
+    usd_path,
+    z_band=(0.10, 1.50),
+    resolution_m: float = 0.05,
+):
+    """Return ``(occ, gf)`` for the room USD.
+
+    Uses a sidecar NPZ as a cache: if the NPZ exists and is newer than
+    the USD, load it; otherwise rebuild from the USD and save the NPZ +
+    PNG sidecars. The build is deterministic for a fixed USD, so caching
+    is safe.
+
+    Pure-Python — no Isaac dependency. Called from the autonomy bundle
+    setup before the live Isaac stage is opened.
+    """
+    from pxr import Usd  # local import: keeps top-of-module pxr ref optional
+    npz_path = _occupancy_npz_path(usd_path)
+    png_path = npz_path.with_name("room.topdown.png")
+    usd_mtime = Path(str(usd_path)).stat().st_mtime
+    if npz_path.exists() and npz_path.stat().st_mtime >= usd_mtime:
+        try:
+            occ, gf = load_occupancy_npz(str(npz_path))
+            print(f"[autonomy] occupancy: loaded cache {npz_path}  "
+                  f"({gf.width}x{gf.height} cells, "
+                  f"{100.0 * occ.sum() / occ.size:.1f}% occupied)")
+            return occ, gf
+        except Exception as e:
+            print(f"[autonomy] occupancy: cache load failed ({e}); rebuilding")
+
+    print(f"[autonomy] occupancy: rebuilding from {usd_path}")
+    stage = Usd.Stage.Open(str(usd_path))
+    if stage is None:
+        raise RuntimeError(f"could not open USD: {usd_path}")
+    with _TIMINGS.time("occupancy.build"):
+        occ, gf = occupancy_from_usd(
+            stage,
+            z_band=z_band,
+            resolution_m=resolution_m,
+            bounds_xy=None,
+            skip_prim_paths=(),
+            use_collision_api=True,
+        )
+    print(f"  grid:    {gf.width}x{gf.height} cells, "
+          f"{gf.width * gf.resolution_m:.2f}x{gf.height * gf.resolution_m:.2f} m  "
+          f"origin=({gf.origin_x:+.2f},{gf.origin_y:+.2f})  "
+          f"{100.0 * occ.sum() / occ.size:.1f}% occupied")
+    try:
+        save_occupancy_npz(str(npz_path), occ, gf)
+        save_topdown_png(str(png_path), occ, gf)
+        print(f"  cached → {npz_path}")
+        print(f"  png    → {png_path}")
+    except Exception as e:
+        print(f"  cache write failed: {e} (non-fatal)")
+    return occ, gf
+
+
 def setup_scene(scene: str):
     sim_cfg = sim_utils.SimulationCfg(dt=SIM_DT, device="cpu")
     sim = SimulationContext(sim_cfg)
@@ -747,6 +836,21 @@ def _build_autonomy_bundle():
         bundle["lock_conf"] = args_cli.lock_conf
         bundle["min_observations"] = args_cli.min_observations
         bundle["sam3_conf"] = args_cli.sam3_conf
+        # Phase 3.5a: USD-derived 2D occupancy grid for the deliberative
+        # planner. Built once at startup; reused for every plan call.
+        # Only meaningful for the room scene (groundplane has no obstacles);
+        # other scenes can opt in by adding a USD-path mapping below.
+        if args_cli.scene == "room":
+            try:
+                occ, gf = _build_or_load_room_occupancy(usd_path=_ROOM_USD)
+                bundle["occ"] = occ
+                bundle["grid_frame"] = gf
+                bundle["plan_inflation_m"] = 0.40
+                bundle["plan_waypoint_radius_m"] = 0.40
+                bundle["path"] = None        # filled in on first goal-lock
+                bundle["path_index"] = 0
+            except Exception as e:
+                print(f"[autonomy] occupancy build failed: {e}  — planner disabled")
         # Phase 3: forward-cone obstacle distance, refreshed each camera tick.
         # +inf until the camera produces its first depth frame — caller treats
         # infinite as "clear" so APPROACH starts walking immediately.
@@ -757,12 +861,18 @@ def _build_autonomy_bundle():
         bundle["obstacle_cone_h_deg"] = args_cli.obstacle_cone_h_deg
         bundle["obstacle_cone_v_deg"] = args_cli.obstacle_cone_v_deg
         bundle["_emergency_prev"] = False
+        planner_state = (
+            f"planner=on(inflation={bundle.get('plan_inflation_m', 0.40):.2f}m, "
+            f"waypoint_radius={bundle.get('plan_waypoint_radius_m', 0.40):.2f}m)"
+            if "occ" in bundle else "planner=off"
+        )
         print(f"[autonomy] mode=approach  target='{args_cli.autonomy_target}'  "
               f"lock_conf={args_cli.lock_conf}  min_obs={args_cli.min_observations}  "
               f"stop_dist={args_cli.stop_dist}m  walk_speed={args_cli.walk_speed}m/s  "
               f"emergency_dist={bundle['emergency_dist']}m  "
               f"cone=±{args_cli.obstacle_cone_h_deg:.0f}°h/±{args_cli.obstacle_cone_v_deg:.0f}°v  "
-              f"chest_cam=on(pitch={CHEST_CAM_PITCH_DEG:.0f}°)")
+              f"chest_cam=on(pitch={CHEST_CAM_PITCH_DEG:.0f}°)  "
+              f"{planner_state}")
         print(f"[autonomy] SAM3 prompts: {_sam3_prompts}")
 
     return bundle
@@ -799,14 +909,15 @@ def _step_perception(bundle: dict, head_cam, chest_cam, tick: int) -> None:
         return
 
     sg: SceneGraph = bundle["scene_graph"]
-    process_one_frame(
-        sg, rgb=rgb, depth=depth, K=K,
-        cam_pos=cam_pos, cam_quat_wxyz=cam_quat_wxyz,
-        tick=tick,
-        sam3_processor=_sam3_processor,
-        prompts=list(_sam3_prompts),
-        conf_threshold=bundle["sam3_conf"],
-    )
+    with _TIMINGS.time("scene_graph.process_one_frame"):
+        process_one_frame(
+            sg, rgb=rgb, depth=depth, K=K,
+            cam_pos=cam_pos, cam_quat_wxyz=cam_quat_wxyz,
+            tick=tick,
+            sam3_processor=_sam3_processor,
+            prompts=list(_sam3_prompts),
+            conf_threshold=bundle["sam3_conf"],
+        )
 
     # Phase 3: forward-cone obstacle distance. Prefer the chest cam — its
     # 30°-downward pitch sees counter-tops and tables from much farther away
@@ -849,6 +960,71 @@ def _step_perception(bundle: dict, head_cam, chest_cam, tick: int) -> None:
             print(f"[autonomy] goal LOCKED on '{obj.label}' id={obj.id}  "
                   f"xyz=({xyz_s})  score={obj.confidence:.2f}  "
                   f"n_obs={obj.n_observations}")
+            # Phase 3.5c: plan a path through the occupancy grid the
+            # moment the goal latches. The waypoint follower in
+            # ``_step_autonomy`` walks the FSM along the resulting
+            # waypoints; the planner is run once here and not on every
+            # tick (the map is static; the goal doesn't move once locked).
+            _maybe_plan_path_on_lock(bundle)
+
+
+def _maybe_plan_path_on_lock(bundle: dict) -> None:
+    """Phase 3.5c: plan a path from the robot's current XY to the just-
+    locked goal XY, on the occupancy grid built at startup. No-op if the
+    bundle has no occupancy (e.g. groundplane scene) or no robot ref.
+    """
+    if "occ" not in bundle:
+        return
+    robot = bundle.get("_robot_for_debug")
+    goal: GoalState = bundle["goal"]
+    if robot is None or goal.xyz is None:
+        return
+    pos = robot.data.root_pos_w[0].cpu().numpy()
+    start_xy = (float(pos[0]), float(pos[1]))
+    goal_xy  = (float(goal.xyz[0]), float(goal.xyz[1]))
+    occ      = bundle["occ"]
+    gf: GridFrame = bundle["grid_frame"]
+    inflation_m  = bundle["plan_inflation_m"]
+
+    with _TIMINGS.time("planner.plan_path"):
+        path = plan_path(start_xy, goal_xy, occ, gf, inflation_m=inflation_m)
+    bundle["path"] = path
+    bundle["path_index"] = 0
+
+    if path is None:
+        print(f"[autonomy] planner: NO PATH from "
+              f"({start_xy[0]:+.2f},{start_xy[1]:+.2f}) → "
+              f"({goal_xy[0]:+.2f},{goal_xy[1]:+.2f})  "
+              f"— falling back to direct heading control")
+        return
+    seg_len = sum(
+        ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5
+        for a, b in zip(path[:-1], path[1:])
+    )
+    print(f"[autonomy] planner: {len(path)} waypoints, length {seg_len:.2f}m, "
+          f"inflation {inflation_m:.2f}m")
+    for i, (x, y) in enumerate(path):
+        print(f"  wp[{i:2d}] ({x:+.2f}, {y:+.2f})")
+
+    # Rerun: draw the path as a polyline at floor height (z=0.05) so it
+    # sits just above the ground plane. Logged once per plan; subsequent
+    # waypoint advances re-use this entity unchanged.
+    if args_cli.rerun:
+        try:
+            import rerun as rr  # local import — same as existing usage
+            pts = np.asarray(
+                [[x, y, 0.05] for (x, y) in path], dtype=np.float32,
+            )
+            rr.log("world/scene/path",
+                   rr.LineStrips3D([pts], colors=[[220, 30, 30]], radii=[0.04]))
+            rr.log("world/scene/path/waypoints",
+                   rr.Points3D(pts, colors=[[255, 140, 0]] * len(pts), radii=0.06))
+            # Goal (literal) marker.
+            rr.log("world/scene/goal",
+                   rr.Points3D([[goal_xy[0], goal_xy[1], 0.05]],
+                               colors=[[40, 80, 230]], radii=0.10))
+        except Exception as e:
+            print(f"[autonomy] planner: rerun log failed (non-fatal): {e}")
 
 
 def _step_autonomy(bundle: dict, robot) -> None:
@@ -872,11 +1048,134 @@ def _step_autonomy(bundle: dict, robot) -> None:
               f"(Phase 4 will add recovery).")
 
     yaw = yaw_from_quat(quat)
-    vx, vy, yawr, standing = fsm.step(
-        float(pos[0]), float(pos[1]), float(yaw),
-        goal=goal,
-        fallen=is_fallen,
-    )
+
+    # Phase 3.5c — waypoint follower.
+    #
+    # When a planner path is loaded, intermediate waypoints are driven
+    # by the **translator directly**, *bypassing* the FSM's stop_dist /
+    # arrival logic. Reason: smoothed path waypoints are typically
+    # spaced 0.3–1.0 m apart — well inside ``stop_dist=1.0 m``. If we
+    # fed each intermediate waypoint to ``fsm.step`` it would declare
+    # ARRIVED instantly on every one, gait would freeze and re-engage
+    # tens of times per second, and the policy would destabilise (saw
+    # this in the first integration test: ARRIVED↔APPROACH flapping →
+    # fall).
+    #
+    # Only the **last waypoint** goes through ``fsm.step`` with the
+    # original goal, so the FSM arrival check fires on the real target.
+    using_path = False
+    if bundle.get("path") is not None:
+        path = bundle["path"]
+        idx = bundle["path_index"]
+        # Advance through every waypoint we're already inside the
+        # waypoint radius of.
+        while idx < len(path) - 1:
+            wx, wy = path[idx]
+            d_wp = math.hypot(pos[0] - wx, pos[1] - wy)
+            if d_wp >= bundle["plan_waypoint_radius_m"]:
+                break
+            idx += 1
+            print(f"[autonomy] planner: advance → wp[{idx}]=({path[idx][0]:+.2f},"
+                  f"{path[idx][1]:+.2f})  ({len(path) - 1 - idx} remaining)")
+        bundle["path_index"] = idx
+
+        # Rerun: highlight the current waypoint each tick. Cheap.
+        if args_cli.rerun:
+            try:
+                import rerun as rr
+                wx, wy = path[idx]
+                rr.log("world/scene/current_waypoint",
+                       rr.Points3D([[wx, wy, 0.05]],
+                                   colors=[[40, 200, 40]], radii=0.10))
+            except Exception:
+                pass
+
+        if idx < len(path) - 1:
+            # Drive an intermediate waypoint via the translator only.
+            using_path = True
+            wx, wy = path[idx]
+            herr = heading_error(float(pos[0]), float(pos[1]), float(yaw),
+                                 float(wx), float(wy))
+            vx, vy, yawr, standing = fsm_mode_to_cmd(
+                FSMMode.APPROACH,
+                heading_err_rad=herr,
+                walk_speed=fsm.params.walk_speed,
+                search_yaw=fsm.params.search_yaw,
+                heading_kp=fsm.params.heading_kp,
+                yaw_max=fsm.params.yaw_max,
+                heading_walk_deg=fsm.params.heading_walk_deg,
+                limits=fsm.params.limits,
+            )
+            # Maintain FSM bookkeeping so the rest of the script (and
+            # the FALL transition) sees consistent state. We're walking
+            # toward a sub-goal, so APPROACH is the right declared mode.
+            if fsm.mode != FSMMode.APPROACH:
+                old = fsm.mode
+                fsm.mode = FSMMode.APPROACH
+                fsm.last_dist = math.hypot(pos[0] - wx, pos[1] - wy)
+                fsm.last_heading_err = herr
+            else:
+                fsm.last_dist = math.hypot(pos[0] - wx, pos[1] - wy)
+                fsm.last_heading_err = herr
+
+    if not using_path:
+        # Either no path, or we're at the last waypoint. Before handing
+        # off to the FSM (which would declare ARRIVED and stop with the
+        # robot still facing whatever direction the last segment had),
+        # check if we should first **face** the goal.
+        #
+        # Rotate-in-place band: dist < stop_dist AND |heading_err| > tol.
+        # Pure-yaw command (no vx). Once heading is within tolerance,
+        # fall through to ``fsm.step`` which will enter ARRIVED.
+        face_tol_deg = 10.0
+        if (goal.xyz is not None
+                and not is_fallen
+                and fsm.mode != FSMMode.FALLEN):
+            tx, ty, _ = goal.xyz
+            d = math.hypot(pos[0] - tx, pos[1] - ty)
+            herr = heading_error(float(pos[0]), float(pos[1]), float(yaw),
+                                 float(tx), float(ty))
+            if d < fsm.params.stop_dist and abs(math.degrees(herr)) > face_tol_deg:
+                # Rotate toward goal — same yaw P-controller as APPROACH,
+                # but with vx forced to zero. ``arrived_facing`` is a
+                # display-only state name; the FSM mode itself stays
+                # APPROACH so the arrival print fires correctly once we
+                # finish facing.
+                if fsm.mode != FSMMode.APPROACH:
+                    fsm.mode = FSMMode.APPROACH
+                yawr = max(-fsm.params.yaw_max,
+                           min(fsm.params.yaw_max,
+                               fsm.params.heading_kp * herr))
+                vx = 0.0
+                vy = 0.0
+                standing = 0.0
+                fsm.last_dist = d
+                fsm.last_heading_err = herr
+                # Edge-trigger log so we can see it engage.
+                if not bundle.get("_facing_logged", False):
+                    print(f"[autonomy] facing goal  dist={d:.2f}m  "
+                          f"heading_err={math.degrees(herr):+.1f}° → rotating in place")
+                    bundle["_facing_logged"] = True
+            else:
+                bundle["_facing_logged"] = False
+                vx, vy, yawr, standing = fsm.step(
+                    float(pos[0]), float(pos[1]), float(yaw),
+                    goal=goal,
+                    fallen=is_fallen,
+                )
+        else:
+            vx, vy, yawr, standing = fsm.step(
+                float(pos[0]), float(pos[1]), float(yaw),
+                goal=goal,
+                fallen=is_fallen,
+            )
+
+    # Always update the fall-monitor-driven mode if needed (we may have
+    # short-circuited the FSM above; ensure FALLEN takes precedence).
+    if is_fallen and fsm.mode != FSMMode.FALLEN:
+        fsm.mode = FSMMode.FALLEN
+        vx = vy = yawr = 0.0
+        standing = 1.0
 
     # Emergency brake (chest-cam depth). Last-resort safety: if something
     # very close shows up in the forward cone (planner missed it, scene
@@ -940,8 +1239,10 @@ def _log_sam3(rgb: np.ndarray) -> None:
     from PIL import Image as _PIL
 
     try:
-        img = _PIL.fromarray(rgb.astype(np.uint8))
-        state = _sam3_processor.set_image(img)
+        with _TIMINGS.time("sam3.preprocess"):
+            img = _PIL.fromarray(rgb.astype(np.uint8))
+        with _TIMINGS.time("sam3.set_image"):
+            state = _sam3_processor.set_image(img)
 
         all_boxes  = []
         all_labels = []
@@ -950,31 +1251,33 @@ def _log_sam3(rgb: np.ndarray) -> None:
         mask_layer = np.zeros(rgb.shape[:2], dtype=np.uint16)
 
         for cls_id, prompt in enumerate(_sam3_prompts, start=1):
-            out = _sam3_processor.set_text_prompt(state=state, prompt=prompt)
-            masks  = out.get("masks")
-            boxes  = out.get("boxes")
-            scores = out.get("scores")
-            if masks is None or len(masks) == 0:
-                continue
-            for i, s in enumerate(scores):
-                s = float(s)
-                if s < args_cli.sam3_conf:
+            with _TIMINGS.time("sam3.set_text_prompt"):
+                out = _sam3_processor.set_text_prompt(state=state, prompt=prompt)
+            with _TIMINGS.time("sam3.postprocess"):
+                masks  = out.get("masks")
+                boxes  = out.get("boxes")
+                scores = out.get("scores")
+                if masks is None or len(masks) == 0:
                     continue
-                m = masks[i]
-                if hasattr(m, "cpu"):
-                    m = m.cpu().numpy()
-                m = np.asarray(m)
-                if m.ndim == 3:
-                    m = m[0]
-                mask_layer[m > 0.5] = cls_id
+                for i, s in enumerate(scores):
+                    s = float(s)
+                    if s < args_cli.sam3_conf:
+                        continue
+                    m = masks[i]
+                    if hasattr(m, "cpu"):
+                        m = m.cpu().numpy()
+                    m = np.asarray(m)
+                    if m.ndim == 3:
+                        m = m[0]
+                    mask_layer[m > 0.5] = cls_id
 
-                b = boxes[i]
-                if hasattr(b, "cpu"):
-                    b = b.cpu().numpy()
-                all_boxes.append(np.asarray(b).reshape(-1)[:4])
-                all_labels.append(f"{prompt} {s:.2f}")
-                all_scores.append(s)
-                all_class_ids.append(cls_id)
+                    b = boxes[i]
+                    if hasattr(b, "cpu"):
+                        b = b.cpu().numpy()
+                    all_boxes.append(np.asarray(b).reshape(-1)[:4])
+                    all_labels.append(f"{prompt} {s:.2f}")
+                    all_scores.append(s)
+                    all_class_ids.append(cls_id)
 
         rr.log("camera/head/rgb/sam3_mask",
                rr.SegmentationImage(mask_layer))
@@ -995,10 +1298,24 @@ def _log_sam3(rgb: np.ndarray) -> None:
 
 def _log_head_pointcloud(head_cam, depth: np.ndarray, rgb: np.ndarray,
                          robot, stride: int, max_depth: float) -> None:
-    """Unproject head-camera depth into world-frame coloured points and log to Rerun."""
+    """Unproject head-camera depth into world-frame coloured points and log to Rerun.
+
+    Pose source: ``get_cam_pose_K`` composes from ``robot.data.body_link_pos_w``
+    + the static CameraCfg offset. We can't use the simpler
+    ``head_cam.data.pos_w`` / ``data.quat_w_opengl`` path here because Isaac
+    Lab returns the **USD-authored** prim pose for cameras attached to
+    articulated links, not the live pose — so the point cloud would be
+    painted at the spawn frame forever even as the robot walks. Same bug
+    we hit in Phase 2 with SAM3 unprojection.
+    """
     try:
-        K = head_cam.data.intrinsic_matrices[0].cpu().numpy()  # (3,3)
-        pos, quat_wxyz = _get_head_cam_world_pose(head_cam)    # opengl-convention
+        pos, quat_wxyz, K = get_cam_pose_K(
+            head_cam,
+            robot=robot,
+            body_name="HEAD_LINK",
+            cam_offset_pos=HEAD_CAM_OFFSET,
+            cam_offset_quat_wxyz=_HEAD_CAM_OFFSET_QUAT,
+        )
     except Exception as e:
         if not _PC_LOG_ONCE["done"]:
             print(f"[pointcloud] failed to read camera pose/intrinsics: {e}")
@@ -1276,7 +1593,8 @@ def main():
         obs = build_obs(robot, joint_map, last_action)
 
         # Run ONNX policy
-        raw_action = sess.run(None, {input_name: obs[np.newaxis, :]})[0][0]  # (23,)
+        with _TIMINGS.time("onnx.policy_run"):
+            raw_action = sess.run(None, {input_name: obs[np.newaxis, :]})[0][0]  # (23,)
         last_action = raw_action.copy()
 
         # Apply to Isaac
@@ -1284,21 +1602,24 @@ def main():
 
         # Step physics (4 substeps); only render on the last substep to reduce
         # display compositor load on high-resolution monitors.
-        for i in range(DECIMATION):
-            sim.step(render=(i == DECIMATION - 1))
-            robot.update(SIM_DT)
-            left_contact.update(SIM_DT)
-            right_contact.update(SIM_DT)
+        with _TIMINGS.time("physics.step"):
+            for i in range(DECIMATION):
+                sim.step(render=(i == DECIMATION - 1))
+                robot.update(SIM_DT)
+                left_contact.update(SIM_DT)
+                right_contact.update(SIM_DT)
 
         if head_cam is not None and tick % CAMERA_DECIMATION == 0:
-            head_cam.update(SIM_DT)
-            if chest_cam is not None:
-                chest_cam.update(SIM_DT)
+            with _TIMINGS.time("camera.update"):
+                head_cam.update(SIM_DT)
+                if chest_cam is not None:
+                    chest_cam.update(SIM_DT)
             # Phase-2 perception: SAM3 → SceneGraph → goal update. Runs at
             # camera rate (~12.5 Hz). The next tick's _step_autonomy reads
             # the freshly-updated GoalState; one-tick lag is acceptable.
             # Phase-3 chest-cam depth feeds forward_cone_distance.
-            _step_perception(autonomy_bundle, head_cam, chest_cam, tick)
+            with _TIMINGS.time("autonomy.step_perception"):
+                _step_perception(autonomy_bundle, head_cam, chest_cam, tick)
 
         if args_cli.rerun:
             _ob_d = autonomy_bundle.get("obstacle_dist", float("inf")) if autonomy_bundle else float("inf")
@@ -1372,9 +1693,91 @@ def _save_scene_graph_on_exit() -> None:
 
 
 import atexit as _atexit   # noqa: E402
+
+
+# ── End-of-run performance report ────────────────────────────────────────────
+# atexit hooks fire **last-registered-first**, so we register the perf
+# report *before* the scene-graph save and it lands at the bottom of the
+# terminal output (most useful position).
+_RUN_START_T = time.time()
+
+
+_PERF_REPORT_PRINTED = {"done": False}
+
+
+def _print_perf_report_on_exit() -> None:
+    if _PERF_REPORT_PRINTED["done"]:
+        return
+    _PERF_REPORT_PRINTED["done"] = True
+    elapsed = time.time() - _RUN_START_T
+    print()
+    print("=" * 64)
+    print(f"  Run duration: {elapsed:.1f} s")
+    print("=" * 64)
+    print("  Timing breakdown:")
+    print()
+    print(format_timing_report(_TIMINGS.snapshot()))
+    print("  Memory peaks:")
+    print(format_memory_report())
+    print("=" * 64)
+
+
+_atexit.register(_print_perf_report_on_exit)
 _atexit.register(_save_scene_graph_on_exit)
 
 
+# ── Robust shutdown ──────────────────────────────────────────────────────────
+# Isaac Sim's app launcher swallows the normal Python shutdown path on
+# Ctrl+C (SIGINT) — atexit hooks don't always fire. We install three
+# defenses:
+#
+#   1. SIGINT handler that prints the perf report and saves the scene
+#      graph before the process exits.
+#   2. ``try/finally`` around ``main()`` so a clean viewer close still
+#      fires the report (the ``simulation_app.close()`` call below would
+#      otherwise short-circuit ``atexit``).
+#   3. The original ``atexit.register`` calls above stay as a final
+#      safety net.
+#
+# All three call the same handlers; ``_REPORT_PRINTED`` makes them
+# idempotent so you don't see the table three times.
+_REPORT_PRINTED = {"done": False}
+
+
+def _final_shutdown_print() -> None:
+    """Idempotent wrapper: print the perf report at most once per run."""
+    if _REPORT_PRINTED["done"]:
+        return
+    _REPORT_PRINTED["done"] = True
+    try:
+        _print_perf_report_on_exit()
+    except Exception as e:                           # pragma: no cover
+        print(f"[autonomy] perf report failed: {e}")
+    try:
+        _save_scene_graph_on_exit()
+    except Exception as e:                           # pragma: no cover
+        print(f"[autonomy] scene graph save failed: {e}")
+
+
+def _sigint_handler(signum, frame) -> None:          # pragma: no cover
+    """Catch Ctrl+C, dump the report, and exit cleanly."""
+    print("\n[autonomy] caught SIGINT — flushing perf report")
+    _final_shutdown_print()
+    # ``os._exit`` so we don't tangle with Isaac's own SIGINT handling.
+    import os as _os
+    _os._exit(0)
+
+
+import signal as _signal                             # noqa: E402
+_signal.signal(_signal.SIGINT, _sigint_handler)
+
+
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    try:
+        main()
+    finally:
+        _final_shutdown_print()
+        try:
+            simulation_app.close()
+        except Exception:
+            pass

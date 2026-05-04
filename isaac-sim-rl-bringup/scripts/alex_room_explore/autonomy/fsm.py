@@ -79,6 +79,13 @@ class FSMController:
         self.last_heading_err: Optional[float] = None
 
     # ------------------------------------------------------------- compute
+    # Hysteresis on the arrival boundary: enter ARRIVED at
+    # ``dist < stop_dist``, leave only when we've drifted ``ARRIVE_HYST_M``
+    # past that. Prevents tick-to-tick flapping when the robot ends up
+    # sitting right on the ``stop_dist`` boundary (e.g. ``dist = 1.000m``
+    # vs ``stop_dist = 1.000m`` — sub-mm gait jitter flips the decision).
+    ARRIVE_HYST_M: float = 0.10
+
     def _decide_mode(
         self,
         goal: GoalState,
@@ -90,7 +97,14 @@ class FSMController:
             return FSMMode.FALLEN
         if not goal.is_fresh(self.params.stale_s):
             return FSMMode.SEARCH
-        if forward_dist is not None and forward_dist < self.params.stop_dist:
+        if forward_dist is None:
+            return FSMMode.APPROACH
+        # Hysteresis: tighter threshold to enter ARRIVED, looser to leave.
+        if self.mode == FSMMode.ARRIVED:
+            if forward_dist > self.params.stop_dist + self.ARRIVE_HYST_M:
+                return FSMMode.APPROACH
+            return FSMMode.ARRIVED
+        if forward_dist < self.params.stop_dist:
             return FSMMode.ARRIVED
         return FSMMode.APPROACH
 
