@@ -164,6 +164,10 @@ args_cli.fall_height_m      = cfg.autonomy.fall_height_m
 args_cli.fall_tilt_norm     = cfg.autonomy.fall_tilt_norm
 args_cli.lock_conf          = cfg.autonomy.lock_conf
 args_cli.min_observations   = cfg.autonomy.min_observations
+# Forward-cone telemetry for the emergency brake. The cone half-angles are
+# still configurable; the brake threshold is a constant in the bundle.
+args_cli.obstacle_cone_h_deg = cfg.autonomy.obstacle_cone_h_deg
+args_cli.obstacle_cone_v_deg = cfg.autonomy.obstacle_cone_v_deg
 # Phase-2 perception goal: scene_graph save path (already exposed in schema)
 args_cli.scene_graph_path   = cfg.output.scene_graph_path
 
@@ -250,11 +254,16 @@ from autonomy import (   # noqa: E402
     FSMMode,
     GaitLimits,
     GoalState,
+    forward_cone_distance,
     pick_goal_for_target,
     yaw_from_quat,
 )
 from autonomy.fsm import FSMParams                                # noqa: E402
-from autonomy.perception import get_head_cam_pose_K, read_rgb_depth  # noqa: E402
+from autonomy.perception import (  # noqa: E402
+    get_cam_pose_K,
+    read_depth,
+    read_rgb_depth,
+)
 
 # Vendored scene-graph package (see isaac-sim-rl-bringup/scene_graph/VENDORED.md).
 # Provides the Phase-2 perception substrate: SAM3 → mask → unproject → dedup.
@@ -347,6 +356,7 @@ _HALLWAY_USD = _ALEX_ROBOT / "scenes" / "HallwayScene" / "Hallway.usdc"
 # Robot spawn position inside the room scene.
 # Floor of FloorPlan1_physics is at z=0 → spawn CoM at z=0.93 m.
 SPAWN_POS_ROOM = (+1.47, -0.24, 0.93)
+# SPAWN_POS_ROOM = (1.2, -0.56, 0.93)
 
 # Hallway spawn — centre corridor at standing CoM height. Hallway floor is z=0.
 SPAWN_POS_HALLWAY = (0.0, 0.0, 0.93)
@@ -369,6 +379,18 @@ CAMERA_DECIMATION = 4  # camera update every 4 policy ticks (~12.5 Hz)
 # recomputing each frame; matches what's passed to CameraCfg.OffsetCfg.rot.
 # (Filled in below right after _lookat_quat_wxyz is defined.)
 _HEAD_CAM_OFFSET_QUAT: tuple = (1.0, 0.0, 0.0, 0.0)  # placeholder
+
+# Chest camera: attached to TORSO_LINK, pitched ~30° down so it sees waist-
+# height obstacles (counters, tables) the head cam misses until very close.
+# Used only for forward-cone obstacle distance — SAM3 still runs on head_cam.
+# Offset is in TORSO_LINK frame: 10 cm forward, 0 cm side, 5 cm down from
+# torso center. TORSO_LINK is at ~1.0 m world height with the home pose, so
+# the chest cam sits at ~0.95 m looking 30° down — its cone covers the
+# 0.6–1.5 m height band from 1–3 m away.
+CHEST_CAM_OFFSET = (0.10, 0.0, -0.05)
+CHEST_CAM_W, CHEST_CAM_H = 320, 240   # smaller than head cam — only depth, no SAM3
+CHEST_CAM_PITCH_DEG = 30.0
+_CHEST_CAM_OFFSET_QUAT: tuple = (1.0, 0.0, 0.0, 0.0)  # placeholder, filled below
 
 
 def _lookat_quat_wxyz(eye, target) -> tuple:
@@ -402,6 +424,15 @@ def _lookat_quat_wxyz(eye, target) -> tuple:
 # Same call CameraCfg uses below — keeping them identical means the live world
 # pose we compute matches what the renderer actually uses.
 _HEAD_CAM_OFFSET_QUAT = _lookat_quat_wxyz(HEAD_CAM_OFFSET, (1.0, 0.0, 0.0))
+
+# Chest cam: lookat target is forward + below, encoding the 30° downward pitch.
+# tan(30°) ≈ 0.577 → for a 1 m forward target, drop 0.577 m below the cam.
+import math as _math  # local alias; module already imports math elsewhere
+_CHEST_PITCH_TAN = _math.tan(_math.radians(CHEST_CAM_PITCH_DEG))
+_CHEST_CAM_OFFSET_QUAT = _lookat_quat_wxyz(
+    CHEST_CAM_OFFSET,
+    (CHEST_CAM_OFFSET[0] + 1.0, CHEST_CAM_OFFSET[1], CHEST_CAM_OFFSET[2] - _CHEST_PITCH_TAN),
+)
 
 # ── Mutable command state (updated by keyboard at runtime) ────────────────────
 # [vx, vy, yaw_rate, standing_flag]  — populated in main() from CLI args
@@ -502,6 +533,7 @@ def setup_scene(scene: str):
     right_contact = ContactSensor(ContactSensorCfg(prim_path="/World/Alex/RIGHT_FOOT", update_period=0.0, history_length=1))
 
     head_cam = None
+    chest_cam = None
     if args_cli.rerun:
         # Head camera on HEAD_LINK. Must be created BEFORE sim.reset() so its
         # render product gets initialised by sim.reset().
@@ -527,7 +559,32 @@ def setup_scene(scene: str):
         ))
         print(f"[cameras] Created head camera at /World/Alex/HEAD_LINK/HeadCamera")
 
-    return sim, robot, left_contact, right_contact, head_cam
+        # Chest camera on TORSO_LINK — depth only, pitched ~30° down. Feeds
+        # the forward-cone obstacle check; head cam keeps doing SAM3.
+        # Same render-product timing constraint — created before sim.reset().
+        chest_cam = Camera(CameraCfg(
+            prim_path="/World/Alex/TORSO_LINK/ChestCamera",
+            update_period=SIM_DT * CAMERA_DECIMATION,
+            height=CHEST_CAM_H,
+            width=CHEST_CAM_W,
+            data_types=["distance_to_image_plane"],
+            update_latest_camera_pose=True,
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=2.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.05, 10.0),
+            ),
+            offset=CameraCfg.OffsetCfg(
+                pos=CHEST_CAM_OFFSET,
+                rot=_CHEST_CAM_OFFSET_QUAT,
+                convention="opengl",
+            ),
+        ))
+        print(f"[cameras] Created chest camera at /World/Alex/TORSO_LINK/ChestCamera "
+              f"(pitch={CHEST_CAM_PITCH_DEG:.0f}° down)")
+
+    return sim, robot, left_contact, right_contact, head_cam, chest_cam
 
 
 # ── Joint map: name → Isaac DOF index ────────────────────────────────────────
@@ -690,18 +747,33 @@ def _build_autonomy_bundle():
         bundle["lock_conf"] = args_cli.lock_conf
         bundle["min_observations"] = args_cli.min_observations
         bundle["sam3_conf"] = args_cli.sam3_conf
+        # Phase 3: forward-cone obstacle distance, refreshed each camera tick.
+        # +inf until the camera produces its first depth frame — caller treats
+        # infinite as "clear" so APPROACH starts walking immediately.
+        bundle["obstacle_dist"] = float("inf")
+        # Emergency-brake threshold. Last-resort safety only — Phase 3.5's
+        # planner is the primary obstacle-handling path.
+        bundle["emergency_dist"]      = 0.5
+        bundle["obstacle_cone_h_deg"] = args_cli.obstacle_cone_h_deg
+        bundle["obstacle_cone_v_deg"] = args_cli.obstacle_cone_v_deg
+        bundle["_emergency_prev"] = False
         print(f"[autonomy] mode=approach  target='{args_cli.autonomy_target}'  "
               f"lock_conf={args_cli.lock_conf}  min_obs={args_cli.min_observations}  "
-              f"stop_dist={args_cli.stop_dist}m  walk_speed={args_cli.walk_speed}m/s")
+              f"stop_dist={args_cli.stop_dist}m  walk_speed={args_cli.walk_speed}m/s  "
+              f"emergency_dist={bundle['emergency_dist']}m  "
+              f"cone=±{args_cli.obstacle_cone_h_deg:.0f}°h/±{args_cli.obstacle_cone_v_deg:.0f}°v  "
+              f"chest_cam=on(pitch={CHEST_CAM_PITCH_DEG:.0f}°)")
         print(f"[autonomy] SAM3 prompts: {_sam3_prompts}")
 
     return bundle
 
 
-def _step_perception(bundle: dict, head_cam, tick: int) -> None:
+def _step_perception(bundle: dict, head_cam, chest_cam, tick: int) -> None:
     """One perception tick (camera-rate): SAM3 → SceneGraph → goal update.
 
     No-op unless we're in `approach` mode and a head camera is attached.
+    Obstacle distance is computed from ``chest_cam`` if provided (it sees
+    waist-height obstacles the head cam misses), otherwise from ``head_cam``.
     """
     if bundle is None or "scene_graph" not in bundle:
         return
@@ -714,7 +786,7 @@ def _step_perception(bundle: dict, head_cam, tick: int) -> None:
     rgb, depth = rgb_depth
 
     try:
-        cam_pos, cam_quat_wxyz, K = get_head_cam_pose_K(
+        cam_pos, cam_quat_wxyz, K = get_cam_pose_K(
             head_cam,
             robot=bundle.get("_robot_for_debug"),
             body_name="HEAD_LINK",
@@ -734,6 +806,31 @@ def _step_perception(bundle: dict, head_cam, tick: int) -> None:
         sam3_processor=_sam3_processor,
         prompts=list(_sam3_prompts),
         conf_threshold=bundle["sam3_conf"],
+    )
+
+    # Phase 3: forward-cone obstacle distance. Prefer the chest cam — its
+    # 30°-downward pitch sees counter-tops and tables from much farther away
+    # than the head cam, which from 1.6 m looks too high to register a 0.9 m
+    # surface until the robot is < 0.5 m from it. Fall back to head cam if
+    # the chest cam isn't warm yet so the autonomy bundle always has a value.
+    obstacle_depth = None
+    obstacle_K = None
+    if chest_cam is not None:
+        chest_depth = read_depth(chest_cam)
+        if chest_depth is not None:
+            obstacle_depth = chest_depth
+            obstacle_K = chest_cam.data.intrinsic_matrices[0].cpu().numpy().astype(np.float32)
+    if obstacle_depth is None:
+        obstacle_depth = depth
+        obstacle_K = K
+    # Single-zone forward cone for the emergency brake. Steering uses the
+    # Phase 3.5 USD planner; this is purely "stop if something pops up
+    # very close in the cone". Center-zone semantics are equivalent to
+    # the original ``forward_cone_distance`` over the full cone.
+    bundle["obstacle_dist"] = forward_cone_distance(
+        obstacle_depth, obstacle_K,
+        h_deg=bundle["obstacle_cone_h_deg"],
+        v_deg=bundle["obstacle_cone_v_deg"],
     )
 
     # Goal selection: highest-confidence object whose label matches `target`
@@ -780,6 +877,29 @@ def _step_autonomy(bundle: dict, robot) -> None:
         goal=goal,
         fallen=is_fallen,
     )
+
+    # Emergency brake (chest-cam depth). Last-resort safety: if something
+    # very close shows up in the forward cone (planner missed it, scene
+    # changed mid-run, scan was incomplete), zero ``_cmd`` and hold until
+    # it clears. No steering — the planner (Phase 3.5) is responsible for
+    # going around obstacles. Reactive cone steering was tried in the
+    # deprecated Phase 3 and failed against wall-shaped obstacles; see
+    # ``isaac-sim-rl-bringup/docs/phase3_retrospective.md``.
+    if "emergency_dist" in bundle and fsm.mode == FSMMode.APPROACH:
+        cone_d = bundle.get("obstacle_dist", float("inf"))
+        emerg_d = bundle["emergency_dist"]
+        emergency = cone_d < emerg_d
+        if emergency:
+            vx = 0.0
+            vy = 0.0
+        prev_em = bundle.get("_emergency_prev", False)
+        if emergency and not prev_em:
+            print(f"[autonomy] EMERGENCY STOP  cone_dist={cone_d:.2f}m < "
+                  f"emergency_dist={emerg_d:.2f}m — holding")
+        elif prev_em and not emergency:
+            print(f"[autonomy] emergency CLEARED  cone_dist={cone_d:.2f}m")
+        bundle["_emergency_prev"] = emergency
+
     _cmd[0] = vx
     _cmd[1] = vy
     _cmd[2] = yawr
@@ -937,7 +1057,9 @@ def _rerun_init() -> None:
 
 
 def _rerun_log(tick: int, robot, joint_map: dict, left_contact, right_contact,
-               raw_action: np.ndarray, head_cam=None) -> None:
+               raw_action: np.ndarray, head_cam=None, chest_cam=None,
+               obstacle_dist: float = float("inf"),
+               emergency_dist: float = float("inf")) -> None:
     """Log one frame of telemetry to Rerun."""
     rr.set_time("tick", sequence=tick)
     rr.set_time("sim_time", duration=tick * SIM_DT * DECIMATION)
@@ -1020,6 +1142,29 @@ def _rerun_log(tick: int, robot, joint_map: dict, left_contact, right_contact,
             if tick == 0:
                 print(f"[rerun] head camera not ready yet: {e}")
 
+        # Chest camera depth — Phase-3 obstacle source. Same camera-rate gate
+        # as the head cam (CAMERA_DECIMATION). Logged with the obstacle_dist
+        # scalar so the cone reading is visible alongside what it sees.
+        if chest_cam is not None:
+            try:
+                c_out = chest_cam.data.output
+                if c_out is not None and "distance_to_image_plane" in c_out:
+                    c_depth = c_out["distance_to_image_plane"][0].cpu().numpy().astype(np.float32)
+                    if c_depth.ndim == 3:
+                        c_depth = c_depth[..., 0]
+                    c_depth = np.where(np.isfinite(c_depth), c_depth, 10.0)
+                    rr.log("camera/chest/depth", rr.DepthImage(c_depth, meter=1.0))
+            except Exception as e:
+                if tick == 0:
+                    print(f"[rerun] chest camera not ready yet: {e}")
+
+        # Forward-cone distance for the emergency brake. Plot against
+        # the brake threshold so it's obvious when/why the brake fires.
+        if np.isfinite(obstacle_dist):
+            rr.log("autonomy/obstacle_dist", rr.Scalars(float(obstacle_dist)))
+        if np.isfinite(emergency_dist):
+            rr.log("autonomy/emergency_dist", rr.Scalars(float(emergency_dist)))
+
         # Point cloud log — outside the outer try/except so errors surface.
         if args_cli.pointcloud:
             out2 = head_cam.data.output if head_cam is not None else None
@@ -1057,7 +1202,7 @@ def main():
     print(f"  obs_size={OBS_SIZE}  action_scale={ACTION_SCALE}")
     print(f"  initial cmd: vx={_cmd[0]:.2f} vy={_cmd[1]:.2f} yaw={_cmd[2]:.2f} standing={int(_cmd[3])}")
 
-    sim, robot, left_contact, right_contact, head_cam = setup_scene(args_cli.scene)
+    sim, robot, left_contact, right_contact, head_cam, chest_cam = setup_scene(args_cli.scene)
     sim.reset()
 
     # Cap render FPS to 60 at runtime — prevents "fast forward" visual effect.
@@ -1147,13 +1292,19 @@ def main():
 
         if head_cam is not None and tick % CAMERA_DECIMATION == 0:
             head_cam.update(SIM_DT)
+            if chest_cam is not None:
+                chest_cam.update(SIM_DT)
             # Phase-2 perception: SAM3 → SceneGraph → goal update. Runs at
             # camera rate (~12.5 Hz). The next tick's _step_autonomy reads
             # the freshly-updated GoalState; one-tick lag is acceptable.
-            _step_perception(autonomy_bundle, head_cam, tick)
+            # Phase-3 chest-cam depth feeds forward_cone_distance.
+            _step_perception(autonomy_bundle, head_cam, chest_cam, tick)
 
         if args_cli.rerun:
-            _rerun_log(tick, robot, joint_map, left_contact, right_contact, raw_action, head_cam)
+            _ob_d = autonomy_bundle.get("obstacle_dist", float("inf")) if autonomy_bundle else float("inf")
+            _em_d = autonomy_bundle.get("emergency_dist", float("inf")) if autonomy_bundle else float("inf")
+            _rerun_log(tick, robot, joint_map, left_contact, right_contact, raw_action,
+                       head_cam, chest_cam, obstacle_dist=_ob_d, emergency_dist=_em_d)
 
         # Per-second diagnostic print
         now = time.time()

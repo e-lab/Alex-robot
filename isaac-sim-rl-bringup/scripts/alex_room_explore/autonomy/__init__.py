@@ -13,6 +13,13 @@ Phase 2:
 - goal:          + GoalState.update_from_object  (latches once score >= lock_conf)
 - perception:    get_head_cam_pose_K, read_rgb_depth   (Isaac-coupled adapter)
 
+Phase 3.5 (active):
+- obstacle:      forward_cone_distance — used by the emergency brake only.
+                 The deliberative planner (USD-derived occupancy + A*) is the
+                 primary path-around-obstacle mechanism. Reactive cone
+                 steering was tried in Phase 3 and failed against wall-
+                 shaped obstacles; see docs/phase3_retrospective.md.
+
 Scene-graph machinery (vendored from sravani-scenegraph-demo) lives in the
 top-level ``scene_graph/`` package; we don't re-export it here.
 """
@@ -21,6 +28,7 @@ from .translator import fsm_mode_to_cmd, GaitLimits, wrap_to_pi, heading_error
 from .fsm import FSMController, FSMMode
 from .goal import GoalState
 from .target_picker import pick_goal_for_target
+from .obstacle import forward_cone_distance
 
 __all__ = [
     "yaw_from_quat",
@@ -33,4 +41,5 @@ __all__ = [
     "FSMMode",
     "GoalState",
     "pick_goal_for_target",
+    "forward_cone_distance",
 ]

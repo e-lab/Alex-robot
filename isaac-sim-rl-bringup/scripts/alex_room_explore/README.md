@@ -174,6 +174,7 @@ scripts/alex_room_explore/autonomy/
 ├── goal.py           GoalState — set_fixed (Phase 1) + update_from_object (Phase 2)
 ├── fsm.py            FSMController: search → approach → arrived → fallen
 ├── target_picker.py  pick_goal_for_target — graph → ObjectNode by label + lock
+├── obstacle.py       forward_cone_distance (emergency-brake only — see docs/phase3_retrospective.md)
 ├── perception.py     get_head_cam_pose_K, read_rgb_depth   (Isaac-coupled)
 └── __init__.py
 ```
@@ -190,6 +191,10 @@ The main script's autonomy hooks:
 - `_step_perception(bundle, head_cam, tick)` runs every camera tick
   (~12.5 Hz), invokes `process_one_frame` from the vendored package, then
   picks the highest-confidence matching ObjectNode and updates the goal.
+  Also caches the **forward-cone obstacle distance** on the bundle so
+  `_step_autonomy` can fire the emergency brake (zero `_cmd` if a close
+  obstacle pops up). Steering around obstacles is the planner's job
+  (Phase 3.5), not the cone's.
 
 If `cfg.autonomy.mode == "manual"` the bundle is `None`, both hooks are
 no-ops, and the keyboard path is unchanged.
@@ -220,7 +225,22 @@ to-end by the sim acceptance trial.
       confidence ObjectNode of that label. Goal latches at
       `score >= lock_conf` after `>= min_observations` sightings. Scene
       graph saved to `output.scene_graph_path` on exit.
-- [ ] **Phase 3**: forward-cone obstacle check on head-cam depth
+- [x] ~~**Phase 3**: reactive forward-cone obstacle avoidance.~~
+      **Deprecated 2026-05-04** after failing acceptance against wall-
+      shaped obstacles (kitchen counter). Three variants were tried (head-
+      cam cone, chest-cam cone, three-zone strafe). Each broke for the
+      same fundamental reason: a local sensor cone has no concept of
+      "go around the end of the wall." See
+      [`docs/phase3_retrospective.md`](../../docs/phase3_retrospective.md)
+      for the full story. Salvaged: chest cam stays as an
+      **emergency-stop** only (no steering), `forward_cone_distance` stays
+      as the brake's distance estimator.
+- [ ] **Phase 3.5**: USD-derived 2D occupancy + A* planner + waypoint
+      follower. The room USD is the source of truth for static geometry;
+      we rasterise it once, plan with A*, and follow the waypoints with
+      the existing FSM heading controller. SAM3 stays as the goal-lookup
+      mechanism. See `PLAN/autonomous_navigation_plan.md` § Phase 3.5 for
+      the design + acceptance criteria.
 - [ ] **Phase 4**: full fall-recovery sequence (extend the Phase-1 stub)
 - [ ] **Phase 5** (optional): LLM task agent for multi-target chains
 
@@ -250,3 +270,11 @@ to-end by the sim acceptance trial.
     scene=room autonomy=approach autonomy.target=oven \
     detector=sam3 rerun=full
 ```
+
+### Phase 3 (deprecated)
+
+The original reactive plan never met its 3/5 acceptance bar. See
+[`docs/phase3_retrospective.md`](../../docs/phase3_retrospective.md) for
+the full failure analysis. The replacement is **Phase 3.5** (USD planner,
+spec'd in `PLAN/autonomous_navigation_plan.md`). The current code keeps
+the chest cam as an emergency brake only — no steering from depth.

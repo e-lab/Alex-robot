@@ -42,15 +42,18 @@ def _quat_rotate_wxyz(q: np.ndarray, v: np.ndarray) -> np.ndarray:
     return v + w * t + np.cross(qv, t)
 
 
-def get_head_cam_pose_K(
-    head_cam,
+def get_cam_pose_K(
+    cam,
     *,
     robot=None,
     body_name: str = "HEAD_LINK",
     cam_offset_pos: "tuple[float, float, float] | None" = None,
     cam_offset_quat_wxyz: "tuple[float, float, float, float] | None" = None,
 ) -> "tuple[np.ndarray, np.ndarray, np.ndarray]":
-    """Return ``(cam_pos, cam_quat_wxyz, K)`` for the Alex head camera.
+    """Return ``(cam_pos, cam_quat_wxyz, K)`` for an Alex-mounted camera.
+
+    Works for any camera attached to an articulated link (head, chest, etc.) —
+    pass the parent ``body_name`` and the camera's local offset.
 
     Two implementations, picked by what the caller passes:
 
@@ -75,13 +78,13 @@ def get_head_cam_pose_K(
     +Y up) — matches the ``CameraCfg(convention="opengl")`` the head_cam was
     created with.
     """
-    K = head_cam.data.intrinsic_matrices[0].cpu().numpy().astype(np.float32)
+    K = cam.data.intrinsic_matrices[0].cpu().numpy().astype(np.float32)
 
     if robot is not None and cam_offset_pos is not None and cam_offset_quat_wxyz is not None:
         body_idx_list, _ = robot.find_bodies(body_name)
         if not body_idx_list:
             raise RuntimeError(
-                f"get_head_cam_pose_K: body '{body_name}' not found on robot — "
+                f"get_cam_pose_K: body '{body_name}' not found on robot — "
                 f"can't compute live camera pose"
             )
         body_idx = body_idx_list[0]
@@ -95,20 +98,24 @@ def get_head_cam_pose_K(
         cam_quat_wxyz = _quat_mul_wxyz(link_quat, offset_quat)
         return cam_pos, cam_quat_wxyz, K
 
-    cam_pos = head_cam.data.pos_w[0].cpu().numpy().astype(np.float32)
-    cam_quat_wxyz = head_cam.data.quat_w_opengl[0].cpu().numpy().astype(np.float32)
+    cam_pos = cam.data.pos_w[0].cpu().numpy().astype(np.float32)
+    cam_quat_wxyz = cam.data.quat_w_opengl[0].cpu().numpy().astype(np.float32)
     return cam_pos, cam_quat_wxyz, K
 
 
-def read_rgb_depth(head_cam) -> "tuple[np.ndarray, np.ndarray] | None":
-    """Pull the latest RGB + depth tensors off the head camera.
+# Backward-compatible alias — kept so external imports don't break.
+get_head_cam_pose_K = get_cam_pose_K
+
+
+def read_rgb_depth(cam) -> "tuple[np.ndarray, np.ndarray] | None":
+    """Pull the latest RGB + depth tensors off a camera.
 
     Returns ``(rgb_uint8_HxWx3, depth_float32_HxW)`` or ``None`` if the
     camera hasn't produced output yet (first few ticks before sensors are
     warm). All Isaac-tensor → numpy conversion lives here so callers stay
     framework-agnostic.
     """
-    output = head_cam.data.output
+    output = cam.data.output
     if output is None or "rgb" not in output or "distance_to_image_plane" not in output:
         return None
 
@@ -126,4 +133,25 @@ def read_rgb_depth(head_cam) -> "tuple[np.ndarray, np.ndarray] | None":
     return rgb, depth
 
 
-__all__ = ["get_head_cam_pose_K", "read_rgb_depth"]
+def read_depth(cam) -> "np.ndarray | None":
+    """Pull the latest depth tensor off a depth-only camera.
+
+    Like ``read_rgb_depth`` but skips the RGB channel — used for the chest
+    cam, which is configured for depth only (no SAM3 inference on it).
+    """
+    output = cam.data.output
+    if output is None or "distance_to_image_plane" not in output:
+        return None
+    depth = output["distance_to_image_plane"][0].cpu().numpy().astype(np.float32)
+    if depth.ndim == 3:
+        depth = depth[..., 0]
+    depth = np.where(np.isfinite(depth), depth, 20.0).astype(np.float32)
+    return depth
+
+
+__all__ = [
+    "get_cam_pose_K",
+    "get_head_cam_pose_K",  # alias
+    "read_rgb_depth",
+    "read_depth",
+]
