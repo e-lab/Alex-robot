@@ -27,3 +27,10 @@ tilt_period_s: 10.0
 # Phase-1 fall stub
 fall_height_m:  0.5
 fall_tilt_norm: 0.7
+
+# Phase-4 recovery agent
+stuck_window_s:        5.0      # APPROACH-vx>0 window before declaring stuck
+stuck_dist_m:          0.2      # min displacement over window to count as making progress
+recovery_stand_s:      3.0      # standing-flag hold per attempt
+recovery_max_attempts: 2        # hard giveup → autonomy disabled
+recovery_rotation_yaw: 0.4      # rad/s during 90° unstuck rotation

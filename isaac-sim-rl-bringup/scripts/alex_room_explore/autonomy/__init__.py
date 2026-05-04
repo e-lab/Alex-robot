@@ -20,6 +20,11 @@ Phase 3.5 (active):
                  steering was tried in Phase 3 and failed against wall-
                  shaped obstacles; see docs/phase3_retrospective.md.
 
+Phase 4 (active):
+- recovery:      RecoveryAgent (IDLE / STANDING / ROTATING / FAILED),
+                 StuckMonitor (rolling-window stall detector),
+                 YawTracker (closed-loop 90° rotation).
+
 Scene-graph machinery (vendored from sravani-scenegraph-demo) lives in the
 top-level ``scene_graph/`` package; we don't re-export it here.
 """
@@ -29,6 +34,7 @@ from .fsm import FSMController, FSMMode
 from .goal import GoalState
 from .target_picker import pick_goal_for_target
 from .obstacle import forward_cone_distance
+from .recovery import RecoveryAgent, RecoveryState, StuckMonitor, YawTracker
 
 __all__ = [
     "yaw_from_quat",
@@ -42,4 +48,8 @@ __all__ = [
     "GoalState",
     "pick_goal_for_target",
     "forward_cone_distance",
+    "RecoveryAgent",
+    "RecoveryState",
+    "StuckMonitor",
+    "YawTracker",
 ]

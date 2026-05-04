@@ -100,6 +100,10 @@ class AutonomyConfig:
     fall_tilt_norm: float = 0.7
     stuck_window_s: float = 5.0
     stuck_dist_m:   float = 0.2
+    # Phase-4 recovery agent tunables.
+    recovery_stand_s:      float = 3.0   # standing-flag hold per attempt
+    recovery_max_attempts: int   = 2     # hard giveup → autonomy disabled
+    recovery_rotation_yaw: float = 0.4   # rad/s during 90° unstuck rotation
 
 
 # ── Output / scene graph save path ────────────────────────────────────────────

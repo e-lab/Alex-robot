@@ -17,6 +17,7 @@ Keyboard controls (focus the Isaac Sim viewport first):
     E / Numpad 6            — strafe right
     L                       — stop / reset velocity to zero
     S                       — toggle standing mode (velocity = 0, standing_flag = 1)
+    F                       — force a synthetic fall (test Phase 4 recovery)
 
 CLI args (override defaults):
     --vx FLOAT      initial forward velocity  (default 0.3 m/s)
@@ -162,6 +163,12 @@ args_cli.heading_kp         = cfg.autonomy.heading_kp
 args_cli.heading_walk_deg   = cfg.autonomy.heading_walk_deg
 args_cli.fall_height_m      = cfg.autonomy.fall_height_m
 args_cli.fall_tilt_norm     = cfg.autonomy.fall_tilt_norm
+# Phase-4 recovery + stuck-detection tunables.
+args_cli.stuck_window_s        = cfg.autonomy.stuck_window_s
+args_cli.stuck_dist_m          = cfg.autonomy.stuck_dist_m
+args_cli.recovery_stand_s      = cfg.autonomy.recovery_stand_s
+args_cli.recovery_max_attempts = cfg.autonomy.recovery_max_attempts
+args_cli.recovery_rotation_yaw = cfg.autonomy.recovery_rotation_yaw
 args_cli.lock_conf          = cfg.autonomy.lock_conf
 args_cli.min_observations   = cfg.autonomy.min_observations
 # Forward-cone telemetry for the emergency brake. The cone half-angles are
@@ -255,6 +262,10 @@ from autonomy import (   # noqa: E402
     FSMMode,
     GaitLimits,
     GoalState,
+    RecoveryAgent,
+    RecoveryState,
+    StuckMonitor,
+    YawTracker,
     forward_cone_distance,
     fsm_mode_to_cmd,
     heading_error,
@@ -458,6 +469,12 @@ _cmd = np.zeros(4, dtype=np.float32)   # [vx, vy, yaw, standing]
 # Wraps every hot path (ONNX, physics, SAM3, scene_graph, planner, occupancy
 # build). The atexit hook at the bottom of this file prints the summary.
 _TIMINGS = Timings()
+
+# ── Phase-4 testing aid: F-key forces a synthetic fall ─────────────────────────
+# Set by the "F" keyboard callback (see _make_keyboard); consumed at the top
+# of _step_autonomy by latching the FallMonitor. Lets us test recovery
+# deterministically without fighting Isaac's viewport interaction model.
+_FORCE_FALL = {"requested": False}
 
 
 # ── URDF resolution (same logic as alex_onnx_policy_test.py) ─────────────────
@@ -785,7 +802,16 @@ def _make_keyboard(sim_device: str) -> Se2Keyboard:
         mode = "STANDING" if _cmd[3] > 0.5 else "WALKING"
         print(f"[keyboard] mode → {mode}")
 
+    def _force_fall():
+        """Phase-4 testing hotkey. Sets a flag that ``_step_autonomy``
+        translates into a forced FallMonitor latch on the next tick.
+        Exercises the recovery code path without needing Isaac's
+        viewport interaction (Shift+drag is finicky)."""
+        _FORCE_FALL["requested"] = True
+        print("[keyboard] F pressed → forcing synthetic fall on next autonomy tick")
+
     kb.add_callback("S", _toggle_standing)
+    kb.add_callback("F", _force_fall)
     return kb
 
 
@@ -822,7 +848,24 @@ def _build_autonomy_bundle():
         fall_height_m=args_cli.fall_height_m,
         fall_tilt_norm=args_cli.fall_tilt_norm,
     )
-    bundle = {"fsm": fsm, "goal": goal, "fall": fall}
+    # Phase-4: recovery + stuck. Gait yaw_rate cap clamps the rotation
+    # speed defensively so a typo in YAML can't push us above stable
+    # walking-policy limits.
+    recovery = RecoveryAgent(
+        stand_duration_s=args_cli.recovery_stand_s,
+        rotation_yaw_rate=min(args_cli.recovery_rotation_yaw,
+                              GaitLimits().yaw_rate_max),
+        max_attempts=args_cli.recovery_max_attempts,
+    )
+    stuck = StuckMonitor(
+        window_s=args_cli.stuck_window_s,
+        min_disp_m=args_cli.stuck_dist_m,
+    )
+    yaw_tracker = YawTracker()
+    bundle = {
+        "fsm": fsm, "goal": goal, "fall": fall,
+        "recovery": recovery, "stuck": stuck, "yaw_tracker": yaw_tracker,
+    }
 
     if args_cli.autonomy_mode == "fixed_xyz":
         goal.set_fixed(args_cli.autonomy_fixed_xyz)
@@ -866,13 +909,19 @@ def _build_autonomy_bundle():
             f"waypoint_radius={bundle.get('plan_waypoint_radius_m', 0.40):.2f}m)"
             if "occ" in bundle else "planner=off"
         )
+        recovery_state = (
+            f"recovery=on(stand={args_cli.recovery_stand_s}s, "
+            f"max={args_cli.recovery_max_attempts}, "
+            f"stuck_window={args_cli.stuck_window_s}s, "
+            f"stuck_min={args_cli.stuck_dist_m}m)"
+        )
         print(f"[autonomy] mode=approach  target='{args_cli.autonomy_target}'  "
               f"lock_conf={args_cli.lock_conf}  min_obs={args_cli.min_observations}  "
               f"stop_dist={args_cli.stop_dist}m  walk_speed={args_cli.walk_speed}m/s  "
               f"emergency_dist={bundle['emergency_dist']}m  "
               f"cone=±{args_cli.obstacle_cone_h_deg:.0f}°h/±{args_cli.obstacle_cone_v_deg:.0f}°v  "
               f"chest_cam=on(pitch={CHEST_CAM_PITCH_DEG:.0f}°)  "
-              f"{planner_state}")
+              f"{planner_state}  {recovery_state}")
         print(f"[autonomy] SAM3 prompts: {_sam3_prompts}")
 
     return bundle
@@ -1027,11 +1076,31 @@ def _maybe_plan_path_on_lock(bundle: dict) -> None:
             print(f"[autonomy] planner: rerun log failed (non-fatal): {e}")
 
 
+def _replan_from_current_pose(bundle: dict) -> None:
+    """Phase 4: re-plan after a recovery (fall stand-up or stuck rotation).
+
+    Clears the cached path and re-invokes the lock-time planner so it
+    re-runs A* from the robot's *current* XY rather than the original
+    lock-on XY. The goal lock is preserved (``goal.locked`` stays True),
+    so this is a pure path refresh — no SAM3 re-discovery needed.
+
+    No-op for scenes without an occupancy grid (e.g. groundplane).
+    """
+    if "occ" not in bundle:
+        return
+    bundle["path"] = None
+    bundle["path_index"] = 0
+    _maybe_plan_path_on_lock(bundle)
+
+
 def _step_autonomy(bundle: dict, robot) -> None:
     """One autonomy tick: read robot pose, run FSM, write _cmd in place."""
     fsm: FSMController = bundle["fsm"]
     goal: GoalState = bundle["goal"]
     fall: FallMonitor = bundle["fall"]
+    recovery: RecoveryAgent = bundle["recovery"]
+    stuck: StuckMonitor = bundle["stuck"]
+    yaw_track: YawTracker = bundle["yaw_tracker"]
 
     pos  = robot.data.root_pos_w[0].cpu().numpy()
     quat = robot.data.root_quat_w[0].cpu().numpy()   # (w, x, y, z)
@@ -1040,14 +1109,94 @@ def _step_autonomy(bundle: dict, robot) -> None:
     dev = robot.data.root_quat_w.device
     grav_world = torch.tensor([[0.0, 0.0, -1.0]], dtype=torch.float32, device=dev)
     pg = quat_apply_inverse(robot.data.root_quat_w[0:1], grav_world)[0].cpu().numpy()
+    yaw = yaw_from_quat(quat)
+    now = time.time()
+
+    # ── Phase 4: recovery state machine (top of tick) ──────────────────
+    #
+    # Five mutually-exclusive sub-paths, in priority order:
+    #   1. FAILED — recovery already gave up; safe-stop forever.
+    #   2. STANDING — currently holding (0,0,0,1) for the stand window.
+    #      When the window ends, re-check fall status: success → reset
+    #      everything and re-plan; failure → bump attempt count, retry
+    #      or transition to FAILED.
+    #   3. ROTATING — closed-loop yaw rotation. Done when YawTracker
+    #      reports |delta| ≥ target. On done: reset and re-plan.
+    #   4. Fresh fall — FallMonitor latched and recovery is IDLE → enter
+    #      STANDING for attempt 1.
+    #   5. Fall-through — none of the above; run normal autonomy.
+    if recovery.state is RecoveryState.FAILED:
+        with _TIMINGS.time("recovery.failed_hold"):
+            _cmd[0], _cmd[1], _cmd[2], _cmd[3] = recovery.cmd()
+        return
+
+    if recovery.state is RecoveryState.STANDING:
+        if recovery.is_standing_done(now=now):
+            # Re-evaluate fall status with a fresh latch.
+            fall.reset()
+            re_fallen = fall.update(
+                float(pos[2]),
+                proj_grav_xy=(float(pg[0]), float(pg[1])),
+            )
+            if not re_fallen:
+                print(f"[autonomy] recovery succeeded "
+                      f"(attempt {recovery.attempts_used + 1}/"
+                      f"{recovery.max_attempts}) — re-planning from current pose")
+                recovery.succeed()
+                fsm.reset()
+                stuck.reset()
+                _replan_from_current_pose(bundle)
+                # Fall through to normal logic this tick.
+            else:
+                recovery.fail_attempt()
+                if recovery.state is RecoveryState.FAILED:
+                    print(f"[autonomy] recovery FAILED after "
+                          f"{recovery.max_attempts} attempts — autonomy disabled")
+                    _cmd[0], _cmd[1], _cmd[2], _cmd[3] = recovery.cmd()
+                    return
+                print(f"[autonomy] still fallen — retrying "
+                      f"(attempt {recovery.attempts_used + 1}/"
+                      f"{recovery.max_attempts})")
+                recovery.begin_standing(now=now)
+                _cmd[0], _cmd[1], _cmd[2], _cmd[3] = recovery.cmd()
+                return
+        else:
+            with _TIMINGS.time("recovery.standing"):
+                _cmd[0], _cmd[1], _cmd[2], _cmd[3] = recovery.cmd()
+            return
+
+    if recovery.state is RecoveryState.ROTATING:
+        done = yaw_track.update(yaw_now=yaw)
+        if done:
+            print(f"[autonomy] rotation complete (delta={math.degrees(yaw_track.delta):+.1f}°) "
+                  f"— re-planning from current pose")
+            recovery.succeed()
+            stuck.reset()
+            _replan_from_current_pose(bundle)
+            # Fall through to normal logic this tick.
+        else:
+            sign = 1.0 if yaw_track.target_rad >= 0.0 else -1.0
+            with _TIMINGS.time("recovery.rotating"):
+                _cmd[0], _cmd[1], _cmd[2], _cmd[3] = recovery.cmd(rotation_sign=sign)
+            return
+
+    # Phase-4 testing aid: if F was pressed, force the FallMonitor latch
+    # so the recovery code path engages even when the robot is upright.
+    # Cleared the moment we consume it; recovery's own re-check at the
+    # end of the standing window will see the (real, upright) pose and
+    # transition to "succeeded" cleanly.
+    if _FORCE_FALL["requested"]:
+        _FORCE_FALL["requested"] = False
+        fall.fallen = True
 
     is_fallen = fall.update(float(pos[2]), proj_grav_xy=(float(pg[0]), float(pg[1])))
-    if is_fallen and fsm.mode != FSMMode.FALLEN:
+    if is_fallen and recovery.state is RecoveryState.IDLE:
         print(f"[autonomy] [FALL] root_z={pos[2]:.2f}m  "
-              f"proj_grav_xy=({pg[0]:+.2f},{pg[1]:+.2f}) — exiting autonomy "
-              f"(Phase 4 will add recovery).")
-
-    yaw = yaw_from_quat(quat)
+              f"proj_grav_xy=({pg[0]:+.2f},{pg[1]:+.2f}) — entering recovery "
+              f"(attempt 1/{recovery.max_attempts})")
+        recovery.begin_standing(now=now)
+        _cmd[0], _cmd[1], _cmd[2], _cmd[3] = recovery.cmd()
+        return
 
     # Phase 3.5c — waypoint follower.
     #
@@ -1170,12 +1319,33 @@ def _step_autonomy(bundle: dict, robot) -> None:
                 fallen=is_fallen,
             )
 
-    # Always update the fall-monitor-driven mode if needed (we may have
-    # short-circuited the FSM above; ensure FALLEN takes precedence).
-    if is_fallen and fsm.mode != FSMMode.FALLEN:
-        fsm.mode = FSMMode.FALLEN
-        vx = vy = yawr = 0.0
-        standing = 1.0
+    # ── Phase 4: stuck monitor ──────────────────────────────────────────
+    # Only meaningful while APPROACH commands forward velocity. The
+    # monitor's buffer is dropped on inactive samples, so stand-still
+    # (ARRIVED, SEARCH, emergency brake holds) and recovery (handled
+    # above with early returns) cannot accumulate stuck-time.
+    approach_active = (fsm.mode == FSMMode.APPROACH and vx > 0.0)
+    if stuck.update(float(pos[0]), float(pos[1]),
+                    active=approach_active, now=now):
+        print(f"[autonomy] STUCK at ({pos[0]:+.2f},{pos[1]:+.2f}) — "
+              f"rotating 90° in place")
+        # Pick rotation direction based on heading toward goal: if the
+        # goal is on our left (heading_err > 0), rotate left; else right.
+        rot_target = math.pi / 2.0
+        if goal.xyz is not None:
+            tx, ty, _ = goal.xyz
+            herr = heading_error(float(pos[0]), float(pos[1]), float(yaw),
+                                 float(tx), float(ty))
+            rot_target = math.pi / 2.0 if herr >= 0.0 else -math.pi / 2.0
+        yaw_track.target_rad = rot_target
+        yaw_track.start(yaw_now=yaw)
+        recovery.begin_rotation()
+        # Invalidate the path — the wedged spot is presumed compromised.
+        bundle["path"] = None
+        bundle["path_index"] = 0
+        sign = 1.0 if rot_target >= 0.0 else -1.0
+        _cmd[0], _cmd[1], _cmd[2], _cmd[3] = recovery.cmd(rotation_sign=sign)
+        return
 
     # Emergency brake (chest-cam depth). Last-resort safety: if something
     # very close shows up in the forward cone (planner missed it, scene
