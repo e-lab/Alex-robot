@@ -65,6 +65,9 @@ class RunnerConfig:
     # ships an empty default; LA-6 will inject the real decision-table
     # prompt from loco_x.llm.prompts.
     system_prompt: str = ""
+    # LA-7 diagnostic: print one line per turn so the sim log shows
+    # the agent at work. Default on for the integrated runtime.
+    verbose: bool = True
 
 
 # ── Runner ─────────────────────────────────────────────────────────────────
@@ -103,6 +106,28 @@ class AgentRunner:
             return
         self._tick(now)
 
+    def reason_for_skip(self, now: float) -> Optional[str]:
+        """Diagnostic helper. Returns a short string describing why
+        the gate would deny ``maybe_tick(now)``, or ``None`` if the
+        gate would permit. Used by the autonomy-script integration
+        to print agent status when the agent isn't ticking."""
+        cfg = self.config
+        if not cfg.enabled:
+            return "agent.enabled=false"
+        if self.bundle.get("agent_should_stop"):
+            return "agent_should_stop=true"
+        fsm = self.bundle.get("fsm_mode", "IDLE")
+        if fsm not in ("IDLE", "ARRIVED"):
+            return f"fsm={fsm} (waiting for IDLE/ARRIVED)"
+        if self.bundle.get("task_queue"):
+            return f"task_queue not empty ({len(self.bundle['task_queue'])} pending)"
+        if cfg.tick_hz > 0.0 and self._last_tick_t is not None:
+            min_dt = 1.0 / cfg.tick_hz
+            dt = now - self._last_tick_t
+            if dt < min_dt:
+                return f"tick_hz throttle ({dt:.2f}s < {min_dt:.2f}s since last)"
+        return None
+
     # ── Gating ─────────────────────────────────────────────────────
     def _gate(self, now: float) -> bool:
         cfg = self.config
@@ -134,11 +159,19 @@ class AgentRunner:
             self._force_fail(
                 f"turn budget exhausted ({cfg.max_turns} turns)"
             )
+            if cfg.verbose:
+                print(f"[loco_x] turn {self.turn_count + 1}: FORCE-FAIL "
+                      f"(max_turns={cfg.max_turns})")
             return
 
         # Build observation + record visited_fraction for stall watchdog.
         observation = build_observation(self.bundle, now=now)
         self._update_progress_history()
+        if cfg.verbose:
+            n_nodes = len(self.bundle.get("scene_nodes") or [])
+            print(f"[loco_x] turn {self.turn_count + 1}/{cfg.max_turns}: "
+                  f"observation built ({len(observation)} chars, "
+                  f"{n_nodes} scene nodes)")
 
         # Optionally annotate the observation with the stall warning.
         if self.stall_warning_active:
@@ -162,6 +195,8 @@ class AgentRunner:
                 status="error", error_kind="parse_error",
                 message=str(e),
             )
+            if cfg.verbose:
+                print(f"[loco_x]   LLM response parse_error: {e}")
             self.turn_count += 1
             return
         except Exception as e:                      # network / auth / ...
@@ -169,8 +204,16 @@ class AgentRunner:
                 status="error", error_kind="llm_failed",
                 message=str(e),
             )
+            if cfg.verbose:
+                print(f"[loco_x]   LLM call failed: {type(e).__name__}: {e}")
             self.turn_count += 1
             return
+
+        if cfg.verbose:
+            code_preview = response.code.strip().splitlines()
+            preview = code_preview[0] if code_preview else "(no code)"
+            sig = f"  signal={response.signal}" if response.signal else ""
+            print(f"[loco_x]   LLM → {preview!r}{sig}")
 
         # Signal handling.
         if response.signal == "finish":
@@ -185,12 +228,20 @@ class AgentRunner:
                     "LLM emitted FINISH signal"
                 )
             self.turn_count += 1
+            if cfg.verbose:
+                print(f"[loco_x]   FINISH — task succeeded "
+                      f"after {self.turn_count} turns")
             return
 
         # Normal turn — execute the code (REGENERATE and plain
         # responses both run the new code).
         self._run_code(response.code)
         self.turn_count += 1
+        if cfg.verbose:
+            last = self.bundle.get("last_action") or {}
+            status = last.get("status", "?")
+            kind = last.get("kind") or last.get("error_kind") or "?"
+            print(f"[loco_x]   skill result: status={status} kind={kind}")
 
     # ── Code execution + last-action capture ──────────────────────
     def _run_code(self, code: str) -> None:

@@ -1290,6 +1290,23 @@ def _step_autonomy(bundle: dict, robot) -> None:
                         "confidence": float(getattr(obj, "confidence", 0.0)),
                     })
                 bundle["scene_nodes"] = nodes
+            # LA-7 diagnostic: print the gate state once per ~2 s so we
+            # can see *why* the agent isn't firing when Phase 1-4
+            # already grabbed the goal. Reads the runner's internal
+            # ``_inner`` to call reason_for_skip without polluting the
+            # public AsyncRunner surface.
+            _last_diag_t = bundle.get("_loco_x_last_diag_t", 0.0)
+            if now - _last_diag_t > 2.0:
+                bundle["_loco_x_last_diag_t"] = now
+                inner = getattr(bundle["agent"], "_inner", None)
+                reason = inner.reason_for_skip(now) if inner else None
+                if reason is None:
+                    print(f"[loco_x] gate: PERMITS this tick "
+                          f"(fsm={bundle['fsm_mode']}, queue_len="
+                          f"{len(bundle.get('task_queue') or [])}, "
+                          f"scene_nodes={len(bundle.get('scene_nodes') or [])})")
+                else:
+                    print(f"[loco_x] gate: skip — {reason}")
             bundle["agent"].poll(now)
             if "dispatcher" in bundle:
                 try:
