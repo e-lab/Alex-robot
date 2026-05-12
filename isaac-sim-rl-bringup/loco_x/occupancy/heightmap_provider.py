@@ -159,12 +159,16 @@ class HeightMapProvider:
         k: int = 10,
         prefer_near: Optional[List[str]] = None,
     ) -> List[FrontierCandidate]:
-        """LA-0c will implement frontier scoring. LA-0b.1 returns [].
+        """Frontier candidates from the current grid (LA-0c).
 
-        The plan parks frontier_cells in LA-0c; this stub keeps the
-        Protocol satisfied so synthetic-harness tests can still pass.
+        Delegates to :func:`loco_x.occupancy.frontier.frontier_cells`
+        — kept as a free function so any provider can opt in by
+        forwarding the call (USD's wrapper returns ``[]`` because the
+        USD grid never contains UNKNOWN).
         """
-        return []
+        # Local import to avoid a circular reference at module load.
+        from .frontier import frontier_cells as _ff
+        return _ff(self, from_xy=from_xy, k=k, prefer_near=prefer_near)
 
     def visited_fraction(self) -> float:
         if self._width == 0 or self._height == 0:
@@ -284,6 +288,34 @@ class HeightMapProvider:
         if rec is None or rec.last_seen_t == -np.inf:
             return float("inf")
         return float(self._now - rec.last_seen_t)
+
+    # ── D14.2 variance hook ────────────────────────────────────────
+    def variance(self, world_xy: WorldXY) -> float:
+        """Per-cell variance of recent height observations.
+
+        Estimated from the cell's ring buffer of recent per-frame
+        heights (the same buffer the consistency gate uses). Cells
+        with no observations return 0.0 — they're UNKNOWN anyway, so
+        the planner_cost's UNKNOWN branch will handle them; the
+        variance value never feeds a FREE-cost computation.
+
+        The variance signal is what the agent's D14.2 cost function
+        consumes: clean (low σ²) FREE cells cost 1.0; dirty (high σ²)
+        FREE cells cost more, but always less than UNKNOWN.
+        """
+        ix, iy = self._world_to_grid(*world_xy)
+        if not self._in_bounds(ix, iy):
+            return 0.0
+        rec = self._cells.get((ix, iy))
+        if rec is None:
+            return 0.0
+        # Use the in-window observations (same set the gate consults)
+        # so the variance signal tracks the *current* belief, not
+        # ancient history. Fewer than 2 samples → can't estimate.
+        fresh = [z for (t, z) in rec.obs if self._now - t <= self._obs_window_s]
+        if len(fresh) < 2:
+            return 0.0
+        return float(np.var(fresh, ddof=0))
 
     # ── Watchdog queries for the path-invalidation hook ────────────
     def path_invalidated_by_new_obstacle(

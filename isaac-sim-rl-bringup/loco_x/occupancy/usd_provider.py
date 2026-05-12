@@ -140,6 +140,14 @@ class UsdOccupancyProvider:
         free = float((self._grid == int(CellState.FREE)).sum())
         return free / total
 
+    # ── D14.2 variance hook (always 0 for USD) ─────────────────────
+    def variance(self, world_xy: WorldXY) -> float:
+        """USD is ground truth: variance is identically zero
+        everywhere. Keeps the planner_cost's four-tier behaviour
+        bit-identical to Phase 1-4 binary cost when running against
+        USD (the FREE-dirty branch never fires)."""
+        return 0.0
+
 
 # Static check: the class structurally satisfies the Protocol. We can
 # only build the sentinel when autonomy.usd_occupancy is importable —
