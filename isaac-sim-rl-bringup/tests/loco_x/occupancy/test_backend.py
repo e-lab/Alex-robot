@@ -88,17 +88,18 @@ def test_from_cfg_usd_without_stage_raises() -> None:
 
 # ── step_perception end-to-end ─────────────────────────────────────────────
 def test_step_perception_without_depth_keeps_clock_advancing() -> None:
-    """Live head-cam not yet wired (depth=None): the backend must keep
-    the provider's clock advancing via ``advance_time_to`` so staleness
-    queries still work, and the drive-through stamp records "the robot
-    fit here" even without a camera frame."""
+    """No live camera yet (chest_depth=None, no head): the backend must
+    keep the provider's clock advancing via ``advance_time_to`` so
+    staleness queries still work, and the drive-through stamp records
+    "the robot fit here" even without a camera frame."""
     cfg = _StubCfg(
         scene=_StubScene(hm_bounds_xy=(-5.0, -5.0, 5.0, 5.0)),
         occupancy=_StubOcc(provider="heightmap"),
     )
     backend = OccupancyBackend.from_cfg(cfg)
     backend.step_perception(
-        depth=None, camera_pose=None, robot_xy=(0.0, 0.0), now=42.0
+        chest_depth=None, chest_pose=None,
+        robot_xy=(0.0, 0.0), now=42.0,
     )
     # Drive-through stamp → cell is FREE with fresh last_seen.
     assert backend.provider.query((0.0, 0.0)) == CellState.FREE
@@ -107,10 +108,10 @@ def test_step_perception_without_depth_keeps_clock_advancing() -> None:
     assert math.isinf(backend.provider.staleness((3.0, 3.0)))
 
 
-def test_step_perception_with_depth_folds_into_heightmap() -> None:
-    """With depth + pose + intrinsics, ``step_perception`` back-projects
-    and feeds the height map. After 3 ticks the consistency gate fires
-    on the observed cells."""
+def test_step_perception_chest_only_folds_into_heightmap() -> None:
+    """Chest-cam only (the primary, always-on case): depth + pose +
+    intrinsics fold into the height map. After 3 ticks the consistency
+    gate fires on observed cells."""
     cfg = _StubCfg(
         scene=_StubScene(hm_bounds_xy=(-5.0, -5.0, 5.0, 5.0)),
         occupancy=_StubOcc(provider="heightmap"),
@@ -122,22 +123,130 @@ def test_step_perception_with_depth_folds_into_heightmap() -> None:
         cx=31.5, cy=23.5,
     )
     backend = OccupancyBackend.from_cfg(cfg)
-    backend.intrinsics = intr
+    backend.chest_intrinsics = intr
     backend.depth_stride = 1
 
-    cam_pose = CameraPose(
+    chest_pose = CameraPose(
         xy=(0.0, 0.0), z=1.0, yaw_rad=0.0,
+        # Chest-cam mounted pitched 30° downward (matches Phase 1-4
+        # CHEST_CAM_PITCH_DEG).
         pitch_rad=math.radians(-30),
     )
     depth = np.full((intr.height, intr.width), 2.0, dtype=np.float32)
     for k in range(3):
         backend.step_perception(
-            depth=depth, camera_pose=cam_pose,
+            chest_depth=depth, chest_pose=chest_pose,
             robot_xy=(0.0, 0.0), now=float(k) * 0.1,
         )
 
     # Some cells along the camera's line of sight must have been
     # promoted away from UNKNOWN.
+    grid = backend.provider.grid_for_planner()
+    assert int((grid != int(CellState.UNKNOWN)).sum()) > 0
+
+
+# ── LA-0b.3: chest + head dual-stream fold-in ──────────────────────────────
+def test_step_perception_chest_plus_head_folds_both_streams() -> None:
+    """Both cameras feeding the same provider: cells covered by chest
+    *or* head should end up observed; cells covered by both still
+    classify consistently. Verifies the LA-0b.3 multi-camera fold-in
+    is just additive — the consistency gate handles both streams the
+    same way."""
+    cfg = _StubCfg(
+        scene=_StubScene(hm_bounds_xy=(-5.0, -5.0, 5.0, 5.0)),
+        occupancy=_StubOcc(provider="heightmap"),
+    )
+    intr = CameraIntrinsics(
+        width=64, height=48,
+        fx=64 / (2 * math.tan(math.radians(45))),
+        fy=64 / (2 * math.tan(math.radians(45))),
+        cx=31.5, cy=23.5,
+    )
+    backend = OccupancyBackend.from_cfg(cfg)
+    backend.chest_intrinsics = intr
+    backend.head_intrinsics = intr   # same intrinsics for simplicity
+    backend.depth_stride = 1
+
+    # Chest sees ~1.7 m ahead at z≈0 (after the 30° pitch). Mock with
+    # a uniform 1.5 m depth — back-projection puts the points slightly
+    # forward and on the floor.
+    chest_pose = CameraPose(
+        xy=(0.0, 0.0), z=1.0, yaw_rad=0.0,
+        pitch_rad=math.radians(-30),
+    )
+    chest_depth = np.full((intr.height, intr.width), 1.5, dtype=np.float32)
+
+    # Head looks further out, slightly down (~10° pitch). 3 m depth
+    # → points land further from the robot.
+    head_pose = CameraPose(
+        xy=(0.0, 0.0), z=1.5, yaw_rad=0.0,
+        pitch_rad=math.radians(-10),
+    )
+    head_depth = np.full((intr.height, intr.width), 3.0, dtype=np.float32)
+
+    for k in range(3):
+        backend.step_perception(
+            chest_depth=chest_depth, chest_pose=chest_pose,
+            head_depth=head_depth, head_pose=head_pose,
+            robot_xy=(0.0, 0.0), now=float(k) * 0.1,
+        )
+
+    # Total observed cells must exceed what chest alone produces.
+    grid_both = backend.provider.grid_for_planner()
+    n_both = int((grid_both != int(CellState.UNKNOWN)).sum())
+
+    # Chest-only baseline.
+    backend_baseline = OccupancyBackend.from_cfg(cfg)
+    backend_baseline.chest_intrinsics = intr
+    backend_baseline.depth_stride = 1
+    for k in range(3):
+        backend_baseline.step_perception(
+            chest_depth=chest_depth, chest_pose=chest_pose,
+            robot_xy=(0.0, 0.0), now=float(k) * 0.1,
+        )
+    grid_chest = backend_baseline.provider.grid_for_planner()
+    n_chest = int((grid_chest != int(CellState.UNKNOWN)).sum())
+
+    # Folding in head extends coverage strictly.
+    assert n_both > n_chest, (
+        f"head-cam stream didn't add cells: chest_only={n_chest}, "
+        f"chest+head={n_both}"
+    )
+
+
+def test_step_perception_head_only_without_chest_is_supported() -> None:
+    """A pathological case: chest stream is offline (no depth this
+    tick) but the head-cam is firing. The backend must still fold the
+    head feed into the height map rather than dropping the tick
+    silently. Lets a hardware-side chest-cam outage degrade gracefully
+    instead of stopping the map cold."""
+    cfg = _StubCfg(
+        scene=_StubScene(hm_bounds_xy=(-5.0, -5.0, 5.0, 5.0)),
+        occupancy=_StubOcc(provider="heightmap"),
+    )
+    intr = CameraIntrinsics(
+        width=64, height=48,
+        fx=64 / (2 * math.tan(math.radians(45))),
+        fy=64 / (2 * math.tan(math.radians(45))),
+        cx=31.5, cy=23.5,
+    )
+    backend = OccupancyBackend.from_cfg(cfg)
+    backend.head_intrinsics = intr
+    backend.depth_stride = 1
+
+    head_pose = CameraPose(
+        xy=(0.0, 0.0), z=1.5, yaw_rad=0.0,
+        pitch_rad=math.radians(-10),
+    )
+    head_depth = np.full((intr.height, intr.width), 2.5, dtype=np.float32)
+
+    for k in range(3):
+        backend.step_perception(
+            chest_depth=None, chest_pose=None,
+            head_depth=head_depth, head_pose=head_pose,
+            robot_xy=(0.0, 0.0), now=float(k) * 0.1,
+        )
+
     grid = backend.provider.grid_for_planner()
     assert int((grid != int(CellState.UNKNOWN)).sum()) > 0
 

@@ -93,5 +93,8 @@ is the canary: if it drifts, the safety net broke.
 * [x] LA-0a — `OccupancyProvider` interface + USD-provider refactor
 * [x] LA-0b.1 — synthetic point cloud harness (10 tests, no Isaac, no GPU)
 * [x] LA-0b.2 — head-cam height-map integration (backproject + backend facade)
+* [x] LA-0b.3 — chest-cam as primary occupancy stream; head-cam opt-in
+      via peek/survey. `step_perception(chest_depth, chest_pose,
+      head_depth=, head_pose=, ...)` two-stream signature.
 * [x] LA-0c — frontier + info-gain + D14 semantic/variance costs
 * [ ] LA-1 through LA-10 — see plan

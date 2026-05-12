@@ -56,20 +56,38 @@ class OccupancyBackend:
     """Facade over :class:`OccupancyProvider` impls.
 
     Construct via :meth:`from_cfg` to pick USD vs. height-map from the
-    Hydra config.
+    Hydra config. The backend accepts two depth-camera streams
+    (LA-0b.3):
+
+    * **chest_intrinsics** — the chest-cam is the primary occupancy
+      feed. Fixed pitch downward (~30° on Phase 1-4 Alex), body-rigid
+      pose, near-field useful range. Always-on; the autonomy loop
+      passes its depth + pose each tick.
+    * **head_intrinsics** — the head-cam is opt-in. The agent's
+      ``peek`` / ``survey`` skills point it at specific viewpoints to
+      extend coverage; the same depth back-projection feeds the same
+      height map. Both contributions go through the consistency gate
+      together — the gate treats multi-camera observations as
+      independent votes on the same cell.
+
+    The :class:`OccupancyBackend` owns each camera's intrinsics; the
+    autonomy script supplies the per-tick *depth + pose* and lets the
+    backend handle back-projection.
     """
 
     def __init__(
         self,
         provider: OccupancyProvider,
         *,
-        intrinsics: Optional[CameraIntrinsics] = None,
+        chest_intrinsics: Optional[CameraIntrinsics] = None,
+        head_intrinsics: Optional[CameraIntrinsics] = None,
         depth_stride: int = 4,
         min_range_m: float = 0.05,
         max_range_m: float = 6.0,
     ) -> None:
         self.provider = provider
-        self.intrinsics = intrinsics
+        self.chest_intrinsics = chest_intrinsics
+        self.head_intrinsics = head_intrinsics
         self.depth_stride = int(depth_stride)
         self.min_range_m = float(min_range_m)
         self.max_range_m = float(max_range_m)
@@ -124,46 +142,71 @@ class OccupancyBackend:
     def step_perception(
         self,
         *,
-        depth: Optional[np.ndarray],
-        camera_pose: Optional[CameraPose],
-        robot_xy: Optional[Tuple[float, float]],
+        chest_depth: Optional[np.ndarray] = None,
+        chest_pose: Optional[CameraPose] = None,
+        head_depth: Optional[np.ndarray] = None,
+        head_pose: Optional[CameraPose] = None,
+        robot_xy: Optional[Tuple[float, float]] = None,
         now: float,
     ) -> None:
-        """Fold one camera tick into the provider.
+        """Fold up to two camera streams into the provider for one tick.
 
-        ``depth``/``camera_pose``/``intrinsics`` are required for the
-        height-map provider; USD ignores them. ``robot_xy`` drives the
-        drive-through stamp regardless of provider — USD's
-        ``drive_through`` is a no-op via the Protocol default, height
-        map records "the robot fit here".
+        Camera roles (LA-0b.3):
+
+        * **Chest** — primary occupancy feed. The autonomy script
+          should pass ``chest_depth`` + ``chest_pose`` every tick when
+          the chest-cam is alive. ``chest_pose`` is body-rigid (no neck
+          state to track); the pitch is a robot constant
+          (Phase 1-4 Alex: 30° downward).
+        * **Head** — secondary, opportunistic. The agent's ``peek`` /
+          ``survey`` skills point it; the autonomy script forwards
+          whatever depth + pose Isaac produces this tick. When the
+          head-cam is parked (no live frame), pass ``head_depth=None``.
+
+        Both streams feed the **same** :class:`HeightMapProvider`. The
+        consistency gate already handles multiple observations per cell
+        — chest and head contributions vote together. If both streams
+        are ``None`` (cameras offline this tick) the backend still
+        advances the provider's clock so staleness queries keep
+        ticking; the drive-through stamp still fires from
+        ``robot_xy``.
+
+        USD providers ignore the depth arguments entirely (the rasterised
+        grid is set at construction time); only the drive-through stamp
+        applies, and that's a no-op for USD.
         """
-        # Drive-through stamp: works for both providers (USD's is no-op).
+        # Drive-through stamp: HeightMap only (USD has no concept).
         if robot_xy is not None and isinstance(self.provider, HeightMapProvider):
             self.provider.drive_through(world_xy=robot_xy, now=now)
 
-        # Depth → world point cloud → height-map update.
-        # USD has no update() side-effects, but we call it anyway so the
-        # Protocol contract holds end-to-end.
-        if isinstance(self.provider, HeightMapProvider):
-            if depth is None or camera_pose is None or self.intrinsics is None:
-                # Live perception not yet wired; keep ticking the clock
-                # so staleness queries advance.
-                self.provider.advance_time_to(now=now)
-                return
+        if not isinstance(self.provider, HeightMapProvider):
+            # USD: nothing to fold in. Still call update() once for the
+            # Protocol contract — it's a no-op.
+            self.provider.update(None, None)
+            return
+
+        # Collect both camera contributions (each may be absent).
+        any_fed = False
+        for depth, pose, intr in (
+            (chest_depth, chest_pose, self.chest_intrinsics),
+            (head_depth, head_pose, self.head_intrinsics),
+        ):
+            if depth is None or pose is None or intr is None:
+                continue
             cloud = depth_to_world_points(
-                depth,
-                self.intrinsics,
-                camera_pose,
+                depth, intr, pose,
                 min_range_m=self.min_range_m,
                 max_range_m=self.max_range_m,
                 stride=self.depth_stride,
                 timestamp=now,
             )
             self.provider.update(point_cloud=cloud, pose=Pose(), now=now)
-        else:
-            # USD provider: nothing to fold in. Still safe to call
-            # update() per the Protocol — it's a no-op.
-            self.provider.update(None, None)
+            any_fed = True
+
+        if not any_fed:
+            # No camera fired this tick (both offline or pre-wiring);
+            # keep the clock moving so staleness queries advance.
+            self.provider.advance_time_to(now=now)
 
     # ── Watchdog query ─────────────────────────────────────────────
     def maybe_invalidate_path(
