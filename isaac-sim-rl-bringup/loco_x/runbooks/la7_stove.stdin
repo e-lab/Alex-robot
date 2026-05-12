@@ -1,67 +1,101 @@
 # LA-7 stdin script — drive Alex to the stove.
 #
 # Format: each turn is a fenced ```python ... ``` block followed by a
-# bare `EOF` line. The StdinClient reads until EOF, returns the block
-# to the parser, then waits for the next agent tick (~0.5 s gated on
-# FSM idle).
+# bare `EOF` line. The StdinClient reads one block per agent turn.
 #
-# The script is *patient*: rather than racing through 3 turns and
-# giving up, each turn first checks whether SAM3 has grounded the
-# stove, and only takes a strategic action if it has. ``stop()`` is
-# a one-tick safe-pause that doesn't consume goal state, so an
-# observation-only turn just enqueues a no-op task and lets SAM3
-# catch up. We end with ``finish()`` only after we see the goal.
+# Strategy:
+# 1. Each turn enumerates what SAM3 has currently grounded so the
+#    log shows which labels were seen and where.
+# 2. Tries ``stove`` first, then ``oven`` (the kitchen appliance can
+#    SAM3-label either way depending on prompt prioritisation).
+# 3. ``goto`` is the only skill that actually drives the robot in
+#    this build (peek / survey / face write bundle fields no
+#    consumer reads yet). Once a goto fires, Phase 1-4's planner
+#    walks Alex; the agent then waits — gating on FSM≠IDLE — until
+#    arrival, at which point we declare success.
+# 4. If we burn through every turn without finding the goal, the
+#    last turn calls ``fail()`` so the run logs an honest failure
+#    rather than masquerading as a success.
 
 ```python
-# Turn 1: SAM3 may not have fired yet. Check; act if it has.
-if find("stove")["status"] == "ok":
-    goto("stove")
-else:
-    # Don't do anything yet — give SAM3 a chance to detect.
-    stop()
+# Turn 1
+nodes = list_scene()["value"]
+print("la7 turn 1 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+goto_done = False
+for label in ("stove", "oven"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        goto_done = True
+        break
+print("la7 turn 1 goto_done:", goto_done)
 ```
 EOF
 
 ```python
-# Turn 2: same as turn 1.
-if find("stove")["status"] == "ok":
-    goto("stove")
-else:
-    stop()
+# Turn 2
+nodes = list_scene()["value"]
+print("la7 turn 2 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+goto_done = False
+for label in ("stove", "oven"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        goto_done = True
+        break
+print("la7 turn 2 goto_done:", goto_done)
 ```
 EOF
 
 ```python
-# Turn 3: same as turn 1.
-if find("stove")["status"] == "ok":
-    goto("stove")
-else:
-    stop()
+# Turn 3
+nodes = list_scene()["value"]
+print("la7 turn 3 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+goto_done = False
+for label in ("stove", "oven"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        goto_done = True
+        break
+print("la7 turn 3 goto_done:", goto_done)
 ```
 EOF
 
 ```python
-# Turn 4: same as turn 1.
-if find("stove")["status"] == "ok":
-    goto("stove")
-else:
-    stop()
+# Turn 4
+nodes = list_scene()["value"]
+print("la7 turn 4 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+goto_done = False
+for label in ("stove", "oven"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        goto_done = True
+        break
+print("la7 turn 4 goto_done:", goto_done)
 ```
 EOF
 
 ```python
-# Turn 5: same as turn 1.
-if find("stove")["status"] == "ok":
-    goto("stove")
-else:
-    stop()
+# Turn 5
+nodes = list_scene()["value"]
+print("la7 turn 5 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        break
 ```
 EOF
 
 ```python
-# Turn 6: a goto has fired by now and Phase 1-4 is walking. Declare
-# success — the runner's last_action will reflect whether goto
-# enqueued cleanly; the autonomy loop drives the walk independently.
-finish("LA-7 stdin run complete")
+# Turn 6 — only reaches the runner if the FSM has stayed IDLE through
+# turns 1-5 (no goto enqueued). That means we never saw the goal;
+# fail honestly so the log reflects it.
+nodes = list_scene()["value"]
+print("la7 final seen:", [(n["label"], n["world_xy"]) for n in nodes])
+seen_labels = sorted({n["label"] for n in nodes})
+fail("stove not found after 5 observation turns; saw: " + str(seen_labels))
 ```
 EOF

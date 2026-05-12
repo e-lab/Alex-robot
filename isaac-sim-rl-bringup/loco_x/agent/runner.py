@@ -68,13 +68,14 @@ class RunnerConfig:
     # LA-7 diagnostic: print one line per turn so the sim log shows
     # the agent at work. Default on for the integrated runtime.
     verbose: bool = True
-    # LA-7: give perception (SAM3, height map) time to produce at
-    # least one observation before the agent fires its first turn.
-    # Without this, the LLM gets a turn-1 observation with
-    # ``scene_nodes=0`` because SAM3 hasn't run yet, and a
-    # short script can race through all its planned turns before
-    # any geometry exists for the LLM to reason about.
-    startup_delay_s: float = 2.0
+    # LA-7: give perception (SAM3 + Phase-1-4 goal lock) time to
+    # produce enough observations before the agent fires its first
+    # turn. SAM3's min_observations gate (default 3) plus the
+    # goal-lock confidence threshold typically take ~5 s from a
+    # clean start; firing the agent earlier produces empty-graph
+    # observations and burns turns on stop()/find() that can't
+    # succeed yet.
+    startup_delay_s: float = 5.0
 
 
 # ── Runner ─────────────────────────────────────────────────────────────────
@@ -193,10 +194,11 @@ class AgentRunner:
         observation = build_observation(self.bundle, now=now)
         self._update_progress_history()
         if cfg.verbose:
-            n_nodes = len(self.bundle.get("scene_nodes") or [])
+            nodes = self.bundle.get("scene_nodes") or []
+            labels = ", ".join(n.get("label", "?") for n in nodes[:8]) or "—"
             print(f"[loco_x] turn {self.turn_count + 1}/{cfg.max_turns}: "
                   f"observation built ({len(observation)} chars, "
-                  f"{n_nodes} scene nodes)")
+                  f"{len(nodes)} scene nodes: [{labels}])")
 
         # Optionally annotate the observation with the stall warning.
         if self.stall_warning_active:
