@@ -285,6 +285,44 @@ class HeightMapProvider:
             return float("inf")
         return float(self._now - rec.last_seen_t)
 
+    # ── Watchdog queries for the path-invalidation hook ────────────
+    def path_invalidated_by_new_obstacle(
+        self, path_xys: List[WorldXY]
+    ) -> Optional[WorldXY]:
+        """Scan a planned path; return the first cell along it that has
+        flipped to OBSTACLE since the path was planned, or ``None`` if
+        the path is still clear.
+
+        This is the LA-0b.2 watchdog hook (D10): when a new high-
+        confidence obstacle appears under the planned line, the
+        follower clears ``bundle["path"]`` and the autonomy loop
+        re-plans next tick. The agent only hears about it on the
+        *next* turn via ``last_event``.
+        """
+        for xy in path_xys:
+            if self.query(xy) == CellState.OBSTACLE:
+                return xy
+        return None
+
+    def max_path_staleness(
+        self, path_xys: List[WorldXY]
+    ) -> Tuple[float, Optional[WorldXY]]:
+        """Return the maximum staleness across a planned path along
+        with the world-XY of that worst cell.
+
+        Used by the agent observation builder (D10): when any path cell
+        has gone stale beyond ``path_freshness_s`` (15 s) but is still
+        globally fresh, surface it so the agent can ``peek`` before
+        ``goto``. The path itself is NOT invalidated — staleness is a
+        *signal*, not an action.
+        """
+        worst = (0.0, None)
+        for xy in path_xys:
+            s = self.staleness(xy)
+            if s > worst[0]:
+                worst = (s, xy)
+        return worst
+
     # ── Internal: classification + ring trim ───────────────────────
     def _trim(self, rec: _CellRecord) -> None:
         """Drop observations older than ``obs_window_s`` and keep the

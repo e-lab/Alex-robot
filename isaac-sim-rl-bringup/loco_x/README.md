@@ -91,7 +91,7 @@ is the canary: if it drifts, the safety net broke.
 ## Phase status
 
 * [x] LA-0a — `OccupancyProvider` interface + USD-provider refactor
-* [ ] LA-0b.1 — synthetic point cloud harness
-* [ ] LA-0b.2 — head-cam height-map integration
+* [x] LA-0b.1 — synthetic point cloud harness (10 tests, no Isaac, no GPU)
+* [x] LA-0b.2 — head-cam height-map integration (backproject + backend facade)
 * [ ] LA-0c — frontier + info-gain + D14 semantic/variance costs
 * [ ] LA-1 through LA-10 — see plan
