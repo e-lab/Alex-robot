@@ -131,6 +131,51 @@ def test_dispatch_empty_queue_is_noop() -> None:
 
 
 # ── Unknown-task handling ──────────────────────────────────────────────────
+def test_dispatch_goto_seeds_goal_state_when_present() -> None:
+    """When the bundle carries a Phase 1-4 ``GoalState`` (the
+    autonomy script always does), the goto dispatcher must call
+    ``goal.set_fixed(...)`` so the FSM picks up the new target.
+    Also clears any cached planner path so the next tick re-plans.
+    """
+    class _StubGoal:
+        def __init__(self):
+            self.xyz = None
+            self.locked = False
+        def set_fixed(self, xyz):
+            self.xyz = tuple(xyz)
+            self.locked = True
+
+    bundle = _bundle()
+    bundle["goal"] = _StubGoal()
+    bundle["path"] = [(0, 0), (1, 1)]
+    bundle["path_index"] = 0
+    bundle["task_queue"].append({
+        "kind": "goto", "label": "stove", "world_xy": (2.0, 0.5),
+    })
+    TaskDispatcher().drain(bundle)
+    # GoalState was set with the world_xy + z=0.
+    assert bundle["goal"].xyz == (2.0, 0.5, 0.0)
+    assert bundle["goal"].locked is True
+    # Cached path cleared so the planner re-runs.
+    assert bundle["path"] is None
+    assert bundle["path_index"] == 0
+
+
+def test_dispatch_goto_xy_seeds_goal_state_when_present() -> None:
+    """Same contract for ``goto_xy`` — the unlabeled coord-only path."""
+    class _StubGoal:
+        def __init__(self):
+            self.xyz = None
+        def set_fixed(self, xyz):
+            self.xyz = tuple(xyz)
+
+    bundle = _bundle()
+    bundle["goal"] = _StubGoal()
+    bundle["task_queue"].append({"kind": "goto_xy", "xy": (3.0, -1.5)})
+    TaskDispatcher().drain(bundle)
+    assert bundle["goal"].xyz == (3.0, -1.5, 0.0)
+
+
 def test_dispatch_unknown_task_kind_raises() -> None:
     """An unknown task kind is a programmer bug (skill author drift),
     not LLM hallucination — the LLM can only produce kinds the

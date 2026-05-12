@@ -1253,24 +1253,60 @@ def _step_autonomy(bundle: dict, robot) -> None:
     # land *before* the rest of the FSM logic this tick consumes
     # them, so we drain the queue here at the top.
     if "agent" in bundle:
-        bundle["robot_pose"] = {
-            "xy": (float(pos[0]), float(pos[1])),
-            "yaw_rad": float(yaw),
-        }
-        bundle["fsm_mode"] = bundle["fsm"].mode.name if hasattr(
-            bundle["fsm"], "mode"
-        ) else "IDLE"
-        bundle["agent"].poll(now)
-        if "dispatcher" in bundle:
-            try:
-                bundle["dispatcher"].drain(bundle)
-            except Exception as e:
-                print(f"[loco_x] dispatcher error: {e}")
-        # If the agent has decided to stop, force the safe-stop _cmd
-        # via the same path Phase 4's RECOVERY-FAILED case uses.
-        if bundle.get("agent_should_stop") and bundle.get("safe_stop_requested"):
-            _cmd[:] = (0.0, 0.0, 0.0, 1.0)
-            return
+        try:
+            bundle["robot_pose"] = {
+                "xy": (float(pos[0]), float(pos[1])),
+                "yaw_rad": float(yaw),
+            }
+            # FSMController.mode is a plain string (FSMMode.SEARCH ==
+            # "search"); the runner gate accepts "idle" / "arrived" so
+            # the agent will tick whenever the FSM isn't actively
+            # walking or searching. We also map "arrived" → "IDLE" so
+            # one-shot tasks complete naturally and the next observation
+            # surfaces ARRIVED in last_action.
+            fsm_str = str(getattr(bundle["fsm"], "mode", "search")).lower()
+            if fsm_str in ("search", "idle", "arrived"):
+                bundle["fsm_mode"] = "IDLE"
+            else:
+                bundle["fsm_mode"] = fsm_str.upper()
+            # Bridge SAM3's SceneGraph objects → the agent's
+            # bundle["scene_nodes"] shape. The agent observation
+            # builder reads ``label / world_xy / last_seen /
+            # confidence`` from this list. We rebuild it each tick
+            # so newly-detected objects appear next agent turn (D13:
+            # observation is a snapshot at build time, perception
+            # keeps running between snapshots).
+            sg = bundle.get("scene_graph")
+            if sg is not None and hasattr(sg, "objects"):
+                nodes: list = []
+                for obj in sg.objects.values():
+                    pos_xyz = getattr(obj, "position_xyz", None)
+                    if pos_xyz is None or len(pos_xyz) < 2:
+                        continue
+                    nodes.append({
+                        "label": getattr(obj, "label", "?"),
+                        "world_xy": (float(pos_xyz[0]), float(pos_xyz[1])),
+                        "last_seen": float(getattr(obj, "last_seen_tick", 0)),
+                        "confidence": float(getattr(obj, "confidence", 0.0)),
+                    })
+                bundle["scene_nodes"] = nodes
+            bundle["agent"].poll(now)
+            if "dispatcher" in bundle:
+                try:
+                    bundle["dispatcher"].drain(bundle)
+                except Exception as e:
+                    print(f"[loco_x] dispatcher error: {e}")
+            # If the agent has decided to stop, force the safe-stop _cmd
+            # via the same path Phase 4's RECOVERY-FAILED case uses.
+            if bundle.get("agent_should_stop") and bundle.get("safe_stop_requested"):
+                _cmd[:] = (0.0, 0.0, 0.0, 1.0)
+                return
+        except Exception as e:
+            # Never let the agent integration crash the autonomy loop
+            # — print and continue with the existing Phase 1-4 path.
+            print(f"[loco_x] tick error (continuing without agent): {e}")
+            import traceback as _tb
+            _tb.print_exc()
 
     # ── Phase 4: recovery state machine (top of tick) ──────────────────
     #

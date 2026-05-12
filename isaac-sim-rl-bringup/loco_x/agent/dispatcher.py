@@ -36,18 +36,40 @@ class UnknownTaskKind(ValueError):
 Handler = Callable[[Dict[str, Any], Dict[str, Any]], None]
 
 
+def _seed_phase1_4_goal(bundle: Dict[str, Any], xy) -> None:
+    """Seed the Phase 1-4 ``GoalState`` if it's present on the bundle.
+
+    The agent + Phase 1-4 share the same FSM via the same ``goal``
+    object. ``goto`` skills emitted by the LLM must land in
+    ``bundle["goal"].set_fixed(...)`` so the planner re-runs and the
+    follower walks. We keep ``goal_lock_xyz`` populated too so any
+    unit test (or future direct consumer) can read it without
+    poking the GoalState.
+    """
+    if xy is None:
+        return
+    bundle["goal_lock_xyz"] = tuple(xy)
+    goal = bundle.get("goal")
+    if goal is not None and hasattr(goal, "set_fixed"):
+        # GoalState.set_fixed expects (x, y, z); ground at z=0 since
+        # the planner uses XY only and the FSM doesn't read z for
+        # arrival checks.
+        z = float(xy[2]) if len(xy) >= 3 else 0.0
+        goal.set_fixed((float(xy[0]), float(xy[1]), z))
+    # Force a re-plan next tick: clear cached path so the autonomy
+    # loop's _maybe_plan_path_on_lock helper picks up the new goal.
+    bundle["path"] = None
+    bundle["path_index"] = 0
+
+
 def _h_goto(bundle: Dict[str, Any], task: Dict[str, Any]) -> None:
     bundle["goal_label"] = task.get("label")
-    xy = task.get("world_xy")
-    if xy is not None:
-        bundle["goal_lock_xyz"] = tuple(xy)
+    _seed_phase1_4_goal(bundle, task.get("world_xy"))
 
 
 def _h_goto_xy(bundle: Dict[str, Any], task: Dict[str, Any]) -> None:
     bundle["goal_label"] = None
-    xy = task.get("xy")
-    if xy is not None:
-        bundle["goal_lock_xyz"] = tuple(xy)
+    _seed_phase1_4_goal(bundle, task.get("xy"))
 
 
 def _h_face(bundle: Dict[str, Any], task: Dict[str, Any]) -> None:

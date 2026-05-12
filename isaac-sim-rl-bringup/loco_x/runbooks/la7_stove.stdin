@@ -1,0 +1,39 @@
+# LA-7 stdin script — drive Alex to the stove with a 3-turn plan.
+#
+# Format: each turn is a fenced ```python ... ``` block followed by a
+# bare `EOF` line. The StdinClient reads until EOF, returns the block
+# to the parser, then waits for the next agent tick.
+#
+# Three turns: peek-if-needed, goto, finish. Add or replace turns as
+# the scene evolves.
+
+```python
+# Turn 1: if SAM3 hasn't grounded the stove yet, sweep the head;
+# otherwise walk to it directly.
+if find("stove")["status"] == "error":
+    peek("left")
+else:
+    goto("stove")
+```
+EOF
+
+```python
+# Turn 2: at this point the stove should be in the scene graph.
+# If it's still missing, give one more chance with a quick survey;
+# otherwise approach.
+result = find("stove")
+if result["status"] == "ok":
+    goto("stove")
+else:
+    survey(quick=True)
+```
+EOF
+
+```python
+# Turn 3: regardless of whether we walked or just kept looking,
+# declare success when the goal was reached. If goto returned
+# something other than ok next turn, the LLM (or operator) would
+# re-evaluate; for this scripted run we end here.
+finish("LA-7 stdin run complete")
+```
+EOF

@@ -62,32 +62,41 @@ Verify the end-to-end loop with a human stand-in for the LLM:
     loco_x=stdin
 ```
 
-### What you do at the terminal
+### Recommended: piped stdin script (not interactive)
 
-When you see the `[loco_x] agent enabled  tick_hz=2.0 max_turns=20`
-banner, the agent will request its first turn within ~0.5 s and
-print the observation to stdout. Type your response (one fenced
-Python block) and end with `EOF` on its own line:
+Isaac Sim takes over the terminal and viewer; typing into the
+launching shell is fragile. Use a pre-canned script file and pass
+it via ``loco_x.stdin_path``:
+
+```bash
+./isaaclab.sh -p .../alex_onnx_walking_policy.py \
+    --enable_cameras scene=room autonomy=approach \
+    autonomy.target=stove detector=sam3 rerun=full \
+    loco_x=stdin \
+    loco_x.stdin_path=$PWD/loco_x/runbooks/la7_stove.stdin
+```
+
+The shipped ``loco_x/runbooks/la7_stove.stdin`` contains three
+turns (peek-if-needed, goto, finish) bounded by ``EOF`` lines —
+the same protocol the interactive mode uses. Edit the file to
+change behaviour.
+
+### Interactive mode (rare)
+
+If you really want to type at the terminal, launch the script,
+wait for the ``[loco_x] agent enabled`` banner, then in **the
+same terminal where you launched Isaac** type:
 
 ```
 ```python
-if find("stove")["status"] == "error":
-    peek("left")
-else:
-    goto("stove")
+goto('stove')
 ```
 EOF
 ```
 
-Repeat per turn. After the goto, when you see `[autonomy] ARRIVED`,
-end the run:
-
-```
-```python
-finish("reached stove")
-```
-EOF
-```
+Isaac's viewer needs focus for keyboard hotkeys (F-key fall,
+etc.) but the *shell* is where stdin lives. If you can't get input
+to register, use the piped form above.
 
 ### Pass criteria (from plan §LA-7)
 
@@ -100,9 +109,12 @@ EOF
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Agent never asks for a turn | FSM never reaches IDLE | Check `bundle["fsm_mode"]` print; the LA-6 wiring sets it from `bundle["fsm"].mode.name` |
+| Run ends after 2-3 s with `(no timing data)` | Sim closed before the autonomy loop ran | Re-run *without* `loco_x=stdin` first to confirm the base demo works. If it still exits fast, check Isaac's GPU memory warnings — your `peak GPU allocated: 3301 MB` looks healthy, but the budget-manager warning in the log suggests the carb runtime gave up. |
+| Agent never asks for a turn (no `[loco_x] turn 1`) | FSM mode mismatch (Phase 1-4's mode is a string, not an enum) | Fixed in `_step_autonomy` — reads `str(getattr(bundle["fsm"], "mode", "search"))` and maps to "IDLE" for search/idle/arrived. |
 | `unknown call: peek` | Sandbox couldn't find the skill | Check `import loco_x.skills` succeeds standalone |
-| Stuck on first peek | Head joint not being commanded | `head_yaw_request` is set on the bundle; LA-6 dispatcher writes it but the autonomy loop needs LA-7+ wiring to actually move the joint. Until then, simulate the "peek worked" outcome by adding a stove node to the scene-graph manually. |
+| Robot stands still, no walking | `goto` skill ran but the FSM didn't pick up the new goal | Dispatcher writes `bundle["goal"].set_fixed(...)` via `_seed_phase1_4_goal` — verify `bundle["goal"]` is a `GoalState` instance, not None. |
+| Empty scene_graph in observation | SAM3 hasn't fired yet, or scene-graph bridge missing | The autonomy loop's LA-6 hook rebuilds `bundle["scene_nodes"]` from `bundle["scene_graph"].objects` each tick. If your observation always shows `(empty)`, SAM3 simply hasn't grounded anything yet — peek/survey to extend coverage. |
+| Stuck on first peek | Head joint not being commanded | `head_yaw_request` is set on the bundle but the autonomy loop doesn't yet read it. Workaround: rely on natural pose drift + chest-cam coverage, or pre-position the head with `face(yaw)` before the run. |
 
 ---
 
