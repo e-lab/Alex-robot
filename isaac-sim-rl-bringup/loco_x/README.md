@@ -98,6 +98,6 @@ is the canary: if it drifts, the safety net broke.
       head_depth=, head_pose=, ...)` two-stream signature.
 * [x] LA-0c — frontier + info-gain + D14 semantic/variance costs
 * [x] LA-1 — skill registry + AST/exec-timeout sandbox (D1, D4)
-* [ ] LA-2 — observation builder (D2 spatial-temporal filter + D9 dual coords)
+* [x] LA-2 — observation builder (D2 spatial-temporal filter + D9 dual coords + D13 snapshot)
 * [ ] LA-3 (folded into LA-0c) — see plan
 * [ ] LA-4 through LA-10 — see plan
