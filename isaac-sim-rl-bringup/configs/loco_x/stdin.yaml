@@ -1,0 +1,20 @@
+# @package loco_x
+# LA-7 sim acceptance: human-in-the-loop or piped script as the LLM.
+#
+# Two modes:
+#   1. Interactive — leave stdin_path=null. The autonomy script reads
+#      multi-line responses from this terminal, bounded by a single
+#      ``EOF`` line per turn. Useful for stepping through a sim
+#      acceptance scenario by hand.
+#   2. Piped — set stdin_path to a file containing pre-canned
+#      response blocks (each separated by an ``EOF`` line). The runner
+#      reads one response per agent turn until the file ends; after
+#      that the runner times out per max_turns.
+#
+# No network. No API key needed.
+enabled: true
+tick_hz: 2.0
+max_turns: 20
+exec_timeout_s: 5.0
+client: stdin
+stdin_path: null   # null = real stdin; otherwise a file path

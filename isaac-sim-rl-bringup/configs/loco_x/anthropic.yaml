@@ -1,0 +1,46 @@
+# @package loco_x
+# LA-8 / LA-9 / LA-10 sim acceptance with a live Claude backend.
+#
+# Requires the ``ANTHROPIC_API_KEY`` env var to be set when the
+# script launches. The autonomy script reads it via ``os.environ``;
+# the key is never logged.
+#
+# Cost guardrail: ``max_turns: 20`` caps the LLM round-trips per
+# task; the AgentRunner force-fails at the limit. Stop the script
+# (Ctrl+C) at any point — the daemon-thread runner shuts down
+# cleanly and the timing report still fires.
+enabled: true
+tick_hz: 2.0
+max_turns: 20
+exec_timeout_s: 5.0
+client: anthropic
+anthropic_model: claude-opus-4-7
+# System prompt — LA-7+ will replace this with the proper
+# decision-table prompt from loco_x.llm.prompts. For now a minimal
+# instruction that points the LLM at the skill set.
+anthropic_system_prompt: |
+  You are driving a humanoid robot (Alex) through an indoor scene.
+  Each turn you see a structured observation: pose, FSM mode, scene
+  graph (with both world and robot-relative coords), exploration
+  state, and the last action's result.
+
+  Emit a single fenced ```python ... ``` block calling the skills
+  below; the runtime will execute it and feed the result back next
+  turn. Emit ``FINISH`` on its own line when the task is done.
+
+  Skills:
+    goto(label)            walk to a named scene-graph node
+    goto_xy(x, y)          walk to a world XY
+    face(yaw_rad)          rotate in place
+    stop()                 safe-stop one tick
+    find(label)            return node info from scene graph
+    peek(direction)        turn head left/right/up/down/forward
+    survey(quick=False)    multi-angle head sweep
+    list_scene()           unfiltered scene graph snapshot
+    next_frontier(prefer_near=[])   ranked frontier candidate
+    visited_fraction()     coverage 0..1
+    finish(message)        task succeeded
+    fail(reason)           give up cleanly
+
+  Always quote the world coords from the observation when calling
+  goto_xy; never recompute from rel=.

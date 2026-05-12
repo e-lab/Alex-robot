@@ -145,11 +145,25 @@ class LocoXConfig:
     """LA-6: Loco-X agent integration. ``enabled=False`` (default)
     means Phase 1-4 behaviour is unchanged. When enabled, the
     autonomy script builds an AsyncRunner + TaskDispatcher and the
-    LLM agent drives goto / face / stop / peek / survey skills."""
+    LLM agent drives goto / face / stop / peek / survey skills.
+
+    ``client`` selects which LLM backend the runner uses:
+
+    * ``scripted`` — one-response placeholder (LA-6 dev path).
+    * ``stdin``    — reads from a file or stdin (interactive REPL
+                     for sim-acceptance LA-7; no network).
+    * ``anthropic`` — Claude Messages API; requires the
+                     ``ANTHROPIC_API_KEY`` env var.
+    """
     enabled: bool = False
     tick_hz: float = 2.0
     max_turns: int = 20
     exec_timeout_s: float = 5.0
+    # Client selection (LA-7 wiring).
+    client: str = "scripted"               # scripted | stdin | anthropic
+    stdin_path: str | None = None          # null → real stdin; path → file pipe
+    anthropic_model: str = "claude-opus-4-7"
+    anthropic_system_prompt: str = ""      # set by LA-6+ prompts module
 
 
 @dataclass

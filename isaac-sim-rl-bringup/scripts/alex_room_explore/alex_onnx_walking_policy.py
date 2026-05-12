@@ -824,6 +824,73 @@ def _make_keyboard(sim_device: str) -> Se2Keyboard:
     return kb
 
 
+# ── Loco-X client factory (LA-7+) ────────────────────────────────────────────
+def _make_loco_x_client(cfg):
+    """Build the LLM client the AsyncRunner will use, based on
+    ``cfg.loco_x.client``. Three backends today:
+
+    * ``scripted`` — one-response placeholder; runs a single
+      ``finish()`` and stops. Useful for the LA-6 end-to-end pipeline
+      smoke test.
+    * ``stdin``    — interactive REPL or a piped file. Reads one
+      multi-line response per turn, bounded by an ``EOF`` line. No
+      network. Drives LA-7 sim acceptance.
+    * ``anthropic`` — Claude Messages API. Requires
+      ``ANTHROPIC_API_KEY`` to be set in the environment. Drives
+      LA-8 / LA-9 / LA-10 sim acceptance.
+
+    On misconfiguration (e.g. anthropic selected with no API key) we
+    fall back to ``scripted`` rather than crashing the sim — the
+    autonomy loop keeps running and the agent reports a clear stop
+    reason on its first tick.
+    """
+    import os
+    from loco_x.llm.client import (
+        AnthropicClient,
+        ScriptedClient,
+        StdinClient,
+    )
+
+    name = str(getattr(cfg.loco_x, "client", "scripted")).lower()
+
+    if name == "scripted":
+        return ScriptedClient(responses=[
+            "```python\nfinish('loco_x=scripted placeholder — pick stdin or anthropic for real runs')\n```",
+        ])
+
+    if name == "stdin":
+        path = getattr(cfg.loco_x, "stdin_path", None)
+        stream = None
+        if path:
+            try:
+                stream = open(path, "r")
+            except OSError as e:
+                print(f"[loco_x] stdin_path open failed ({e}); falling back to real stdin")
+        return StdinClient(stream=stream)
+
+    if name == "anthropic":
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            print(
+                "[loco_x] client=anthropic but ANTHROPIC_API_KEY is unset — "
+                "falling back to a scripted placeholder. Set the env var "
+                "and relaunch to enable Claude."
+            )
+            return ScriptedClient(responses=[
+                "```python\nfail('ANTHROPIC_API_KEY not set')\n```",
+            ])
+        return AnthropicClient(
+            api_key=key,
+            model=str(getattr(cfg.loco_x, "anthropic_model", "claude-opus-4-7")),
+            system_prompt=str(getattr(cfg.loco_x, "anthropic_system_prompt", "")) or None,
+        )
+
+    print(f"[loco_x] unknown client={name!r}; falling back to scripted")
+    return ScriptedClient(responses=[
+        f"```python\nfail('unknown loco_x.client={name!r}')\n```",
+    ])
+
+
 # ── Autonomy bundle ──────────────────────────────────────────────────────────
 def _build_autonomy_bundle():
     """Construct FSM controller + GoalState + FallMonitor from the Hydra config.
@@ -970,14 +1037,10 @@ def _build_autonomy_bundle():
         if str(_BRINGUP) not in _sys.path:
             _sys.path.insert(0, str(_BRINGUP))
         from loco_x.agent import AsyncRunner, RunnerConfig, TaskDispatcher
-        from loco_x.llm.client import ScriptedClient
 
-        # LA-6 ships with a ScriptedClient placeholder; LA-7 sim
-        # acceptance will Hydra-select StdinClient or AnthropicClient
-        # via cfg.loco_x.client.
-        client = ScriptedClient(responses=[
-            "```python\nfinish('LA-6 placeholder client — wire a real client via cfg.loco_x.client')\n```",
-        ])
+        # LA-7+: Hydra-selected client. Three backends covered today:
+        # scripted / stdin / anthropic. See configs/loco_x/*.yaml.
+        client = _make_loco_x_client(cfg)
         runner_cfg = RunnerConfig(
             enabled=True,
             tick_hz=float(getattr(cfg, "loco_x", {}).get("tick_hz", 2.0)),

@@ -1,9 +1,10 @@
 # @package loco_x
-# LA-6: Loco-X agent on with a placeholder ScriptedClient. The autonomy
-# script's _build_autonomy_bundle currently hardwires a one-response
-# scripted client; LA-7 will Hydra-select between scripted / stdin /
-# anthropic / openrouter.
+# LA-6: Loco-X agent on with a placeholder ScriptedClient — emits a
+# single ``finish()`` and stops. Useful for end-to-end pipeline smoke
+# tests without an LLM; for actual sim acceptance pick
+# ``loco_x=stdin`` or ``loco_x=anthropic``.
 enabled: true
 tick_hz: 2.0
 max_turns: 20
 exec_timeout_s: 5.0
+client: scripted

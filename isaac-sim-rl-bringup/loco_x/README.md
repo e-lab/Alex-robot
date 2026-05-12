@@ -63,20 +63,31 @@ it under `autonomy/` and Loco-X picks it up for free.
 
 ## Running
 
+For the agent embedded in the existing Phase 1-4 demo (the only path
+that actually moves Alex today), pass the new `loco_x` Hydra group:
+
 ```bash
-# Default: USD-prior demo, agent off — identical to Phase 1-4.
-python -m loco_x.cli.run scene=room
+# Default: agent off — identical to Phase 1-4.
+./isaaclab.sh -p scripts/alex_room_explore/alex_onnx_walking_policy.py \
+    --enable_cameras scene=room autonomy=approach \
+    detector=sam3 rerun=full
 
-# No-prior height-map exploration:
-python -m loco_x.cli.run scene=room occupancy=heightmap
+# Loco-X agent on with a human-in-the-loop stdin client:
+./isaaclab.sh -p scripts/alex_room_explore/alex_onnx_walking_policy.py \
+    --enable_cameras scene=room autonomy=approach \
+    autonomy.target=stove detector=sam3 rerun=full \
+    loco_x=stdin
 
-# With the LLM agent driving:
-python -m loco_x.cli.run \
-    scene=room \
-    occupancy=heightmap \
-    agent=anthropic \
-    rerun=full
+# Loco-X agent on with Claude:
+export ANTHROPIC_API_KEY=sk-ant-...
+./isaaclab.sh -p scripts/alex_room_explore/alex_onnx_walking_policy.py \
+    --enable_cameras scene=room autonomy=approach \
+    autonomy.target=microwave detector=sam3 rerun=full \
+    loco_x=anthropic
 ```
+
+See [`SIM_ACCEPTANCE.md`](./SIM_ACCEPTANCE.md) for the LA-7 through
+LA-10 acceptance scenarios with pass criteria.
 
 ## Tests
 
