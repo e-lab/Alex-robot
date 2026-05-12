@@ -78,7 +78,7 @@ def test_async_poll_does_not_block_on_slow_client() -> None:
         delay_s=0.2,
     )
     runner = AsyncRunner(bundle=bundle, client=client,
-                         config=RunnerConfig(tick_hz=10.0))
+                         config=RunnerConfig(tick_hz=10.0, startup_delay_s=0.0, verbose=False))
     t0 = time.monotonic()
     runner.poll(now=0.0)
     dt = time.monotonic() - t0
@@ -96,7 +96,7 @@ def test_async_poll_eventually_completes_turn() -> None:
         delay_s=0.1,
     )
     runner = AsyncRunner(bundle=bundle, client=client,
-                         config=RunnerConfig(tick_hz=10.0))
+                         config=RunnerConfig(tick_hz=10.0, startup_delay_s=0.0, verbose=False))
     # Fire a poll, wait for the turn to finish, then poll again to
     # confirm state.
     runner.poll(now=0.0)
@@ -120,7 +120,7 @@ def test_async_poll_does_not_fire_concurrent_turns() -> None:
         delay_s=0.2,
     )
     runner = AsyncRunner(bundle=bundle, client=client,
-                         config=RunnerConfig(tick_hz=100.0))
+                         config=RunnerConfig(tick_hz=100.0, startup_delay_s=0.0, verbose=False))
     runner.poll(now=0.0)
     # Hammer poll() — none of these should kick off a second turn
     # while the first is in flight.
@@ -146,7 +146,7 @@ def test_async_shutdown_terminates_thread() -> None:
         delay_s=0.05,
     )
     runner = AsyncRunner(bundle=bundle, client=client,
-                         config=RunnerConfig(tick_hz=10.0))
+                         config=RunnerConfig(tick_hz=10.0, startup_delay_s=0.0, verbose=False))
     runner.poll(now=0.0)
     # Let the turn complete.
     deadline = time.monotonic() + 1.0

@@ -68,6 +68,13 @@ class RunnerConfig:
     # LA-7 diagnostic: print one line per turn so the sim log shows
     # the agent at work. Default on for the integrated runtime.
     verbose: bool = True
+    # LA-7: give perception (SAM3, height map) time to produce at
+    # least one observation before the agent fires its first turn.
+    # Without this, the LLM gets a turn-1 observation with
+    # ``scene_nodes=0`` because SAM3 hasn't run yet, and a
+    # short script can race through all its planned turns before
+    # any geometry exists for the LLM to reason about.
+    startup_delay_s: float = 2.0
 
 
 # ── Runner ─────────────────────────────────────────────────────────────────
@@ -87,6 +94,10 @@ class AgentRunner:
         self.config = config or RunnerConfig()
         self.turn_count: int = 0
         self._last_tick_t: Optional[float] = None
+        # Tracks the first ``now`` we ever see; used to enforce
+        # ``startup_delay_s`` so the agent doesn't tick before
+        # perception has had a chance to run.
+        self._first_poll_t: Optional[float] = None
         # Rolling buffer of recent visited_fraction values for D11.D.
         self._visited_history: Deque[float] = deque(
             maxlen=max(1, self.config.progress_stall_window_turns + 1)
@@ -121,6 +132,11 @@ class AgentRunner:
             return f"fsm={fsm} (waiting for IDLE/ARRIVED)"
         if self.bundle.get("task_queue"):
             return f"task_queue not empty ({len(self.bundle['task_queue'])} pending)"
+        if cfg.startup_delay_s > 0.0 and self._first_poll_t is not None:
+            elapsed = now - self._first_poll_t
+            if elapsed < cfg.startup_delay_s:
+                return (f"startup delay ({elapsed:.1f}s/"
+                        f"{cfg.startup_delay_s:.1f}s; waiting for perception)")
         if cfg.tick_hz > 0.0 and self._last_tick_t is not None:
             min_dt = 1.0 / cfg.tick_hz
             dt = now - self._last_tick_t
@@ -142,6 +158,15 @@ class AgentRunner:
         # Queue empty gate — give the autonomy loop a tick to drain.
         if self.bundle.get("task_queue"):
             return False
+        # Startup-delay gate: wait ``startup_delay_s`` from the first
+        # poll we ever see so SAM3 / heightmap have a chance to fire
+        # before the LLM sees an empty observation.
+        if self._first_poll_t is None:
+            self._first_poll_t = now
+        if cfg.startup_delay_s > 0.0:
+            elapsed = now - self._first_poll_t
+            if elapsed < cfg.startup_delay_s:
+                return False
         # tick_hz throttle.
         if cfg.tick_hz > 0.0 and self._last_tick_t is not None:
             min_dt = 1.0 / cfg.tick_hz
@@ -210,8 +235,15 @@ class AgentRunner:
             return
 
         if cfg.verbose:
-            code_preview = response.code.strip().splitlines()
-            preview = code_preview[0] if code_preview else "(no code)"
+            # Pick the first non-comment, non-empty line so the print
+            # is informative even when the LLM (or a runbook script)
+            # leads with a comment header.
+            preview = "(no code)"
+            for ln in response.code.splitlines():
+                s = ln.strip()
+                if s and not s.startswith("#"):
+                    preview = s
+                    break
             sig = f"  signal={response.signal}" if response.signal else ""
             print(f"[loco_x]   LLM → {preview!r}{sig}")
 
@@ -240,8 +272,22 @@ class AgentRunner:
         if cfg.verbose:
             last = self.bundle.get("last_action") or {}
             status = last.get("status", "?")
-            kind = last.get("kind") or last.get("error_kind") or "?"
-            print(f"[loco_x]   skill result: status={status} kind={kind}")
+            # Skill kind isn't always in the result dict (e.g.
+            # ``finish()`` returns a plain ok). Fall back to the last
+            # queued task's kind so the print reads as "status=ok
+            # kind=goto" when a goto was enqueued this turn.
+            kind = (
+                last.get("kind")
+                or last.get("error_kind")
+                or (self.bundle.get("task_queue") or [{}])[-1].get("kind")
+                or "ok"
+            )
+            extra = ""
+            if status == "error":
+                msg = last.get("message", "")
+                if msg:
+                    extra = f"  msg={msg!r}"
+            print(f"[loco_x]   skill result: status={status} kind={kind}{extra}")
 
     # ── Code execution + last-action capture ──────────────────────
     def _run_code(self, code: str) -> None:

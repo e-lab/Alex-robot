@@ -79,6 +79,9 @@ def _bundle(
 
 
 def _runner(bundle, *, responses, multimodal_responses=None, cfg=None):
+    """Build a test runner. Test default config disables the startup
+    delay (which is meant for real-world Isaac startup) so tests can
+    fire turns at now=0 without a 2 s warm-up."""
     client = ScriptedClient(
         responses=responses,
         multimodal_responses=multimodal_responses,
@@ -86,7 +89,7 @@ def _runner(bundle, *, responses, multimodal_responses=None, cfg=None):
     return AgentRunner(
         bundle=bundle,
         client=client,
-        config=cfg or RunnerConfig(),
+        config=cfg or RunnerConfig(startup_delay_s=0.0, verbose=False),
     )
 
 
@@ -143,7 +146,7 @@ def test_runner_throttles_to_tick_hz() -> None:
     runner = _runner(bundle, responses=[
         "```python\nstop()\n```",
         "```python\nstop()\n```",
-    ], cfg=RunnerConfig(tick_hz=2.0))
+    ], cfg=RunnerConfig(tick_hz=2.0, startup_delay_s=0.0, verbose=False))
     runner.maybe_tick(now=0.0)        # first tick fires
     assert runner.turn_count == 1
     bundle["task_queue"] = []         # autonomy loop drained it
@@ -230,7 +233,7 @@ def test_runner_records_sandbox_timeout_as_last_action() -> None:
     """An infinite loop kills via the wall-clock timeout. Same
     treatment as AST rejection: report and continue."""
     bundle = _bundle()
-    cfg = RunnerConfig(exec_timeout_s=0.1)
+    cfg = RunnerConfig(exec_timeout_s=0.1, startup_delay_s=0.0, verbose=False)
     runner = _runner(bundle, responses=[
         "```python\nwhile True:\n    pass\n```",
     ], cfg=cfg)
@@ -278,7 +281,7 @@ def test_runner_force_fails_on_max_turns() -> None:
     Reason quotes 'turn budget exhausted'."""
     bundle = _bundle()
     # 4 turns budgeted but the LLM never calls finish/fail.
-    cfg = RunnerConfig(max_turns=3)
+    cfg = RunnerConfig(max_turns=3, startup_delay_s=0.0, verbose=False)
     runner = _runner(bundle, responses=[
         "```python\ngoto('stove')\n```",
         "```python\ngoto('stove')\n```",
@@ -303,7 +306,8 @@ def test_runner_progress_stall_warning_appended_to_observation() -> None:
     ``stall_warning_active`` so a test can verify."""
     bundle = _bundle(occ_provider=_StubProvider(visited=0.05))
     cfg = RunnerConfig(progress_stall_window_turns=3,
-                       progress_stall_threshold=0.02)
+                       progress_stall_threshold=0.02,
+                       startup_delay_s=0.0, verbose=False)
     runner = _runner(bundle, responses=[
         "```python\nstop()\n```",
         "```python\nstop()\n```",
@@ -324,7 +328,8 @@ def test_runner_clears_stall_warning_when_progress_resumes() -> None:
     provider = _StubProvider(visited=0.05)
     bundle = _bundle(occ_provider=provider)
     cfg = RunnerConfig(progress_stall_window_turns=3,
-                       progress_stall_threshold=0.02)
+                       progress_stall_threshold=0.02,
+                       startup_delay_s=0.0, verbose=False)
     runner = _runner(bundle, responses=[
         "```python\nstop()\n```",
         "```python\nstop()\n```",

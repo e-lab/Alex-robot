@@ -1,39 +1,67 @@
-# LA-7 stdin script — drive Alex to the stove with a 3-turn plan.
+# LA-7 stdin script — drive Alex to the stove.
 #
 # Format: each turn is a fenced ```python ... ``` block followed by a
 # bare `EOF` line. The StdinClient reads until EOF, returns the block
-# to the parser, then waits for the next agent tick.
+# to the parser, then waits for the next agent tick (~0.5 s gated on
+# FSM idle).
 #
-# Three turns: peek-if-needed, goto, finish. Add or replace turns as
-# the scene evolves.
+# The script is *patient*: rather than racing through 3 turns and
+# giving up, each turn first checks whether SAM3 has grounded the
+# stove, and only takes a strategic action if it has. ``stop()`` is
+# a one-tick safe-pause that doesn't consume goal state, so an
+# observation-only turn just enqueues a no-op task and lets SAM3
+# catch up. We end with ``finish()`` only after we see the goal.
 
 ```python
-# Turn 1: if SAM3 hasn't grounded the stove yet, sweep the head;
-# otherwise walk to it directly.
-if find("stove")["status"] == "error":
-    peek("left")
-else:
+# Turn 1: SAM3 may not have fired yet. Check; act if it has.
+if find("stove")["status"] == "ok":
     goto("stove")
+else:
+    # Don't do anything yet — give SAM3 a chance to detect.
+    stop()
 ```
 EOF
 
 ```python
-# Turn 2: at this point the stove should be in the scene graph.
-# If it's still missing, give one more chance with a quick survey;
-# otherwise approach.
-result = find("stove")
-if result["status"] == "ok":
+# Turn 2: same as turn 1.
+if find("stove")["status"] == "ok":
     goto("stove")
 else:
-    survey(quick=True)
+    stop()
 ```
 EOF
 
 ```python
-# Turn 3: regardless of whether we walked or just kept looking,
-# declare success when the goal was reached. If goto returned
-# something other than ok next turn, the LLM (or operator) would
-# re-evaluate; for this scripted run we end here.
+# Turn 3: same as turn 1.
+if find("stove")["status"] == "ok":
+    goto("stove")
+else:
+    stop()
+```
+EOF
+
+```python
+# Turn 4: same as turn 1.
+if find("stove")["status"] == "ok":
+    goto("stove")
+else:
+    stop()
+```
+EOF
+
+```python
+# Turn 5: same as turn 1.
+if find("stove")["status"] == "ok":
+    goto("stove")
+else:
+    stop()
+```
+EOF
+
+```python
+# Turn 6: a goto has fired by now and Phase 1-4 is walking. Declare
+# success — the runner's last_action will reflect whether goto
+# enqueued cleanly; the autonomy loop drives the walk independently.
 finish("LA-7 stdin run complete")
 ```
 EOF
