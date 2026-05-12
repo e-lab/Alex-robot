@@ -99,5 +99,6 @@ is the canary: if it drifts, the safety net broke.
 * [x] LA-0c — frontier + info-gain + D14 semantic/variance costs
 * [x] LA-1 — skill registry + AST/exec-timeout sandbox (D1, D4)
 * [x] LA-2 — observation builder (D2 spatial-temporal filter + D9 dual coords + D13 snapshot)
-* [ ] LA-3 (folded into LA-0c) — see plan
-* [ ] LA-4 through LA-10 — see plan
+* [x] LA-3 (folded into LA-0c) — see plan
+* [x] LA-4 — LLM client + parsers (Scripted / Stdin / Anthropic; multimodal for D12)
+* [ ] LA-5 through LA-10 — see plan
