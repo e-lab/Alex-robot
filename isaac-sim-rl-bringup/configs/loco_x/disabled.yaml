@@ -1,0 +1,3 @@
+# @package loco_x
+# LA-6: Loco-X agent off (default). Phase 1-4 behaviour unchanged.
+enabled: false

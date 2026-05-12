@@ -102,5 +102,6 @@ is the canary: if it drifts, the safety net broke.
 * [x] LA-3 (folded into LA-0c) — see plan
 * [x] LA-4 — LLM client + parsers (Scripted / Stdin / Anthropic; multimodal for D12)
 * [x] LA-5 — agent runner (closed loop: observation → LLM → sandbox → skills)
-* [ ] LA-6 — wire `bundle["agent"].maybe_tick(now)` into `_step_autonomy`
+* [x] LA-6 — wire AsyncRunner + TaskDispatcher into `_step_autonomy`
+       (opt-in via `loco_x=scripted` Hydra group)
 * [ ] LA-7 through LA-10 — sim acceptance phases

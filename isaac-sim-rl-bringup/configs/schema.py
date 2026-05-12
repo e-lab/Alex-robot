@@ -141,6 +141,18 @@ class YoloConfig:
 
 
 @dataclass
+class LocoXConfig:
+    """LA-6: Loco-X agent integration. ``enabled=False`` (default)
+    means Phase 1-4 behaviour is unchanged. When enabled, the
+    autonomy script builds an AsyncRunner + TaskDispatcher and the
+    LLM agent drives goto / face / stop / peek / survey skills."""
+    enabled: bool = False
+    tick_hz: float = 2.0
+    max_turns: int = 20
+    exec_timeout_s: float = 5.0
+
+
+@dataclass
 class AlexAppConfig:
     """Top-level config for alex_onnx_walking_policy.py (the walking script)."""
     repo_root: str = "???"
@@ -151,6 +163,7 @@ class AlexAppConfig:
     rerun:     RerunConfig    = field(default_factory=RerunConfig)
     autonomy:  AutonomyConfig = field(default_factory=AutonomyConfig)
     output:    OutputConfig   = field(default_factory=OutputConfig)
+    loco_x:    LocoXConfig    = field(default_factory=LocoXConfig)
 
 
 # ── Root (cam_room_explore) ──────────────────────────────────────────────────
@@ -177,3 +190,4 @@ def register() -> None:
     cs.store(group="autonomy", name="base_autonomy", node=AutonomyConfig)
     cs.store(group="policy",   name="base_policy",   node=PolicyConfig)
     cs.store(group="yolo",     name="base_yolo",     node=YoloConfig)
+    cs.store(group="loco_x",   name="base_loco_x",   node=LocoXConfig)

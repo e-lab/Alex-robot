@@ -11,6 +11,7 @@ defaults:
   - yolo: disabled         # disabled | ihmc (mutually exclusive with detector)
   - rerun: disabled        # disabled | full
   - autonomy: manual       # manual | approach | fixed_xyz
+  - loco_x: disabled       # LA-6: disabled | scripted (LA-7: + stdin/anthropic)
   - _self_
 
 repo_root: "???"   # overridden at runtime by the entry script

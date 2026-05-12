@@ -178,6 +178,15 @@ args_cli.obstacle_cone_v_deg = cfg.autonomy.obstacle_cone_v_deg
 # Phase-2 perception goal: scene_graph save path (already exposed in schema)
 args_cli.scene_graph_path   = cfg.output.scene_graph_path
 
+# LA-6 — Loco-X agent integration. Soft feature flag, default off so
+# Phase 1-4 runs are unchanged. When enabled the autonomy loop builds
+# an AsyncRunner + TaskDispatcher into the bundle and calls them once
+# per tick. The runner queries an LLM client (Hydra-selected:
+# scripted / stdin / anthropic / openrouter); the dispatcher drains
+# skill-emitted tasks (goto / face / stop / peek / survey) into the
+# existing FSM control surface.
+args_cli.use_loco_x = bool(getattr(cfg, "loco_x", {}).get("enabled", False))
+
 # `autonomy=approach` requires SAM3 (perception path). Fail fast on misconfig.
 if args_cli.autonomy_mode == "approach":
     if not cfg.detector.enabled:
@@ -936,6 +945,52 @@ def _build_autonomy_bundle():
               f"{planner_state}  {recovery_state}")
         print(f"[autonomy] SAM3 prompts: {_sam3_prompts}")
 
+    # ── LA-6: Loco-X agent integration (opt-in via cfg.loco_x.enabled) ─
+    if args_cli.use_loco_x:
+        # Bundle fields the LA-1 skills + LA-6 dispatcher read/write.
+        bundle.setdefault("task_queue", [])
+        bundle.setdefault("task_history", [])
+        bundle.setdefault("scene_nodes", [])
+        bundle.setdefault("agent_should_stop", False)
+        bundle.setdefault("task_result_status", None)
+        bundle.setdefault("task_result_reason", None)
+        bundle.setdefault("last_action", None)
+        bundle.setdefault("fsm_mode", "IDLE")
+        bundle.setdefault("robot_pose", {"xy": (0.0, 0.0), "yaw_rad": 0.0})
+        bundle.setdefault("goal_lock_xyz", None)
+        bundle.setdefault("face_yaw_rad", None)
+        bundle.setdefault("safe_stop_requested", False)
+        bundle.setdefault("head_yaw_request", None)
+        bundle.setdefault("head_sweep_queue", None)
+
+        # Import lazily so a Phase-1-4-only run doesn't require the
+        # loco_x package to be on sys.path.
+        import sys as _sys, pathlib as _pl
+        _BRINGUP = _pl.Path(__file__).resolve().parents[2]
+        if str(_BRINGUP) not in _sys.path:
+            _sys.path.insert(0, str(_BRINGUP))
+        from loco_x.agent import AsyncRunner, RunnerConfig, TaskDispatcher
+        from loco_x.llm.client import ScriptedClient
+
+        # LA-6 ships with a ScriptedClient placeholder; LA-7 sim
+        # acceptance will Hydra-select StdinClient or AnthropicClient
+        # via cfg.loco_x.client.
+        client = ScriptedClient(responses=[
+            "```python\nfinish('LA-6 placeholder client — wire a real client via cfg.loco_x.client')\n```",
+        ])
+        runner_cfg = RunnerConfig(
+            enabled=True,
+            tick_hz=float(getattr(cfg, "loco_x", {}).get("tick_hz", 2.0)),
+            max_turns=int(getattr(cfg, "loco_x", {}).get("max_turns", 20)),
+            exec_timeout_s=float(getattr(cfg, "loco_x", {}).get("exec_timeout_s", 5.0)),
+        )
+        bundle["agent"] = AsyncRunner(
+            bundle=bundle, client=client, config=runner_cfg,
+        )
+        bundle["dispatcher"] = TaskDispatcher()
+        print(f"[loco_x] agent enabled  tick_hz={runner_cfg.tick_hz} "
+              f"max_turns={runner_cfg.max_turns}")
+
     return bundle
 
 
@@ -1128,6 +1183,31 @@ def _step_autonomy(bundle: dict, robot) -> None:
     pg = quat_apply_inverse(robot.data.root_quat_w[0:1], grav_world)[0].cpu().numpy()
     yaw = yaw_from_quat(quat)
     now = time.time()
+
+    # ── LA-6: keep the Loco-X agent's view of the robot pose fresh ──
+    # The agent observation builder reads bundle["robot_pose"]; the
+    # dispatcher's writes (goal_lock_xyz, face_yaw_rad, ...) must
+    # land *before* the rest of the FSM logic this tick consumes
+    # them, so we drain the queue here at the top.
+    if "agent" in bundle:
+        bundle["robot_pose"] = {
+            "xy": (float(pos[0]), float(pos[1])),
+            "yaw_rad": float(yaw),
+        }
+        bundle["fsm_mode"] = bundle["fsm"].mode.name if hasattr(
+            bundle["fsm"], "mode"
+        ) else "IDLE"
+        bundle["agent"].poll(now)
+        if "dispatcher" in bundle:
+            try:
+                bundle["dispatcher"].drain(bundle)
+            except Exception as e:
+                print(f"[loco_x] dispatcher error: {e}")
+        # If the agent has decided to stop, force the safe-stop _cmd
+        # via the same path Phase 4's RECOVERY-FAILED case uses.
+        if bundle.get("agent_should_stop") and bundle.get("safe_stop_requested"):
+            _cmd[:] = (0.0, 0.0, 0.0, 1.0)
+            return
 
     # ── Phase 4: recovery state machine (top of tick) ──────────────────
     #
