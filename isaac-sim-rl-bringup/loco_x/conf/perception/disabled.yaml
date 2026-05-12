@@ -1,0 +1,5 @@
+# @package perception
+# Perception disabled — for unit tests and benchmarks that don't need
+# SAM3 / scene graph.
+
+detector: disabled

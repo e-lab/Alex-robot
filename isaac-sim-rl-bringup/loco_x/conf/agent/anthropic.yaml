@@ -1,0 +1,23 @@
+# @package agent
+# Anthropic Claude (default network-enabled backend per D6).
+
+enabled: true
+provider: anthropic
+model: claude-opus-4-7
+tick_hz: 2.0
+max_turns: 20
+exec_timeout_s: 5.0
+obs_radius_m: 5.0
+obs_recency_s: 30.0
+obs_max_nodes: 20
+
+# Multi-modal (D12): describe_view() goes to a separate (cheaper) model.
+vlm_enabled: true
+vlm_provider: anthropic
+vlm_model: claude-sonnet-4-6
+vlm_max_calls_per_task: 5
+vlm_cache_window_s: 10.0
+
+# Survey angle defaults (D12.1).
+survey_angles_deg: [-60, -30, 0, 30, 60, 90]
+survey_quick_angles_deg: [-45, 0, 45]

@@ -1,0 +1,15 @@
+# @package agent
+# Stdin "human-as-LLM" backend. The runner reads fenced ```python
+# blocks from stdin (or a file specified via agent.stdin_path) instead
+# of querying a real LLM. Used for offline demos and integration tests.
+
+enabled: true
+provider: stdin
+stdin_path: null         # null → stdin; otherwise file path
+tick_hz: 2.0
+max_turns: 20
+exec_timeout_s: 5.0
+obs_radius_m: 5.0
+obs_recency_s: 30.0
+obs_max_nodes: 20
+vlm_enabled: false       # no VLM in stdin mode by default

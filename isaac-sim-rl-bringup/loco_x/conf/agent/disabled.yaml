@@ -1,0 +1,5 @@
+# @package agent
+# Loco-X agent off — autonomy loop runs Phase 1-4 only. Useful for
+# benchmark runs and for incremental rollout.
+
+enabled: false

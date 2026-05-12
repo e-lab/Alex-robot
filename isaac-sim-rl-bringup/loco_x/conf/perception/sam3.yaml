@@ -1,0 +1,7 @@
+# @package perception
+# Default perception: SAM3 detector + head-cam RGBD. Mirrors the
+# Phase 1-4 configs/detector/sam3.yaml settings.
+
+detector: sam3
+vocabulary: ["stove", "microwave", "sink", "fridge", "table", "chair", "countertop"]
+conf_threshold: 0.30

@@ -1,0 +1,12 @@
+# @package occupancy
+# USD-prior occupancy (LA-0a). Phase 1-4 compatible.
+#
+# Selecting this provider builds the planner grid once at startup from
+# the scene USD and never updates it — appropriate for sim runs where
+# the world is static and the geometry is exact.
+
+provider: usd
+cell_size_m: 0.05
+inflation_m: 0.45        # carries Phase 1-4 tuning
+z_band: [0.10, 1.50]
+use_collision_api: true

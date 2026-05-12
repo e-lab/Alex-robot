@@ -1,0 +1,10 @@
+# @package rerun
+# Stream pose, scene-graph, heightmap, planner path, and agent
+# observation/decision to rerun.io for postmortem.
+
+enabled: true
+url: null               # null → local viewer
+log_heightmap: true
+log_scene_graph: true
+log_planner_path: true
+log_agent_observation: true

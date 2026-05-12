@@ -1,0 +1,24 @@
+# @package occupancy
+# Online height-map occupancy (LA-0b). Real-world / no-prior path.
+#
+# Builds the planner grid from RGBD + head-cam pose each tick. Per D10:
+# FREE / OBSTACLE / UNKNOWN classification with per-cell timestamps and
+# variance. Use for real-robot bring-up and for the "no USD" sim
+# acceptance (LA-8 / LA-9 / LA-10).
+
+provider: heightmap
+cell_size_m: 0.05
+inflation_m: 0.45
+
+# Traversability is gait-coupled. 0.05 m is the largest height the
+# current ONNX flat-feet policy can scrape over (cables, floor seams,
+# transition strips). Anything taller — including a 0.16 m coffee-table
+# base or a 0.16 m step — correctly classifies as OBSTACLE because the
+# current gait cannot step over either. Raise this ONLY when a step-
+# capable walking policy lands.
+traversable_threshold_m: 0.05
+
+stale_s: 60.0              # global per-cell decay (D10)
+path_freshness_s: 15.0     # per-path-cell freshness (shorter)
+info_gain_rays: 32
+info_gain_max_range_m: 4.0

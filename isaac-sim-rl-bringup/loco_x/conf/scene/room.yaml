@@ -1,0 +1,7 @@
+# @package scene
+# FloorPlan1 kitchen (Phase 1-4 demo scene). Matches the scene name
+# accepted by the existing alex_onnx_walking_policy.py glue.
+
+name: room
+spawn_xy: [0.0, 0.0]
+spawn_yaw_deg: 0.0

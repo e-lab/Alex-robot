@@ -1,0 +1,28 @@
+# Loco-X top-level Hydra root.
+#
+# Composes the option groups under conf/. Override any leaf from the CLI:
+#   python -m loco_x.cli.run scene=room occupancy=heightmap agent=stdin
+#
+# Group meanings:
+#   scene        — which world to load (matches Phase 1-4 names)
+#   occupancy    — D10: usd (sim shortcut) | heightmap (no-prior path)
+#   perception   — SAM3 on/off, head-cam wiring
+#   agent        — disabled | stdin | anthropic | openrouter
+#   rerun        — rerun.io telemetry sinks
+
+defaults:
+  - scene: room
+  - occupancy: usd
+  - perception: sam3
+  - agent: disabled
+  - rerun: disabled
+  - _self_
+
+repo_root: "???"   # overridden at runtime by the entry script
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
