@@ -101,4 +101,6 @@ is the canary: if it drifts, the safety net broke.
 * [x] LA-2 — observation builder (D2 spatial-temporal filter + D9 dual coords + D13 snapshot)
 * [x] LA-3 (folded into LA-0c) — see plan
 * [x] LA-4 — LLM client + parsers (Scripted / Stdin / Anthropic; multimodal for D12)
-* [ ] LA-5 through LA-10 — see plan
+* [x] LA-5 — agent runner (closed loop: observation → LLM → sandbox → skills)
+* [ ] LA-6 — wire `bundle["agent"].maybe_tick(now)` into `_step_autonomy`
+* [ ] LA-7 through LA-10 — sim acceptance phases
