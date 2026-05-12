@@ -126,14 +126,29 @@ class StdinClient:
 
     def _read_until_eof(self) -> str:
         lines: List[str] = []
+        got_any = False
         for line in self._stream:
+            got_any = True
             if line.rstrip() == "EOF":
                 break
             lines.append(line)
+        joined = "".join(lines).strip()
+        if not got_any and not joined:
+            # Stream is exhausted (piped file ran out, or stdin
+            # received EOF). Return a sentinel that signals the
+            # runner to stop cleanly rather than spamming
+            # parse_error on every subsequent turn.
+            return "__STREAM_EXHAUSTED__"
         return "".join(lines)
 
     def query(self, messages: List[Message]) -> LLMResponse:
         raw = self._read_until_eof()
+        if raw == "__STREAM_EXHAUSTED__":
+            # Emit a FINISH so the runner unwinds. The end-of-run
+            # status will be "succeeded" with reason "stdin exhausted";
+            # the operator can read the log to confirm what actually
+            # happened (the script ran out of canned turns).
+            return parse_response("stdin script exhausted.\n\nFINISH\n")
         return parse_response(raw)
 
     def query_multimodal(

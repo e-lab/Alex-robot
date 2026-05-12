@@ -33,20 +33,36 @@ from .perception import make_perception_skills
 SkillRegistry = Dict[str, Callable[..., Dict[str, Any]]]
 
 
-# Small stdlib subset the LLM can reach for control flow. Deliberately
-# *not* including ``abs``, ``round``, ``map``, ``filter``, etc. — those
-# come up rarely in code-as-policies and each extra name is another way
-# for the LLM to wander off the action surface.
+# Small stdlib subset the LLM can reach for control flow + simple
+# data manipulation. Deliberately *not* including ``map``, ``filter``,
+# ``open``, ``__import__`` — those either rarely come up in code-as-
+# policies or carry too much escape-hatch surface.
 _STDLIB_HELPERS = {
+    # Control flow
     "range": range,
     "len": len,
     "min": min,
     "max": max,
-    "print": print,
-    "abs": abs,
-    "round": round,
     "enumerate": enumerate,
     "zip": zip,
+    # I/O
+    "print": print,
+    # Math
+    "abs": abs,
+    "round": round,
+    "sum": sum,
+    # Data
+    "sorted": sorted,
+    "set": set,
+    "list": list,
+    "dict": dict,
+    "tuple": tuple,
+    # Type checks / conversions
+    "str": str,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "isinstance": isinstance,
 }
 
 

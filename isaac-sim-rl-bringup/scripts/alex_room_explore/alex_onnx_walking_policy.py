@@ -1318,6 +1318,31 @@ def _step_autonomy(bundle: dict, robot) -> None:
             if bundle.get("agent_should_stop") and bundle.get("safe_stop_requested"):
                 _cmd[:] = (0.0, 0.0, 0.0, 1.0)
                 return
+            # LA-7: `face(yaw_rad)` skill. Dispatcher writes the target
+            # yaw into bundle["face_yaw_rad"]; we close the loop here
+            # by driving _cmd[2] until the current yaw reaches the
+            # target. When SAM3 hasn't grounded the goal yet, the
+            # agent rotates to scan a new field of view. While face
+            # is active we short-circuit the FSM (return early) so
+            # the policy follows our yaw-rate command instead.
+            target_yaw = bundle.get("face_yaw_rad")
+            if target_yaw is not None:
+                err = math.atan2(
+                    math.sin(target_yaw - yaw),
+                    math.cos(target_yaw - yaw),
+                )
+                if abs(err) < math.radians(8.0):
+                    # Reached the target; clear and let Phase 1-4 take over.
+                    bundle["face_yaw_rad"] = None
+                    print(f"[loco_x] face: reached target yaw "
+                          f"{math.degrees(target_yaw):+.1f}° (err {math.degrees(err):+.1f}°)")
+                else:
+                    yaw_rate = 0.4 if err > 0 else -0.4
+                    _cmd[0] = 0.0
+                    _cmd[1] = 0.0
+                    _cmd[2] = yaw_rate
+                    _cmd[3] = 0.0
+                    return
         except Exception as e:
             # Never let the agent integration crash the autonomy loop
             # — print and continue with the existing Phase 1-4 path.
