@@ -100,6 +100,10 @@ class AgentRunner:
         # ``startup_delay_s`` so the agent doesn't tick before
         # perception has had a chance to run.
         self._first_poll_t: Optional[float] = None
+        # Snapshot of the bundle's nav_stuck_count + nav_no_path_count
+        # the last time the gate woke the agent during APPROACH. Used
+        # so a single stuck event triggers one wake-up, not a flood.
+        self._nav_stuck_acked: int = 0
         # Rolling buffer of recent visited_fraction values for D11.D.
         self._visited_history: Deque[float] = deque(
             maxlen=max(1, self.config.progress_stall_window_turns + 1)
@@ -131,6 +135,12 @@ class AgentRunner:
             return "agent_should_stop=true"
         fsm = self.bundle.get("fsm_mode", "IDLE")
         if fsm not in ("IDLE", "ARRIVED"):
+            stuck_total = (
+                int(self.bundle.get("nav_stuck_count", 0))
+                + int(self.bundle.get("nav_no_path_count", 0))
+            )
+            if stuck_total >= 2 and stuck_total > int(self._nav_stuck_acked):
+                return None   # would actually permit, for the wake-up
             return f"fsm={fsm} (waiting for IDLE/ARRIVED)"
         if self.bundle.get("task_queue"):
             return f"task_queue not empty ({len(self.bundle['task_queue'])} pending)"
@@ -161,10 +171,26 @@ class AgentRunner:
             return False
         if self.bundle.get("agent_should_stop"):
             return False
-        # FSM idle gate (D3).
+        # FSM idle gate (D3). Two exceptions:
+        # 1. ARRIVED — task complete, let the agent finish() cleanly.
+        # 2. Navigation stuck — even though FSM is APPROACH, the
+        #    planner has reported NO PATH multiple times or the
+        #    stuck monitor has fired ≥2 times; the agent should
+        #    wake up to make a strategic decision (retarget or
+        #    fail). Once the agent decides, ``_nav_stuck_acknowledged_at``
+        #    suppresses re-wakes until the counters grow further.
         fsm = self.bundle.get("fsm_mode", "IDLE")
         if fsm not in ("IDLE", "ARRIVED"):
-            return False
+            stuck_total = (
+                int(self.bundle.get("nav_stuck_count", 0))
+                + int(self.bundle.get("nav_no_path_count", 0))
+            )
+            ack = int(getattr(self, "_nav_stuck_acked", 0))
+            if stuck_total >= 2 and stuck_total > ack:
+                self._nav_stuck_acked = stuck_total
+                # Fall through to the rest of the gate (queue-empty etc).
+            else:
+                return False
         # Queue empty gate — give the autonomy loop a tick to drain.
         if self.bundle.get("task_queue"):
             return False

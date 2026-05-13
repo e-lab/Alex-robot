@@ -905,7 +905,15 @@ def _make_loco_x_client(cfg):
                 f"4. Once fsm=ARRIVED on the correct target, call "
                 f"finish('reached {target}'). DO NOT call goto again "
                 f"once you've arrived.\n"
-                f"5. Call fail() only if scan returned not_found.\n"
+                f"5. If the observation shows nav_status (Phase 1-4 "
+                f"reported NO PATH or got stuck) you have three "
+                f"options: (a) goto_xy to an intermediate cell on the "
+                f"observable side of any obstacle, (b) try a different "
+                f"label if a related one is in scene_graph (e.g. "
+                f"'oven' for stoves), or (c) fail('{target} not "
+                f"reachable: ' + reason). Pick (c) after two stuck "
+                f"events with no plausible alternate route.\n"
+                f"6. Call fail() if scan returned not_found.\n"
                 f"\n"
                 f"Do NOT prefer face() for searching — scan() is the "
                 f"right primitive because it early-exits on sighting.\n"
@@ -1066,6 +1074,10 @@ def _build_autonomy_bundle():
         # LA-7+: surface the task target in the observation each turn
         # so the LLM doesn't have to remember it from the system prompt.
         bundle["task_target"] = str(getattr(args_cli, "autonomy_target", "") or "")
+        # Navigation-progress counters used by the agent gate to wake
+        # the LLM when Phase 1-4 can't make progress.
+        bundle["nav_stuck_count"] = 0
+        bundle["nav_no_path_count"] = 0
 
         # Import lazily so a Phase-1-4-only run doesn't require the
         # loco_x package to be on sys.path.
@@ -1217,6 +1229,11 @@ def _maybe_plan_path_on_lock(bundle: dict) -> None:
               f"({start_xy[0]:+.2f},{start_xy[1]:+.2f}) → "
               f"({goal_xy[0]:+.2f},{goal_xy[1]:+.2f})  "
               f"— falling back to direct heading control")
+        # LA-7+: count planner NO-PATH events so the agent gate can
+        # wake the LLM when navigation can't make progress. The
+        # agent reads bundle["nav_stuck_count"] from the observation
+        # and decides whether to retarget or fail() cleanly.
+        bundle["nav_no_path_count"] = bundle.get("nav_no_path_count", 0) + 1
         return
     seg_len = sum(
         ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5
@@ -1678,6 +1695,9 @@ def _step_autonomy(bundle: dict, robot) -> None:
                     active=approach_active, now=now):
         print(f"[autonomy] STUCK at ({pos[0]:+.2f},{pos[1]:+.2f}) — "
               f"rotating 90° in place")
+        # LA-7+: increment the stuck counter so the agent can detect
+        # repeated stuck events and decide on a strategic recovery.
+        bundle["nav_stuck_count"] = bundle.get("nav_stuck_count", 0) + 1
         # Pick rotation direction based on heading toward goal: if the
         # goal is on our left (heading_err > 0), rotate left; else right.
         rot_target = math.pi / 2.0

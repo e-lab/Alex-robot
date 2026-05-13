@@ -194,6 +194,18 @@ def build_observation(
         lines.append(f"task: walk to a scene-graph node labelled '{task_target}'")
     lines.append(_pose_line(robot_xy, robot_yaw))
     lines.append(f"fsm: {fsm}")
+    # Navigation-stuck signal: if Phase 1-4 has reported NO PATH or
+    # the stuck monitor has fired, surface counts so the LLM can
+    # decide on a strategic recovery (retarget, fail, or retry).
+    nav_stuck = int(bundle.get("nav_stuck_count", 0))
+    nav_no_path = int(bundle.get("nav_no_path_count", 0))
+    if nav_stuck > 0 or nav_no_path > 0:
+        lines.append(
+            f"nav_status: stuck_events={nav_stuck}  "
+            f"no_path_events={nav_no_path}  "
+            f"(planner cannot reach target; consider goto_xy to a "
+            f"different cell, or fail() if no recovery is possible)"
+        )
     # Explicit arrival banner: when Phase 1-4's FSM hits ARRIVED on
     # the task target, prepend a STATUS line so the LLM doesn't keep
     # re-issuing goto. We look at the bundle's GoalState (locked
