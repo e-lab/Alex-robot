@@ -1221,6 +1221,22 @@ def _maybe_plan_path_on_lock(bundle: dict) -> None:
 
     with _TIMINGS.time("planner.plan_path"):
         path = plan_path(start_xy, goal_xy, occ, gf, inflation_m=inflation_m)
+    # If the first attempt failed, retry with a larger snap radius.
+    # SAM3-derived goal positions can drift by 10-30 cm depending on
+    # viewpoint, occasionally landing inside the planner's inflated-
+    # obstacle band. A 2.0m snap typically finds a reachable cell on
+    # the open side of the obstacle (e.g. in front of the counter
+    # rather than inside it).
+    if path is None:
+        with _TIMINGS.time("planner.plan_path_retry"):
+            path = plan_path(
+                start_xy, goal_xy, occ, gf,
+                inflation_m=inflation_m,
+                snap_radius_m=2.0,
+            )
+        if path is not None:
+            print(f"[autonomy] planner: recovered with snap_radius=2.0m "
+                  f"(goal drifted into inflated-obstacle band)")
     bundle["path"] = path
     bundle["path_index"] = 0
 
