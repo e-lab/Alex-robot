@@ -133,6 +133,8 @@ class AgentRunner:
             return f"fsm={fsm} (waiting for IDLE/ARRIVED)"
         if self.bundle.get("task_queue"):
             return f"task_queue not empty ({len(self.bundle['task_queue'])} pending)"
+        if self.bundle.get("face_yaw_rad") is not None:
+            return f"face rotation in progress (target={self.bundle['face_yaw_rad']:.2f} rad)"
         if cfg.startup_delay_s > 0.0 and self._first_poll_t is not None:
             elapsed = now - self._first_poll_t
             if elapsed < cfg.startup_delay_s:
@@ -158,6 +160,14 @@ class AgentRunner:
             return False
         # Queue empty gate — give the autonomy loop a tick to drain.
         if self.bundle.get("task_queue"):
+            return False
+        # LA-7 rotation-in-flight gate: when bundle["face_yaw_rad"] is
+        # set, the autonomy loop's face handler is mid-rotation. The
+        # FSM stays in IDLE during this (face short-circuits before the
+        # FSM runs), but the agent should not fire another turn — it
+        # has no information yet and will re-issue the same face call,
+        # burning turns. Wait for the handler to clear face_yaw_rad.
+        if self.bundle.get("face_yaw_rad") is not None:
             return False
         # Startup-delay gate: wait ``startup_delay_s`` from the first
         # poll we ever see so SAM3 / heightmap have a chance to fire
