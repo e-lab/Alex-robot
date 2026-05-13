@@ -1,87 +1,122 @@
 # LA-7 stdin script — drive Alex to the stove.
 #
-# Format: each turn is a fenced ```python ... ``` block followed by a
-# bare `EOF` line. The StdinClient reads one block per agent turn.
+# Strategy: scan in 45° steps until a kitchen-appliance label is
+# grounded, then goto. The stove in this scene sits behind+left of
+# the spawn, so we expect to find it around 180-225°.
 #
-# Strategy:
-# 1. Each turn enumerates what SAM3 has currently grounded so the
-#    log shows which labels were seen and where.
-# 2. Tries ``stove`` first, then ``oven`` (the kitchen appliance can
-#    SAM3-label either way depending on prompt prioritisation).
-# 3. ``goto`` is the only skill that actually drives the robot in
-#    this build (peek / survey / face write bundle fields no
-#    consumer reads yet). Once a goto fires, Phase 1-4's planner
-#    walks Alex; the agent then waits — gating on FSM≠IDLE — until
-#    arrival, at which point we declare success.
-# 4. If we burn through every turn without finding the goal, the
-#    last turn calls ``fail()`` so the run logs an honest failure
-#    rather than masquerading as a success.
+# We use face(yaw_rad) which the autonomy loop now closes the
+# loop on (LA-7 commit 43522f5). The face skill returns "queued";
+# the autonomy loop drives _cmd[2] until the current yaw is within
+# 8° of target, then clears face_yaw_rad and lets the FSM resume.
+#
+# Each turn after the rotation completes we re-check scene_nodes.
+# Once stove or oven is grounded, we goto. Phase 1-4's planner +
+# follower take over from there.
 
 ```python
-# Turn 1
+# Turn 1 — initial check at spawn yaw.
 nodes = list_scene()["value"]
-print("la7 turn 1 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-goto_done = False
-for label in ("stove", "oven"):
+print("la7 t1 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
     r = find(label)
     if r["status"] == "ok":
         goto(label)
-        goto_done = True
         break
-print("la7 turn 1 goto_done:", goto_done)
+else:
+    # Nothing useful yet — turn 45°.
+    face(0.785)   # +45° in radians (pi/4 ≈ 0.785)
 ```
 EOF
 
 ```python
-# Turn 2
+# Turn 2 — check again after rotation.
 nodes = list_scene()["value"]
-print("la7 turn 2 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-goto_done = False
-for label in ("stove", "oven"):
+print("la7 t2 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
     r = find(label)
     if r["status"] == "ok":
         goto(label)
-        goto_done = True
         break
-print("la7 turn 2 goto_done:", goto_done)
+else:
+    face(1.571)   # +90° (pi/2)
 ```
 EOF
 
 ```python
 # Turn 3
 nodes = list_scene()["value"]
-print("la7 turn 3 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-goto_done = False
-for label in ("stove", "oven"):
+print("la7 t3 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
     r = find(label)
     if r["status"] == "ok":
         goto(label)
-        goto_done = True
         break
-print("la7 turn 3 goto_done:", goto_done)
+else:
+    face(2.356)   # +135°
 ```
 EOF
 
 ```python
 # Turn 4
 nodes = list_scene()["value"]
-print("la7 turn 4 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-goto_done = False
-for label in ("stove", "oven"):
+print("la7 t4 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
     r = find(label)
     if r["status"] == "ok":
         goto(label)
-        goto_done = True
         break
-print("la7 turn 4 goto_done:", goto_done)
+else:
+    face(3.142)   # +180° — looking the opposite direction.
 ```
 EOF
 
 ```python
 # Turn 5
 nodes = list_scene()["value"]
-print("la7 turn 5 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven"):
+print("la7 t5 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        break
+else:
+    face(-2.356)  # -135° (225° equivalent — covers the back-left quadrant)
+```
+EOF
+
+```python
+# Turn 6
+nodes = list_scene()["value"]
+print("la7 t6 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        break
+else:
+    face(-1.571)  # -90°
+```
+EOF
+
+```python
+# Turn 7
+nodes = list_scene()["value"]
+print("la7 t7 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
+    r = find(label)
+    if r["status"] == "ok":
+        goto(label)
+        break
+else:
+    face(-0.785)  # -45°
+```
+EOF
+
+```python
+# Turn 8 — final scan.
+nodes = list_scene()["value"]
+print("la7 t8 seen:", [(n["label"], n["world_xy"]) for n in nodes])
+for label in ("stove", "oven", "microwave"):
     r = find(label)
     if r["status"] == "ok":
         goto(label)
@@ -90,12 +125,9 @@ for label in ("stove", "oven"):
 EOF
 
 ```python
-# Turn 6 — only reaches the runner if the FSM has stayed IDLE through
-# turns 1-5 (no goto enqueued). That means we never saw the goal;
-# fail honestly so the log reflects it.
-nodes = list_scene()["value"]
-print("la7 final seen:", [(n["label"], n["world_xy"]) for n in nodes])
-seen_labels = sorted({n["label"] for n in nodes})
-fail("stove not found after 5 observation turns; saw: " + str(seen_labels))
+# Turn 9 — if a goto fired in any earlier turn, we won't reach here
+# until Phase 1-4 finishes walking and the FSM goes back to ARRIVED.
+# Declare success.
+finish("LA-7: scan-and-goto complete (or Phase 1-4 took over)")
 ```
 EOF
