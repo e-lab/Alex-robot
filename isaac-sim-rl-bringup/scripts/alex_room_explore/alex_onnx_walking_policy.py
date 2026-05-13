@@ -890,14 +890,25 @@ def _make_loco_x_client(cfg):
         if target:
             task_block = (
                 f"\n\nCURRENT TASK\n"
-                f"Walk Alex to a scene-graph node labelled '{target}'. "
-                f"If '{target}' is not yet in the scene graph, rotate "
-                f"using face(yaw_rad) to scan a new field of view "
-                f"(start with face(math.pi) to turn 180°). Do NOT goto "
-                f"any other label — only '{target}' counts. Call "
-                f"finish() only when Alex has ARRIVED at '{target}'. "
-                f"Call fail() if you've scanned a full revolution and "
-                f"the target is still not visible.\n"
+                f"Walk Alex to a scene-graph node labelled '{target}'.\n"
+                f"\n"
+                f"DECISION GUIDE:\n"
+                f"1. If '{target}' is in scene_graph already, call "
+                f"goto('{target}') and then call finish() once fsm=ARRIVED.\n"
+                f"2. If '{target}' is NOT yet in scene_graph, call "
+                f"scan(target_label='{target}', max_revolutions=1.0). "
+                f"The autonomy loop rotates the body and stops the "
+                f"moment '{target}' is detected — you do NOT need to "
+                f"re-issue rotation commands.\n"
+                f"3. After scan completes (last_action.kind == 'scan'), "
+                f"check find('{target}') and goto if found.\n"
+                f"4. Once fsm=ARRIVED on the correct target, call "
+                f"finish('reached {target}'). DO NOT call goto again "
+                f"once you've arrived.\n"
+                f"5. Call fail() only if scan returned not_found.\n"
+                f"\n"
+                f"Do NOT prefer face() for searching — scan() is the "
+                f"right primitive because it early-exits on sighting.\n"
             )
             full_prompt = base_prompt + task_block
         else:
@@ -1291,6 +1302,10 @@ def _step_autonomy(bundle: dict, robot) -> None:
             # one-shot tasks complete naturally and the next observation
             # surfaces ARRIVED in last_action.
             fsm_str = str(getattr(bundle["fsm"], "mode", "search")).lower()
+            # ``fsm_mode_raw`` is the actual Phase 1-4 mode string;
+            # the observation builder uses it to detect ARRIVED on the
+            # task target and emit a "call finish() now" banner.
+            bundle["fsm_mode_raw"] = fsm_str
             if fsm_str in ("search", "idle", "arrived"):
                 bundle["fsm_mode"] = "IDLE"
             else:

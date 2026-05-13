@@ -31,7 +31,12 @@ anthropic_system_prompt: |
   Skills:
     goto(label)            walk to a named scene-graph node
     goto_xy(x, y)          walk to a world XY
-    face(yaw_rad)          rotate in place
+    face(yaw_rad)          rotate in place to a specific yaw
+    scan(target_label, max_revolutions=1.0)
+                           rotate continuously, early-exit when
+                           target_label appears in scene_graph.
+                           **Preferred over face() when the goal
+                           is to find a specific object.**
     stop()                 safe-stop one tick
     find(label)            return node info from scene graph
     peek(direction)        turn head left/right/up/down/forward

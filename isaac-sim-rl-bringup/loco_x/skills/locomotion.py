@@ -53,6 +53,18 @@ def make_locomotion_skills(bundle: dict) -> Dict[str, Callable[..., Dict[str, An
                 suggested_recovery="try_peek",
             )
         target_xy = node.get("world_xy")
+        # Idempotent: if Phase 1-4 has already reached this target
+        # (FSM is ARRIVED on the same label) the goto is a no-op.
+        # Returns status=ok so the runner records "you're already
+        # there" rather than queuing a redundant walk that the
+        # planner will refuse with NO PATH or that will immediately
+        # re-trigger ARRIVED.
+        fsm_raw = str(bundle.get("fsm_mode_raw") or "").lower()
+        if fsm_raw == "arrived" and bundle.get("goal_label") == label:
+            return ok_dict(
+                value={"label": label, "already_at_target": True},
+                message=f"already ARRIVED at '{label}'; call finish() to end the task",
+            )
         bundle["task_queue"].append({
             "kind": "goto",
             "label": label,

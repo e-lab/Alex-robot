@@ -194,6 +194,30 @@ def build_observation(
         lines.append(f"task: walk to a scene-graph node labelled '{task_target}'")
     lines.append(_pose_line(robot_xy, robot_yaw))
     lines.append(f"fsm: {fsm}")
+    # Explicit arrival banner: when Phase 1-4's FSM hits ARRIVED on
+    # the task target, prepend a STATUS line so the LLM doesn't keep
+    # re-issuing goto. We look at the bundle's GoalState (locked
+    # xyz + label) and at task_target — if they agree and the FSM
+    # raw mode is "arrived", we're done.
+    fsm_raw = str(bundle.get("fsm_mode_raw") or fsm).lower()
+    goal_label = bundle.get("goal_label")
+    if fsm_raw == "arrived" and task_target and goal_label == task_target:
+        # Distance to the goal in world frame, if available.
+        goal_obj = bundle.get("goal")
+        goal_xyz = getattr(goal_obj, "xyz", None) if goal_obj is not None else None
+        dist_str = ""
+        if goal_xyz is not None:
+            try:
+                gx, gy = float(goal_xyz[0]), float(goal_xyz[1])
+                dist = math.hypot(gx - robot_xy[0], gy - robot_xy[1])
+                dist_str = f" at dist={dist:.2f}m"
+            except (TypeError, IndexError):
+                pass
+        lines.append(
+            f"STATUS: ARRIVED at '{task_target}'{dist_str}. "
+            f"Call finish('reached {task_target}') now. "
+            f"Do NOT call goto again."
+        )
 
     # Scene graph block.
     if filtered.kept:
