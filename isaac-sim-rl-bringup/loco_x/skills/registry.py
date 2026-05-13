@@ -66,6 +66,33 @@ _STDLIB_HELPERS = {
 }
 
 
+def _safe_math_namespace():
+    """Return a minimal ``math``-like proxy the LLM can use as
+    ``math.pi`` / ``math.radians(180)`` / ``math.atan2(y, x)``.
+
+    We attach a curated subset rather than the full stdlib ``math``
+    module so the LLM doesn't get e.g. ``math.factorial`` (rare in
+    code-as-policies, expensive on a large int). The AST checker
+    permits attribute access on known names and call-via-attribute,
+    so this composes cleanly with the existing sandbox.
+    """
+    import math as _m
+    class _MathProxy:
+        pass
+    proxy = _MathProxy()
+    for name in (
+        "pi", "tau", "e", "inf", "nan",
+        "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+        "radians", "degrees",
+        "sqrt", "hypot", "floor", "ceil",
+    ):
+        setattr(proxy, name, getattr(_m, name))
+    return proxy
+
+
+_STDLIB_HELPERS["math"] = _safe_math_namespace()
+
+
 def make_skills(
     bundle: dict, *, include_stdlib: bool = True
 ) -> SkillRegistry:

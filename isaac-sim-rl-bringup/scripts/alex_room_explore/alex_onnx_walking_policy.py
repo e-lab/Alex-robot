@@ -879,10 +879,33 @@ def _make_loco_x_client(cfg):
             return ScriptedClient(responses=[
                 "```python\nfail('ANTHROPIC_API_KEY not set')\n```",
             ])
+        # Inject the autonomy target into the system prompt so Claude
+        # knows what to look for. Without this, Claude sees a scene
+        # graph with arbitrary labels and has no reason to prefer one
+        # over another — the previous LA-7 anthropic run looped on
+        # ``goto("door")`` for 20 turns because door was the only
+        # node visible and there was no stated objective.
+        base_prompt = str(getattr(cfg.loco_x, "anthropic_system_prompt", "")) or ""
+        target = str(getattr(cfg.autonomy, "target", "") or "")
+        if target:
+            task_block = (
+                f"\n\nCURRENT TASK\n"
+                f"Walk Alex to a scene-graph node labelled '{target}'. "
+                f"If '{target}' is not yet in the scene graph, rotate "
+                f"using face(yaw_rad) to scan a new field of view "
+                f"(start with face(math.pi) to turn 180°). Do NOT goto "
+                f"any other label — only '{target}' counts. Call "
+                f"finish() only when Alex has ARRIVED at '{target}'. "
+                f"Call fail() if you've scanned a full revolution and "
+                f"the target is still not visible.\n"
+            )
+            full_prompt = base_prompt + task_block
+        else:
+            full_prompt = base_prompt
         return AnthropicClient(
             api_key=key,
             model=str(getattr(cfg.loco_x, "anthropic_model", "claude-opus-4-7")),
-            system_prompt=str(getattr(cfg.loco_x, "anthropic_system_prompt", "")) or None,
+            system_prompt=full_prompt or None,
         )
 
     print(f"[loco_x] unknown client={name!r}; falling back to scripted")
@@ -1029,6 +1052,9 @@ def _build_autonomy_bundle():
         bundle.setdefault("safe_stop_requested", False)
         bundle.setdefault("head_yaw_request", None)
         bundle.setdefault("head_sweep_queue", None)
+        # LA-7+: surface the task target in the observation each turn
+        # so the LLM doesn't have to remember it from the system prompt.
+        bundle["task_target"] = str(getattr(args_cli, "autonomy_target", "") or "")
 
         # Import lazily so a Phase-1-4-only run doesn't require the
         # loco_x package to be on sys.path.

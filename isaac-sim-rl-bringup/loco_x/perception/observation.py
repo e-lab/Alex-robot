@@ -186,6 +186,12 @@ def build_observation(
 
     lines: List[str] = []
     lines.append(_header_line())
+    # Surface the task target each turn so the LLM doesn't forget
+    # what it's looking for. The autonomy script populates
+    # bundle["task_target"] from cfg.autonomy.target at startup.
+    task_target = bundle.get("task_target")
+    if task_target:
+        lines.append(f"task: walk to a scene-graph node labelled '{task_target}'")
     lines.append(_pose_line(robot_xy, robot_yaw))
     lines.append(f"fsm: {fsm}")
 
