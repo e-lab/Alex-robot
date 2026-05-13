@@ -116,8 +116,10 @@ is the canary: if it drifts, the safety net broke.
 * [x] LA-6 — wire AsyncRunner + TaskDispatcher into `_step_autonomy`
        (opt-in via `loco_x=scripted` Hydra group)
 * [x] LA-7 — sim acceptance: single target with active perception.
-       Both backends validated end-to-end in FloorPlan1 kitchen:
-         * stdin: 3 turns, dist=0.90m (commit da716ba)
-         * anthropic (claude-opus-4-7): 3 turns, dist=0.92m,
-           ~$0.05 API cost (commit f9b4a49 + this run)
+       Validated across 2 targets × 2 backends in FloorPlan1 kitchen:
+         * stove + stdin:      3 turns, dist=0.90m (commit da716ba)
+         * stove + anthropic:  3 turns, dist=0.92m, $0.05 (f9b4a49)
+         * sink + anthropic:   3 turns, dist=1.00m, $0.05.
+           Recovered from a planner NO-PATH via Phase 4's
+           stuck-rotation + the agent wake-up mechanism (401bea5).
 * [ ] LA-8 through LA-10 — sim acceptance phases
