@@ -325,6 +325,33 @@ def test_survey_quick_uses_three_angles() -> None:
     assert len(task["angles_deg"]) == 3
 
 
+def test_scan_enqueues_one_long_running_task() -> None:
+    """``scan(target_label='stove')`` enqueues a single rotation
+    task. The autonomy loop's scan handler then runs the rotation
+    over many ticks and early-exits when the target appears."""
+    bundle = _make_bundle()
+    ns = make_skills(bundle)
+    r = ns["scan"](target_label="stove", max_revolutions=1.0)
+    assert r["status"] == "queued"
+    assert r["kind"] == "scan"
+    assert len(bundle["task_queue"]) == 1
+    task = bundle["task_queue"][0]
+    assert task["kind"] == "scan"
+    assert task["target_label"] == "stove"
+    assert task["max_revolutions"] == 1.0
+    assert task["direction"] == 1
+
+
+def test_scan_direction_negative_is_clockwise() -> None:
+    """``scan(direction=-1)`` clamps to -1 (CW); positive direction
+    is the default (CCW). The autonomy handler reads this to pick
+    the sign of _cmd[2]."""
+    bundle = _make_bundle()
+    ns = make_skills(bundle)
+    ns["scan"](target_label="microwave", direction=-1)
+    assert bundle["task_queue"][0]["direction"] == -1
+
+
 def test_survey_custom_angles_overrides_defaults() -> None:
     """``survey(angles_deg=[-90, 0, 90])`` overrides both defaults."""
     bundle = _make_bundle()

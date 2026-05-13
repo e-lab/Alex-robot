@@ -1369,6 +1369,76 @@ def _step_autonomy(bundle: dict, robot) -> None:
                     _cmd[2] = yaw_rate
                     _cmd[3] = 0.0
                     return
+            # LA-7: ``scan(target_label, max_revolutions, direction)``
+            # — rotate continuously and watch scene_nodes for the
+            # target. Clears on first sighting or revolution budget
+            # exhaustion. Saves the LLM from re-deciding "rotate"
+            # every 0.5 s while a long rotation is in flight.
+            scan_state = bundle.get("scan_active")
+            if scan_state is not None:
+                # Initialise on first tick of this scan.
+                if scan_state.get("started_yaw") is None:
+                    scan_state["started_yaw"] = float(yaw)
+                    scan_state["last_yaw"] = float(yaw)
+                # Accumulate signed rotation (handles ±π wrap).
+                last_yaw = float(scan_state["last_yaw"])
+                step = math.atan2(
+                    math.sin(yaw - last_yaw),
+                    math.cos(yaw - last_yaw),
+                )
+                scan_state["accumulated_rad"] = (
+                    float(scan_state["accumulated_rad"]) + abs(step)
+                )
+                scan_state["last_yaw"] = float(yaw)
+                # Early-exit: target visible?
+                target = scan_state.get("target_label")
+                found = False
+                if target:
+                    for n in bundle.get("scene_nodes") or []:
+                        if n.get("label") == target:
+                            found = True
+                            break
+                budget_rad = 2.0 * math.pi * float(
+                    scan_state.get("max_revolutions", 1.0)
+                )
+                exhausted = (
+                    float(scan_state["accumulated_rad"]) >= budget_rad
+                )
+                if found:
+                    print(f"[loco_x] scan: found '{target}' after "
+                          f"{math.degrees(scan_state['accumulated_rad']):.0f}° "
+                          f"of rotation")
+                    bundle["scan_active"] = None
+                    bundle["last_action"] = {
+                        "status": "ok",
+                        "kind": "scan",
+                        "target_label": target,
+                        "found": True,
+                        "rotated_deg": float(
+                            math.degrees(scan_state["accumulated_rad"])
+                        ),
+                    }
+                elif exhausted:
+                    print(f"[loco_x] scan: '{target}' not found after "
+                          f"{math.degrees(scan_state['accumulated_rad']):.0f}° "
+                          f"of rotation (budget exhausted)")
+                    bundle["scan_active"] = None
+                    bundle["last_action"] = {
+                        "status": "error",
+                        "kind": "scan",
+                        "error_kind": "not_found",
+                        "target_label": target,
+                        "rotated_deg": float(
+                            math.degrees(scan_state["accumulated_rad"])
+                        ),
+                    }
+                else:
+                    direction = int(scan_state.get("direction", 1))
+                    _cmd[0] = 0.0
+                    _cmd[1] = 0.0
+                    _cmd[2] = 0.4 * direction
+                    _cmd[3] = 0.0
+                    return
         except Exception as e:
             # Never let the agent integration crash the autonomy loop
             # — print and continue with the existing Phase 1-4 path.

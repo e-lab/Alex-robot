@@ -104,6 +104,30 @@ def test_dispatch_survey_sets_head_sweep_queue() -> None:
     assert bundle["head_sweep_queue"] == [-45, 0, 45]
 
 
+def test_dispatch_scan_sets_scan_active_block() -> None:
+    """scan(target_label, ...) writes a structured state block the
+    autonomy loop's scan handler reads. The handler initialises
+    started_yaw on its first tick and accumulates rotation."""
+    bundle = _bundle()
+    bundle["task_queue"].append({
+        "kind": "scan",
+        "target_label": "stove",
+        "max_revolutions": 1.5,
+        "direction": -1,
+    })
+    TaskDispatcher().drain(bundle)
+    sa = bundle["scan_active"]
+    assert sa is not None
+    assert sa["target_label"] == "stove"
+    assert sa["max_revolutions"] == 1.5
+    assert sa["direction"] == -1
+    # started_yaw / accumulated_rad are filled in by the autonomy
+    # handler on its first tick; the dispatcher leaves them in
+    # initial state so the handler can detect "first tick of scan".
+    assert sa["started_yaw"] is None
+    assert sa["accumulated_rad"] == 0.0
+
+
 # ── Queue drain semantics ──────────────────────────────────────────────────
 def test_dispatch_drains_queue_in_order() -> None:
     """Multi-task queue: dispatcher processes in FIFO order so a

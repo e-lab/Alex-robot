@@ -100,6 +100,42 @@ def make_perception_skills(bundle: dict) -> Dict[str, Callable[..., Dict[str, An
         })
         return queued_dict(kind="survey", angles_deg=angles)
 
+    def scan(
+        target_label: str | None = None,
+        max_revolutions: float = 1.0,
+        direction: int = 1,
+    ) -> Dict[str, Any]:
+        """Rotate continuously and watch for a target in the scene graph.
+
+        Issues a single long-running task that the autonomy loop
+        executes by spinning ``_cmd[2]`` at a constant yaw rate while
+        checking each tick whether ``target_label`` has appeared in
+        ``scene_nodes``. The rotation stops as soon as either:
+
+        * the target appears in the scene graph (early-exit, success), or
+        * the robot has rotated ``max_revolutions`` × 2π without
+          finding it (safety, returns failure on the next observation).
+
+        This is the correct shape for "scan to find a target" — one
+        LLM decision, one continuous rotation, early-exit on first
+        sighting. Avoids the 0.5-s decision-cadence vs 8-s rotation-
+        latency mismatch that made step-by-step face() spam the LLM.
+
+        ``direction`` is +1 (CCW) or -1 (CW); default CCW.
+        """
+        label = str(target_label) if target_label else None
+        rev = max(0.1, float(max_revolutions))
+        bundle["task_queue"].append({
+            "kind": "scan",
+            "target_label": label,
+            "max_revolutions": rev,
+            "direction": 1 if int(direction) >= 0 else -1,
+        })
+        return queued_dict(
+            kind="scan", target_label=label,
+            max_revolutions=rev,
+        )
+
     def list_scene() -> Dict[str, Any]:
         """Snapshot of the scene graph.
 
@@ -140,6 +176,7 @@ def make_perception_skills(bundle: dict) -> Dict[str, Callable[..., Dict[str, An
         "find": find,
         "peek": peek,
         "survey": survey,
+        "scan": scan,
         "list_scene": list_scene,
         "describe_view": describe_view,
     }

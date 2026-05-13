@@ -89,6 +89,24 @@ def _h_survey(bundle: Dict[str, Any], task: Dict[str, Any]) -> None:
     bundle["head_sweep_queue"] = list(angles)
 
 
+def _h_scan(bundle: Dict[str, Any], task: Dict[str, Any]) -> None:
+    """``scan(target_label, max_revolutions, direction)`` writes a
+    structured state block the autonomy loop's scan handler reads.
+
+    The handler rotates ``_cmd[2]`` continuously, watches
+    ``scene_nodes`` for the target label, and clears ``scan_active``
+    on first sighting or when the revolution budget is exhausted.
+    """
+    bundle["scan_active"] = {
+        "target_label": task.get("target_label"),
+        "max_revolutions": float(task.get("max_revolutions", 1.0)),
+        "direction": int(task.get("direction", 1)),
+        # Filled in by the autonomy handler on the first tick:
+        "started_yaw": None,
+        "accumulated_rad": 0.0,
+    }
+
+
 _DEFAULT_HANDLERS: Dict[str, Handler] = {
     "goto": _h_goto,
     "goto_xy": _h_goto_xy,
@@ -96,6 +114,7 @@ _DEFAULT_HANDLERS: Dict[str, Handler] = {
     "stop": _h_stop,
     "peek": _h_peek,
     "survey": _h_survey,
+    "scan": _h_scan,
 }
 
 

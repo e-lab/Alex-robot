@@ -28,6 +28,7 @@ will wrap this in a daemon-thread Future poll (LA-6) to keep the
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List, Optional
 
@@ -135,6 +136,12 @@ class AgentRunner:
             return f"task_queue not empty ({len(self.bundle['task_queue'])} pending)"
         if self.bundle.get("face_yaw_rad") is not None:
             return f"face rotation in progress (target={self.bundle['face_yaw_rad']:.2f} rad)"
+        if self.bundle.get("scan_active") is not None:
+            sc = self.bundle["scan_active"]
+            tgt = sc.get("target_label", "?")
+            rotated = float(sc.get("accumulated_rad", 0.0))
+            return (f"scan in progress (target='{tgt}', "
+                    f"rotated={math.degrees(rotated):.0f}°)")
         if cfg.startup_delay_s > 0.0 and self._first_poll_t is not None:
             elapsed = now - self._first_poll_t
             if elapsed < cfg.startup_delay_s:
@@ -168,6 +175,11 @@ class AgentRunner:
         # has no information yet and will re-issue the same face call,
         # burning turns. Wait for the handler to clear face_yaw_rad.
         if self.bundle.get("face_yaw_rad") is not None:
+            return False
+        # LA-7 scan gate: while a long-running scan(target_label) is
+        # active, the autonomy loop rotates continuously and the
+        # agent has no new information to act on. Don't tick.
+        if self.bundle.get("scan_active") is not None:
             return False
         # Startup-delay gate: wait ``startup_delay_s`` from the first
         # poll we ever see so SAM3 / heightmap have a chance to fire

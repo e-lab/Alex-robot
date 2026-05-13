@@ -1,133 +1,51 @@
-# LA-7 stdin script — drive Alex to the stove.
+# LA-7 stdin script — drive Alex to the stove using scan().
 #
-# Strategy: scan in 45° steps until a kitchen-appliance label is
-# grounded, then goto. The stove in this scene sits behind+left of
-# the spawn, so we expect to find it around 180-225°.
-#
-# We use face(yaw_rad) which the autonomy loop now closes the
-# loop on (LA-7 commit 43522f5). The face skill returns "queued";
-# the autonomy loop drives _cmd[2] until the current yaw is within
-# 8° of target, then clears face_yaw_rad and lets the FSM resume.
-#
-# Each turn after the rotation completes we re-check scene_nodes.
-# Once stove or oven is grounded, we goto. Phase 1-4's planner +
-# follower take over from there.
+# One-decision strategy:
+#  Turn 1: if stove is already in scene_graph, goto. Otherwise
+#          scan(target='stove') — the autonomy loop rotates the body
+#          continuously until SAM3 grounds the stove, then clears
+#          scan_active. The agent's gate is closed during the scan
+#          so this turn "blocks" until the rotation completes (no
+#          mid-rotation re-decisions).
+#  Turn 2: scan completed. If found, goto. Otherwise fail honestly.
+#  Turn 3: while goto is walking, the FSM is APPROACH so the gate is
+#          closed. Turn 3 only fires after ARRIVED. Declare success.
 
 ```python
-# Turn 1 — initial check at spawn yaw.
+# Turn 1: act on what we see, or start scanning for the target.
 nodes = list_scene()["value"]
 print("la7 t1 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
+target = None
+for label in ("stove", "oven"):
     r = find(label)
     if r["status"] == "ok":
-        goto(label)
+        target = label
         break
+if target is not None:
+    goto(target)
 else:
-    # Nothing useful yet — turn 45°.
-    face(0.785)   # +45° in radians (pi/4 ≈ 0.785)
+    # Continuous rotation that early-exits when stove appears.
+    scan(target_label="stove", max_revolutions=1.0)
 ```
 EOF
 
 ```python
-# Turn 2 — check again after rotation.
+# Turn 2: the scan either found stove (last_action shows found=True)
+# or exhausted its budget. Either way we re-check and act.
 nodes = list_scene()["value"]
 print("la7 t2 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
+for label in ("stove", "oven"):
     r = find(label)
     if r["status"] == "ok":
         goto(label)
         break
 else:
-    face(1.571)   # +90° (pi/2)
+    fail("scan completed without finding stove; saw " + str([n["label"] for n in nodes]))
 ```
 EOF
 
 ```python
-# Turn 3
-nodes = list_scene()["value"]
-print("la7 t3 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
-    r = find(label)
-    if r["status"] == "ok":
-        goto(label)
-        break
-else:
-    face(2.356)   # +135°
-```
-EOF
-
-```python
-# Turn 4
-nodes = list_scene()["value"]
-print("la7 t4 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
-    r = find(label)
-    if r["status"] == "ok":
-        goto(label)
-        break
-else:
-    face(3.142)   # +180° — looking the opposite direction.
-```
-EOF
-
-```python
-# Turn 5
-nodes = list_scene()["value"]
-print("la7 t5 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
-    r = find(label)
-    if r["status"] == "ok":
-        goto(label)
-        break
-else:
-    face(-2.356)  # -135° (225° equivalent — covers the back-left quadrant)
-```
-EOF
-
-```python
-# Turn 6
-nodes = list_scene()["value"]
-print("la7 t6 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
-    r = find(label)
-    if r["status"] == "ok":
-        goto(label)
-        break
-else:
-    face(-1.571)  # -90°
-```
-EOF
-
-```python
-# Turn 7
-nodes = list_scene()["value"]
-print("la7 t7 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
-    r = find(label)
-    if r["status"] == "ok":
-        goto(label)
-        break
-else:
-    face(-0.785)  # -45°
-```
-EOF
-
-```python
-# Turn 8 — final scan.
-nodes = list_scene()["value"]
-print("la7 t8 seen:", [(n["label"], n["world_xy"]) for n in nodes])
-for label in ("stove", "oven", "microwave"):
-    r = find(label)
-    if r["status"] == "ok":
-        goto(label)
-        break
-```
-EOF
-
-```python
-# Turn 9 — if a goto fired in any earlier turn, we won't reach here
-# until Phase 1-4 finishes walking and the FSM goes back to ARRIVED.
-# Declare success.
-finish("LA-7: scan-and-goto complete (or Phase 1-4 took over)")
+# Turn 3: goto walked us to the goal. Declare success.
+finish("LA-7: scan-and-goto complete")
 ```
 EOF
