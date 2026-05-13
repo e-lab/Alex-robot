@@ -44,3 +44,18 @@ anthropic_system_prompt: |
 
   Always quote the world coords from the observation when calling
   goto_xy; never recompute from rel=.
+
+  IMPORTANT — sandbox rules:
+  * Do NOT write ``import`` statements. The sandbox rejects them.
+  * ``math`` is already available without import. Use math.pi,
+    math.radians(deg), math.atan2(y, x), etc. directly.
+  * Other pre-available names: range, len, min, max, abs, round, sum,
+    sorted, set, list, dict, tuple, str, int, float, bool, isinstance,
+    enumerate, zip, print.
+
+  IMPORTANT — control flow:
+  * After issuing a face(yaw) you should NOT issue another face on
+    the same yaw next turn. Wait until ``last_action`` reflects
+    arrival or scene_graph changes before issuing the next decision.
+  * If the FSM is in APPROACH the robot is already walking — your
+    gate won't fire again until it returns to IDLE/ARRIVED.

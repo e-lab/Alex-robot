@@ -16,9 +16,10 @@ non-blocking so tests stay pure-Python.
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Callable, Dict, Optional
 
-from ._errors import error_dict, nearest_seen_labels, queued_dict
+from ._errors import error_dict, nearest_seen_labels, ok_dict, queued_dict
 
 
 def _scene_lookup(bundle: dict, label: str) -> Optional[Dict[str, Any]]:
@@ -110,12 +111,29 @@ def make_locomotion_skills(bundle: dict) -> Dict[str, Callable[..., Dict[str, An
         return queued_dict(kind="goto_xy", xy=list(target))
 
     def face(yaw_rad: float) -> Dict[str, Any]:
-        """Rotate in place to the given world-frame yaw (radians)."""
+        """Rotate in place to the given world-frame yaw (radians).
+
+        Returns ``status="ok"`` (already-there) instead of ``queued``
+        when the robot is already within 5° of the target yaw —
+        prevents the LLM from re-issuing identical face commands when
+        ``last_action`` already reflects the rotation as complete.
+        """
+        target = float(yaw_rad)
+        pose = bundle.get("robot_pose") or {}
+        current = float(pose.get("yaw_rad", 0.0))
+        # Smallest signed angular diff in [-pi, +pi].
+        err = math.atan2(math.sin(target - current), math.cos(target - current))
+        if abs(err) < math.radians(5.0):
+            # Robot is already there; don't enqueue another rotation.
+            return ok_dict(
+                value={"yaw_rad": target, "already_at_target": True},
+                message=f"already within {math.degrees(abs(err)):.1f}° of target yaw",
+            )
         bundle["task_queue"].append({
             "kind": "face",
-            "yaw_rad": float(yaw_rad),
+            "yaw_rad": target,
         })
-        return queued_dict(kind="face", yaw_rad=float(yaw_rad))
+        return queued_dict(kind="face", yaw_rad=target)
 
     def stop() -> Dict[str, Any]:
         """Force the safe-stop command for one tick. Rarely useful

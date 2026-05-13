@@ -80,11 +80,29 @@ class _AstChecker(ast.NodeVisitor):
         self._allowed = allowed_names
 
     # ``import`` / ``from ... import``
+    # Friendlier message for the most common LLM mistake: ``import
+    # math`` to use math.pi etc. We make the error self-documenting
+    # so the LLM sees in last_action why it failed and what to do
+    # instead — without this hint, Claude alternated import/no-import
+    # for 20 turns in the first anthropic LA-7 run.
+    _IMPORT_HINT = (
+        "import is forbidden in the sandbox. The following names are "
+        "already available without import: math (pi, tau, e, sin, cos, "
+        "tan, atan2, radians, degrees, sqrt, hypot, floor, ceil), "
+        "range, len, min, max, abs, round, sum, sorted, set, list, "
+        "dict, tuple, str, int, float, bool, isinstance, enumerate, "
+        "zip, print. Use them directly — e.g. ``face(math.pi)``."
+    )
+
     def visit_Import(self, node: ast.Import) -> None:
-        raise SandboxRejected(f"import is forbidden (line {node.lineno})")
+        raise SandboxRejected(
+            f"{self._IMPORT_HINT} (offending line {node.lineno})"
+        )
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        raise SandboxRejected(f"import is forbidden (line {node.lineno})")
+        raise SandboxRejected(
+            f"{self._IMPORT_HINT} (offending line {node.lineno})"
+        )
 
     # Dunder attribute access — well-known sandbox-escape surface.
     def visit_Attribute(self, node: ast.Attribute) -> None:
