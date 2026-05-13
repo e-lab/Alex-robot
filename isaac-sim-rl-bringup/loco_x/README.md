@@ -115,7 +115,9 @@ is the canary: if it drifts, the safety net broke.
 * [x] LA-5 — agent runner (closed loop: observation → LLM → sandbox → skills)
 * [x] LA-6 — wire AsyncRunner + TaskDispatcher into `_step_autonomy`
        (opt-in via `loco_x=scripted` Hydra group)
-* [x] LA-7 — sim acceptance: single target with active perception
-       (one stdin trial succeeded via scan() in 3 LLM calls;
-       FloorPlan1 kitchen, stove target, robot reached dist=0.90m)
+* [x] LA-7 — sim acceptance: single target with active perception.
+       Both backends validated end-to-end in FloorPlan1 kitchen:
+         * stdin: 3 turns, dist=0.90m (commit da716ba)
+         * anthropic (claude-opus-4-7): 3 turns, dist=0.92m,
+           ~$0.05 API cost (commit f9b4a49 + this run)
 * [ ] LA-8 through LA-10 — sim acceptance phases
