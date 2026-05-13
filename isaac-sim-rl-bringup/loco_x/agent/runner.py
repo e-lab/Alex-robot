@@ -297,26 +297,40 @@ class AgentRunner:
         ``bundle["last_action"]`` so the next observation surfaces it.
 
         Skills mutate ``bundle["task_queue"]`` directly. The
-        last-action dict the runner stores is the *last skill's*
-        return value when the code is a single skill call; for multi-
-        skill code blocks we keep the first error or the last
-        ok-result. The runner doesn't try to render them all — the
-        agent observation echoes a one-line summary.
+        last-action dict the runner stores follows the
+        "probe-then-act" rule:
+
+        * If any skill returned ``status="queued"`` or
+          ``status="ok"``, that's the result we surface — the
+          agent's *final* decision wins, not its first probe.
+        * If every skill in the block errored, surface the first
+          error so the LLM sees the most informative failure.
+
+        Rationale: the LLM commonly writes code like
+        ``for label in (...): r = find(label); if ok: goto(label);
+        break; else: face(45°)``. The find() calls all error, then
+        face() queues. Without the probe-then-act rule, the runner
+        would report unknown_label as last_action even though the
+        agent recovered correctly and a face task is now in the
+        queue — a confusing signal for the next observation.
         """
-        # Build a tiny capture wrapper around the skill namespace.
-        captured: Dict[str, Any] = {"result": None, "error": None}
+        captured: Dict[str, Any] = {
+            "first_error": None,
+            "last_action": None,
+        }
         ns = make_skills(self.bundle)
 
-        # Wrap every skill so we can record the last call's return.
         def _wrap(name, fn):
             def _w(*args, **kwargs):
                 r = fn(*args, **kwargs)
-                # First-error-wins: surface the most informative
-                # feedback to the LLM next turn.
-                if isinstance(r, dict) and r.get("status") == "error":
-                    if captured["error"] is None:
-                        captured["error"] = r
-                captured["result"] = r
+                if isinstance(r, dict):
+                    status = r.get("status")
+                    if status == "error":
+                        if captured["first_error"] is None:
+                            captured["first_error"] = r
+                    elif status in ("queued", "ok"):
+                        # Final acted-on skill wins.
+                        captured["last_action"] = r
                 return r
             return _w
         wrapped_ns = {k: _wrap(k, v) for k, v in ns.items() if callable(v)}
@@ -352,11 +366,12 @@ class AgentRunner:
             )
             return
 
-        # No exception — pick the captured payload to surface.
-        if captured["error"] is not None:
-            self.bundle["last_action"] = captured["error"]
-        elif captured["result"] is not None:
-            self.bundle["last_action"] = captured["result"]
+        # No exception — pick the captured payload to surface,
+        # following the probe-then-act rule.
+        if captured["last_action"] is not None:
+            self.bundle["last_action"] = captured["last_action"]
+        elif captured["first_error"] is not None:
+            self.bundle["last_action"] = captured["first_error"]
         else:
             # Code ran but called no skills (rare); record a minimal
             # ok so the LLM doesn't see a stale prior turn.
