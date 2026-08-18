@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="WSG32UMIV1">
+  <!--
+    Qualified derivative of si-machines/wsg_32_description @ 8db8edb and the
+    actuated-umi v1 finger @ 8e9e957. The original bytes remain under source/.
+    The 0.1 kg finger mass is a conservative unmeasured upper bound.
+  -->
+  <material name="WSG_ALUMINUM">
+    <color rgba="0.792157 0.819608 0.933333 1" />
+  </material>
+  <material name="UMI_BLACK">
+    <color rgba="0.025 0.025 0.025 1" />
+  </material>
+
+  <!-- Canonical mounting frame: +X approach, +Y closing axis, +Z right-handed. -->
+  <link name="WSG32_BASE_LINK" />
+
+  <joint name="WSG32_BASE_TO_BODY" type="fixed">
+    <origin xyz="0 0 0" rpy="0 1.5707963268 0" />
+    <parent link="WSG32_BASE_LINK" />
+    <child link="WSG32_BODY_LINK" />
+  </joint>
+
+  <link name="WSG32_BODY_LINK">
+    <inertial>
+      <origin xyz="0.0000585924 -0.0033544592 0.0278036948" rpy="0 0 0" />
+      <mass value="0.460692942" />
+      <inertia ixx="0.0006714992" ixy="0.0000003753" ixz="0.0000001826"
+               iyy="0.0001644281" iyz="-0.0000223832" izz="0.0005790097" />
+    </inertial>
+    <visual name="WSG32_BODY_VISUAL">
+      <geometry>
+        <mesh filename="../source/wsg_32_description/meshes/hand_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_BODY_CONVEX">
+      <geometry>
+        <mesh filename="../meshes/collision/hand_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="WSG32_NEGATIVE_JAW_LINK">
+    <inertial>
+      <origin xyz="-0.0104832601 -0.0101616477 0.0052207788" rpy="0 0 0" />
+      <mass value="0.044653529" />
+      <inertia ixx="0.0000067885" ixy="-0.0000020988" ixz="0.0000015063"
+               iyy="0.0000071185" iyz="0.0000013202" izz="0.0000080905" />
+    </inertial>
+    <visual name="WSG32_NEGATIVE_JAW_VISUAL">
+      <origin xyz="-0.00725 0 0.0004" rpy="0 1.57079 0" />
+      <geometry>
+        <mesh filename="../source/wsg_32_description/meshes/left_finger_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_NEGATIVE_JAW_CONVEX">
+      <origin xyz="-0.00725 0 0.0004" rpy="0 1.57079 0" />
+      <geometry>
+        <mesh filename="../meshes/collision/jaw_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="WSG32_JAW_OPENING" type="prismatic">
+    <origin xyz="-0.0003903 -0.0078 0.069014" rpy="3.1415926536 -1.5707963268 0" />
+    <parent link="WSG32_BODY_LINK" />
+    <child link="WSG32_NEGATIVE_JAW_LINK" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="0.034" effort="25" velocity="0.4" />
+    <dynamics damping="0.05" friction="0" />
+  </joint>
+
+  <link name="WSG32_POSITIVE_JAW_LINK">
+    <inertial>
+      <origin xyz="-0.0104832634 -0.0048208466 -0.0097616145" rpy="0 0 0" />
+      <mass value="0.044653529" />
+      <inertia ixx="0.0000067885" ixy="-0.0000015064" ixz="-0.0000020987"
+               iyy="0.0000080905" iyz="-0.0000013202" izz="0.0000071186" />
+    </inertial>
+    <visual name="WSG32_POSITIVE_JAW_VISUAL">
+      <origin xyz="-0.00725 0 0.0004" rpy="-1.57079 3.14159 -1.57079" />
+      <geometry>
+        <mesh filename="../source/wsg_32_description/meshes/right_finger_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_POSITIVE_JAW_CONVEX">
+      <origin xyz="-0.00725 0 0.0004" rpy="-1.57079 3.14159 -1.57079" />
+      <geometry>
+        <mesh filename="../meshes/collision/jaw_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="WSG32_JAW_FOLLOWER" type="prismatic">
+    <origin xyz="-0.0003903 0.0078 0.069012" rpy="-1.5707963268 -1.5707963268 0" />
+    <parent link="WSG32_BODY_LINK" />
+    <child link="WSG32_POSITIVE_JAW_LINK" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.034" effort="25" velocity="0.4" />
+    <dynamics damping="0.05" friction="0" />
+    <mimic joint="WSG32_JAW_OPENING" multiplier="1" offset="0" />
+  </joint>
+
+  <link name="WSG32_NEGATIVE_UMI_V1_FINGER_LINK">
+    <inertial>
+      <origin xyz="0.0176341323 -0.0128999996 -0.0431689831" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="0.0001073730" ixy="0" ixz="-0.0000123783"
+               iyy="0.0001154502" iyz="0" izz="0.0000191712" />
+    </inertial>
+    <visual name="WSG32_NEGATIVE_UMI_V1_VISUAL">
+      <geometry>
+        <mesh filename="../source/actuated_umi/3d-printables/actuated-UMI-v1/UMI-gripper-soft-gripper-finger.stl"
+              scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="UMI_BLACK" />
+    </visual>
+    <collision name="WSG32_NEGATIVE_UMI_V1_MOUNT_CONVEX">
+      <geometry>
+        <mesh filename="../meshes/collision/umi_v1_mount_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <collision name="WSG32_NEGATIVE_UMI_V1_CONTACT_CONVEX">
+      <geometry>
+        <mesh filename="../meshes/collision/umi_v1_contact_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="WSG32_NEGATIVE_UMI_V1_MOUNT" type="fixed">
+    <origin xyz="0.009621605 -0.0068 0.0203834107" rpy="3.1415926536 1.5707963268 0" />
+    <parent link="WSG32_NEGATIVE_JAW_LINK" />
+    <child link="WSG32_NEGATIVE_UMI_V1_FINGER_LINK" />
+  </joint>
+
+  <link name="WSG32_POSITIVE_UMI_V1_FINGER_LINK">
+    <inertial>
+      <origin xyz="0.0176341323 -0.0128999996 -0.0431689831" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="0.0001073730" ixy="0" ixz="-0.0000123783"
+               iyy="0.0001154502" iyz="0" izz="0.0000191712" />
+    </inertial>
+    <visual name="WSG32_POSITIVE_UMI_V1_VISUAL">
+      <geometry>
+        <mesh filename="../source/actuated_umi/3d-printables/actuated-UMI-v1/UMI-gripper-soft-gripper-finger.stl"
+              scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="UMI_BLACK" />
+    </visual>
+    <collision name="WSG32_POSITIVE_UMI_V1_MOUNT_CONVEX">
+      <geometry>
+        <mesh filename="../meshes/collision/umi_v1_mount_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <collision name="WSG32_POSITIVE_UMI_V1_CONTACT_CONVEX">
+      <geometry>
+        <mesh filename="../meshes/collision/umi_v1_contact_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="WSG32_POSITIVE_UMI_V1_MOUNT" type="fixed">
+    <origin xyz="0.009623605 -0.0196028107 -0.0068" rpy="-1.5707963268 0 1.5707963268" />
+    <parent link="WSG32_POSITIVE_JAW_LINK" />
+    <child link="WSG32_POSITIVE_UMI_V1_FINGER_LINK" />
+  </joint>
+
+  <!-- Geometric model-reference TCP accepted for simulation training. -->
+  <link name="WSG32_TCP_LINK" />
+  <joint name="WSG32_TCP" type="fixed">
+    <origin xyz="0.1305 0 0" rpy="0 0 0" />
+    <parent link="WSG32_BASE_LINK" />
+    <child link="WSG32_TCP_LINK" />
+  </joint>
+</robot>

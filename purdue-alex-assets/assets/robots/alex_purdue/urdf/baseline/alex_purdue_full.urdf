@@ -1,0 +1,813 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="AlexPurdue">
+  <!-- Derived from IHMC Alex SDK 6e25f0c. Vanilla fragments remain separate; this portable merge removes Gazebo/transmission blocks, rewrites mesh URIs, removes the obsolete ZED visual while preserving its frame, corrects the right terminal mesh reference, and adds nominal EZGripper TCP frames. -->
+  <!-- NECK, & HEAD JOINTS -->
+  <joint name="PEDESTAL_F" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0" />
+    <parent link="PEDESTAL_LINK" />
+    <child link="TORSO_LINK" />
+    <limit effort="0.0" lower="0.0" upper="0.0" velocity="0.0" />
+    <dynamics damping="0.0" friction="0.0" />
+  </joint>
+  <joint name="NECK_Z" type="revolute">
+    <origin rpy="0 0 0" xyz="0.0072 0 0.4669" />
+    <axis xyz="0 0 1" />
+    <parent link="TORSO_LINK" />
+    <child link="NECK_Z_LINK" />
+    <limit effort="20.86" lower="-1.22173" upper="1.22173" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="NECK_Y" type="revolute">
+    <origin rpy="0 0 0" xyz="0.015 -0.013 0.130" />
+    <axis xyz="0 1 0" />
+    <parent link="NECK_Z_LINK" />
+    <child link="HEAD_LINK" />
+    <limit effort="20.86" lower="-0.488692" upper="0.488692" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- TORSO, NECK, & HEAD LINKS -->
+  <link name="PEDESTAL_LINK">
+    <inertial>
+      <mass value="0.72380912" />
+      <origin rpy="0 0 0" xyz="0.00000416 -9.214E-7 0.02113924" />
+      <inertia ixx="0.00176605" ixy="-1.625E-7" ixz="-2.679E-9" iyy="0.00176535" iyz="5.938E-10" izz="0.00351695" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../../../platforms/purdue_pedestal/meshes/pedestal_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0 0 0.0" />
+    </visual>
+  </link>
+  <link name="TORSO_LINK">
+    <inertial>
+      <mass value="15.12587484" />
+      <origin rpy="0 0 0" xyz="0.00387685 0.00076817 0.29513974" />
+      <inertia ixx="0.27907278" ixy="0.00038347" ixz="0.01940091" iyy="0.24300602" iyz="0.00098669" izz="0.17172871" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/torso_head/torso_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0 0 0" />
+    </visual>
+  </link>
+  <link name="NECK_Z_LINK">
+    <inertial>
+      <mass value="0.35018021" />
+      <origin rpy="0 0 0" xyz="0.00219772 -0.00061535 0.0631763" />
+      <inertia ixx="0.00083944" ixy="0.00001358" ixz="-0.00004823" iyy="0.00094957" iyz="0.0000706" izz="0.00037861" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/torso_head/neck_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0 0 0.0" />
+    </visual>
+  </link>
+  <link name="HEAD_LINK">
+    <inertial>
+      <mass value="2.53238993" />
+      <origin rpy="0 0 0" xyz="0.02203239 0.01559991 0.03487138" />
+      <inertia ixx="0.0099523" ixy="0.00038238" ixz="0.00059895" iyy="0.01235238" iyz="0.00044277" izz="0.01250517" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/torso_head/head_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+    <collision name="head_collision">
+      <origin xyz="0.03237 -0.013568 0.007163" rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.14" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- HEAD ZED X MINI -->
+  <joint name="HEAD_ZED_X_MINI_JOINT" type="fixed">
+    <origin rpy="0.0 0.3633 0.0" xyz="0.11603 0.009965 -0.02983" />
+    <parent link="HEAD_LINK" />
+    <child link="HEAD_ZED_X_MINI_LINK" />
+  </joint>
+  <link name="HEAD_ZED_X_MINI_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- HEAD IMU -->
+  <joint name="HEAD_IMU_JOINT" type="fixed">
+    <origin rpy="0.0 0.0 0.0" xyz="-0.02432603 -0.00225290 0.07425800" />
+    <axis xyz="0 0 1" />
+    <parent link="HEAD_LINK" />
+    <child link="HEAD_IMU_LINK" />
+  </joint>
+  <link name="HEAD_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- TORSO IMU -->
+  <joint name="TORSO_IMU_JOINT" type="fixed">
+    <origin rpy="-1.561264 -0.329453 -1.570796" xyz="0.094766 0.018319 0.255014" />
+    <!-- Added 0.009536 roll, 0.002147 pitch bias -->
+    <axis xyz="0 0 1" />
+    <parent link="TORSO_LINK" />
+    <child link="TORSO_IMU_LINK" />
+  </joint>
+  <link name="TORSO_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- Left Upper Arm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="LEFT_SHOULDER_Y" type="revolute">
+    <origin xyz="-0.00050000 0.12989023 0.38214403" rpy="0.698132 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="TORSO_LINK" />
+    <child link="LEFT_SHOULDER_Y_LINK" />
+    <limit effort="160.7" lower="-3.141592" upper="1.22173" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_SHOULDER_X" type="revolute">
+    <origin xyz="0.0 0.11791000 -0.01300000" rpy="-0.698132 0.0 0.0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <parent link="LEFT_SHOULDER_Y_LINK" />
+    <child link="LEFT_SHOULDER_X_LINK" />
+    <limit effort="160.7" lower="-0.261799" upper="2.87979" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_SHOULDER_Z" type="revolute">
+    <origin xyz="0.0 0.03500000 -0.10600000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="LEFT_SHOULDER_X_LINK" />
+    <child link="LEFT_SHOULDER_Z_LINK" />
+    <limit effort="71.28" lower="-1.91986" upper="1.22173" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Upper Arm Links -->
+  <link name="LEFT_SHOULDER_Y_LINK">
+    <inertial>
+      <mass value="2.05868192" />
+      <origin rpy="0 0 0" xyz="-0.00570706 0.0080361 0.09757156" />
+      <inertia ixx="0.00511665" ixy="-0.00000918" ixz="0.00003641" iyy="0.00561764" iyz="-0.00050629" izz="0.00322577" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_shoulder_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_SHOULDER_X_LINK">
+    <inertial>
+      <mass value="0.48051112" />
+      <origin rpy="0 0 0" xyz="-0.0037059 0.02589813 -0.05866592" />
+      <inertia ixx="0.00101844" ixy="-0.00005266" ixz="0.0001169" iyy="0.00111559" iyz="0.00016556" izz="0.00087278" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_shoulder_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_SHOULDER_Z_LINK">
+    <inertial>
+      <mass value="3.67445507" />
+      <origin rpy="0 0 0" xyz="0.0087191 -0.00275047 -0.14270206" />
+      <inertia ixx="0.035168" ixy="0.00004987" ixz="0.00284259" iyy="0.03490713" iyz="-0.00063372" izz="0.00493209" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_shoulder_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Left Upper Arm IMUs -->
+  <!-- LEFT SHOULDER Y (PITCH) -->
+  <joint name="LEFT_SHOULDER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="0.0 0.261799 1.5708" xyz="0.01382603 0.00201569 0.03728214" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_SHOULDER_Y_LINK" />
+    <child link="LEFT_SHOULDER_Y_IMU_LINK" />
+  </joint>
+  <link name="LEFT_SHOULDER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- LEFT SHOULDER Z (YAW) -->
+  <joint name="LEFT_SHOULDER_Z_IMU_JOINT" type="fixed">
+    <origin rpy="-1.570796 0.0 0.0" xyz="0.00395818 0.01324003 -0.12899368" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_SHOULDER_Z_LINK" />
+    <child link="LEFT_SHOULDER_Z_IMU_LINK" />
+  </joint>
+  <link name="LEFT_SHOULDER_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- Left Forearm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="LEFT_ELBOW_Y" type="revolute">
+    <origin xyz="0.02000000 0.0 -0.23400000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="LEFT_SHOULDER_Z_LINK" />
+    <child link="LEFT_ELBOW_Y_LINK" />
+    <limit effort="71.28" lower="-2.35619" upper="0.174533" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_WRIST_Z" type="revolute">
+    <origin xyz="-0.02000000 0.0 -0.08074000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="LEFT_ELBOW_Y_LINK" />
+    <child link="LEFT_WRIST_Z_LINK" />
+    <limit effort="20.86" lower="-2.61799" upper="2.61799" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_WRIST_X" type="revolute">
+    <origin xyz="0.0 -0.013 -0.19750000" rpy="0.0 0.0 0.0" />
+    <axis xyz="1 0 0" />
+    <parent link="LEFT_WRIST_Z_LINK" />
+    <child link="LEFT_WRIST_X_LINK" />
+    <limit effort="20.86" lower="-1.48353" upper="0.959931" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_GRIPPER_Y" type="revolute">
+    <origin xyz="0.0 0.013 0.0" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="LEFT_WRIST_X_LINK" />
+    <child link="LEFT_GRIPPER_Y_LINK" />
+    <limit effort="20.86" lower="-0.785398" upper="0.785398" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Forearm Links -->
+  <link name="LEFT_ELBOW_Y_LINK">
+    <inertial>
+      <mass value="0.5292201" />
+      <origin rpy="0 0 0" xyz="-0.01650253 -0.00263815 -0.04773102" />
+      <inertia ixx="0.00114255" ixy="0.00001759" ixz="-0.00003691" iyy="0.00079366" iyz="0.00015824" izz="0.00087581" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_elbow_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_WRIST_Z_LINK">
+    <inertial>
+      <mass value="2.05080746" />
+      <origin rpy="0 0 0" xyz="-0.00443865 -0.00006299 -0.07235002" />
+      <inertia ixx="0.00509284" ixy="0.00004197" ixz="-0.00014021" iyy="0.00581358" iyz="-0.00008813" izz="0.00234961" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_wrist_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_WRIST_X_LINK">
+    <inertial>
+      <mass value="0.87091179" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="0.00025938 0.01208633 0.00037966" />
+      <inertia ixx="0.00066164" ixy="-0.00000242" ixz="-0.00000115" iyy="0.00064531" iyz="-0.00000916" izz="0.00065818" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_wrist_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_GRIPPER_Y_LINK">
+    <inertial>
+      <mass value="0.184" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="-0.00002105 0.00511741 0.0424156" />
+      <inertia ixx="0.00026321" ixy="-1.429E-7" ixz="1.580E-8" iyy="0.00022394" iyz="0.00003975" izz="0.0002215" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_gripper_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Left Forearm IMUs -->
+  <!-- LEFT WRIST Z (YAW) -->
+  <joint name="LEFT_WRIST_Z_IMU_JOINT" type="fixed">
+    <origin rpy="1.571 0.0 1.571" xyz="-0.03355000 0.01162100 -0.09292000" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_WRIST_Z_LINK" />
+    <child link="LEFT_WRIST_Z_IMU_LINK" />
+  </joint>
+  <link name="LEFT_WRIST_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- LEFT GRIPPER Y (PITCH) -->
+  <joint name="LEFT_GRIPPER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="3.14159 0 -1.571" xyz="0.01060620 -0.01122793 -0.06568644" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_GRIPPER_Y_LINK" />
+    <child link="LEFT_GRIPPER_Y_IMU_LINK" />
+  </joint>
+  <link name="LEFT_GRIPPER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <joint name="LEFT_EZGRIPPER_ADAPTER" type="fixed">
+    <!-- TODO: Figure out correct origin -->
+    <origin xyz="0 0 -0.0765" rpy="3.141592 1.570796 0" />
+    <parent link="LEFT_GRIPPER_Y_LINK" />
+    <child link="left_ezgripper_palm_link" />
+  </joint>
+  <!-- links -->
+  <link name="left_ezgripper_palm_link">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Palm_Dual_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Palm_Dual_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.3" />
+      <inertia ixx="5e-5" ixy="0.0" ixz="0.0" iyy="3e-5" iyz="0.0" izz="3e-5" />
+    </inertial>
+  </link>
+  <link name="left_ezgripper_finger_l1_1">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <link name="left_ezgripper_finger_l1_2">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <link name="left_ezgripper_finger_l2_1">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value=".025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <link name="left_ezgripper_finger_l2_2">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value=".025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <!-- joints -->
+  <joint name="left_ezgripper_knuckle_palm_l1_1" type="revolute">
+    <parent link="left_ezgripper_palm_link" />
+    <child link="left_ezgripper_finger_l1_1" />
+    <origin xyz="0.072569 0.03 0" rpy="-1.5708 0 1.57075" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+  </joint>
+  <joint name="left_ezgripper_knuckle_palm_l1_2" type="revolute">
+    <parent link="left_ezgripper_palm_link" />
+    <child link="left_ezgripper_finger_l1_2" />
+    <origin xyz="0.072569 -0.03 0" rpy="1.5708 0 -1.57075" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+    <mimic joint="left_ezgripper_knuckle_palm_l1_1" />
+  </joint>
+  <joint name="left_ezgripper_knuckle_l1_l2_1" type="revolute">
+    <parent link="left_ezgripper_finger_l1_1" />
+    <child link="left_ezgripper_finger_l2_1" />
+    <origin xyz="0.052 0 0" rpy="0 0 0" />
+    <!-- origin xyz="0.06 0 0" rpy="${3.14159 * reflectR} 0 0"/-->
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+  </joint>
+  <joint name="left_ezgripper_knuckle_l1_l2_2" type="revolute">
+    <parent link="left_ezgripper_finger_l1_2" />
+    <child link="left_ezgripper_finger_l2_2" />
+    <origin xyz="0.052 0 0" rpy="0 0 0" />
+    <!-- origin xyz="0.06 0 0" rpy="${3.14159 * reflectR} 0 0"/-->
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+    <mimic joint="left_ezgripper_knuckle_l1_l2_1" />
+  </joint>
+  <!-- transmissions for Gazebo -->
+  <!-- Right Upper Arm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="RIGHT_SHOULDER_Y" type="revolute">
+    <origin xyz="-0.00050000 -0.12989023 0.38214403" rpy="-0.698132 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="TORSO_LINK" />
+    <child link="RIGHT_SHOULDER_Y_LINK" />
+    <limit effort="160.7" lower="-3.141592" upper="1.22173" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_SHOULDER_X" type="revolute">
+    <origin xyz="0.0 -0.11791000 -0.01300000" rpy="0.698132 0.0 0.0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <parent link="RIGHT_SHOULDER_Y_LINK" />
+    <child link="RIGHT_SHOULDER_X_LINK" />
+    <limit effort="160.7" lower="-2.87979" upper="0.261799" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_SHOULDER_Z" type="revolute">
+    <origin xyz="0.0 -0.03500000 -0.10400000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="RIGHT_SHOULDER_X_LINK" />
+    <child link="RIGHT_SHOULDER_Z_LINK" />
+    <limit effort="71.28" lower="-1.22173" upper="1.91986" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Upper Arm Links -->
+  <link name="RIGHT_SHOULDER_Y_LINK">
+    <inertial>
+      <mass value="2.05868192" />
+      <origin rpy="0 0 0" xyz="-0.00570706 -0.0080361 0.09757156" />
+      <inertia ixx="0.00511665" ixy="0.00000918" ixz="0.00003641" iyy="0.00561764" iyz="0.00050629" izz="0.00322577" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_shoulder_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_SHOULDER_X_LINK">
+    <inertial>
+      <mass value="0.48051112" />
+      <origin rpy="0 0 0" xyz="-0.0037059 -0.02589813 -0.05866592" />
+      <inertia ixx="0.00101844" ixy="0.00005266" ixz="0.0001169" iyy="0.00111559" iyz="-0.00016556" izz="0.00087278" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_shoulder_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_SHOULDER_Z_LINK">
+    <inertial>
+      <mass value="3.67445507" />
+      <origin rpy="0 0 0" xyz="0.0087191 0.00275047 -0.14270206" />
+      <inertia ixx="0.035168" ixy="-0.00004987" ixz="0.00284259" iyy="0.03490713" iyz="0.00063372" izz="0.00493209" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_shoulder_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Right Upper Arm IMUs -->
+  <!-- RIGHT SHOULDER Y (PITCH) -->
+  <joint name="RIGHT_SHOULDER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="0.0 -0.261799 1.5708" xyz="0.01382603 -0.00835826 0.06095292" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_SHOULDER_Y_LINK" />
+    <child link="RIGHT_SHOULDER_Y_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_SHOULDER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- RIGHT SHOULDER Z (YAW) -->
+  <joint name="RIGHT_SHOULDER_Z_IMU_JOINT" type="fixed">
+    <origin rpy="-1.570796 0.0 3.14159" xyz="-0.00395818 -0.01324003 -0.12899368" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_SHOULDER_Z_LINK" />
+    <child link="RIGHT_SHOULDER_Z_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_SHOULDER_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- Left Forearm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="RIGHT_ELBOW_Y" type="revolute">
+    <origin xyz="0.02000000 0.0 -0.23400000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="RIGHT_SHOULDER_Z_LINK" />
+    <child link="RIGHT_ELBOW_Y_LINK" />
+    <limit effort="71.28" lower="-2.35619" upper="0.174533" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_WRIST_Z" type="revolute">
+    <origin xyz="-0.02000000 0.0 -0.08074000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="RIGHT_ELBOW_Y_LINK" />
+    <child link="RIGHT_WRIST_Z_LINK" />
+    <limit effort="20.86" lower="-2.61799" upper="2.61799" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_WRIST_X" type="revolute">
+    <origin xyz="0.0 0.013 -0.19750000" rpy="0.0 0.0 0.0" />
+    <axis xyz="1 0 0" />
+    <parent link="RIGHT_WRIST_Z_LINK" />
+    <child link="RIGHT_WRIST_X_LINK" />
+    <limit effort="20.86" lower="-0.959931" upper="1.48353" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_GRIPPER_Y" type="revolute">
+    <origin xyz="0.0 -0.013 0.0" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="RIGHT_WRIST_X_LINK" />
+    <child link="RIGHT_GRIPPER_Y_LINK" />
+    <limit effort="20.86" lower="-0.785398" upper="0.785398" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Forearm Links -->
+  <link name="RIGHT_ELBOW_Y_LINK">
+    <inertial>
+      <mass value="0.5292201" />
+      <origin rpy="0 0 0" xyz="-0.01650253 0.00263815 -0.04773102" />
+      <inertia ixx="0.00114255" ixy="-0.00001759" ixz="-0.00003691" iyy="0.00079366" iyz="-0.00015824" izz="0.00087581" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_elbow_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_WRIST_Z_LINK">
+    <inertial>
+      <mass value="2.05080746" />
+      <origin rpy="0 0 0" xyz="-0.00443865 0.00006299 -0.07235002" />
+      <inertia ixx="0.00509284" ixy="-0.00004197" ixz="-0.00014021" iyy="0.00581358" iyz="0.00008813" izz="0.00234961" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_wrist_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_WRIST_X_LINK">
+    <inertial>
+      <mass value="0.87091179" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="0.00025938 -0.01208633 0.00037966" />
+      <inertia ixx="0.00066164" ixy="0.00000242" ixz="-0.00000115" iyy="0.00064531" iyz="0.00000916" izz="0.00065818" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_wrist_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_GRIPPER_Y_LINK">
+    <inertial>
+      <mass value="0.184" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="0.00002105 0.00511741 0.0424156" />
+      <inertia ixx="0.00026321" ixy="-1.429E-7" ixz="1.580E-8" iyy="0.00022394" iyz="-0.00003975" izz="0.0002215" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_gripper_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Left Forearm IMUs -->
+  <!-- LEFT WRIST Z (YAW) -->
+  <joint name="RIGHT_WRIST_Z_IMU_JOINT" type="fixed">
+    <origin rpy="1.571 0.0 1.571" xyz="-0.03355000 0.01162100 -0.09292000" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_WRIST_Z_LINK" />
+    <child link="RIGHT_WRIST_Z_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_WRIST_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- RIGHT GRIPPER Y (PITCH) -->
+  <joint name="RIGHT_GRIPPER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="-3.14159 0 1.571" xyz="0.01060620 -0.01122793 -0.06568644" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_GRIPPER_Y_LINK" />
+    <child link="RIGHT_GRIPPER_Y_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_GRIPPER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <joint name="RIGHT_EZGRIPPER_ADAPTER" type="fixed">
+    <!-- TODO: Figure out correct origin -->
+    <origin xyz="0 0 -0.0765" rpy="3.141592 1.570796 0" />
+    <parent link="RIGHT_GRIPPER_Y_LINK" />
+    <child link="right_ezgripper_palm_link" />
+  </joint>
+  <!-- links -->
+  <link name="right_ezgripper_palm_link">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Palm_Dual_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Palm_Dual_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.3" />
+      <inertia ixx="5e-5" ixy="0.0" ixz="0.0" iyy="3e-5" iyz="0.0" izz="3e-5" />
+    </inertial>
+  </link>
+  <link name="right_ezgripper_finger_l1_1">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <link name="right_ezgripper_finger_l1_2">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L1_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <link name="right_ezgripper_finger_l2_1">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value=".025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <link name="right_ezgripper_finger_l2_2">
+    <visual>
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/sake_ezgripper/meshes/SAKE_Finger_L2_Gen2.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value=".025" />
+      <inertia ixx="1E-6" ixy="0.0" ixz="0.0" iyy="1E-6" iyz="0.0" izz="3e-7" />
+    </inertial>
+  </link>
+  <!-- joints -->
+  <joint name="right_ezgripper_knuckle_palm_l1_1" type="revolute">
+    <parent link="right_ezgripper_palm_link" />
+    <child link="right_ezgripper_finger_l1_1" />
+    <origin xyz="0.072569 0.03 0" rpy="-1.5708 0 1.57075" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+  </joint>
+  <joint name="right_ezgripper_knuckle_palm_l1_2" type="revolute">
+    <parent link="right_ezgripper_palm_link" />
+    <child link="right_ezgripper_finger_l1_2" />
+    <origin xyz="0.072569 -0.03 0" rpy="1.5708 0 -1.57075" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+    <mimic joint="right_ezgripper_knuckle_palm_l1_1" />
+  </joint>
+  <joint name="right_ezgripper_knuckle_l1_l2_1" type="revolute">
+    <parent link="right_ezgripper_finger_l1_1" />
+    <child link="right_ezgripper_finger_l2_1" />
+    <origin xyz="0.052 0 0" rpy="0 0 0" />
+    <!-- origin xyz="0.06 0 0" rpy="${3.14159 * reflectR} 0 0"/-->
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+  </joint>
+  <joint name="right_ezgripper_knuckle_l1_l2_2" type="revolute">
+    <parent link="right_ezgripper_finger_l1_2" />
+    <child link="right_ezgripper_finger_l2_2" />
+    <origin xyz="0.052 0 0" rpy="0 0 0" />
+    <!-- origin xyz="0.06 0 0" rpy="${3.14159 * reflectR} 0 0"/-->
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.94" effort="1" velocity="3.67" />
+    <mimic joint="right_ezgripper_knuckle_l1_l2_1" />
+  </joint>
+  <!-- transmissions for Gazebo -->
+  <joint name="LEFT_EZGRIPPER_TCP" type="fixed">
+    <origin xyz="0.160804 0 0" rpy="0 0 0" />
+    <parent link="left_ezgripper_palm_link" />
+    <child link="LEFT_EZGRIPPER_TCP_LINK" />
+  </joint>
+  <link name="LEFT_EZGRIPPER_TCP_LINK" />
+  <joint name="RIGHT_EZGRIPPER_TCP" type="fixed">
+    <origin xyz="0.160804 0 0" rpy="0 0 0" />
+    <parent link="right_ezgripper_palm_link" />
+    <child link="RIGHT_EZGRIPPER_TCP_LINK" />
+  </joint>
+  <link name="RIGHT_EZGRIPPER_TCP_LINK" />
+</robot>

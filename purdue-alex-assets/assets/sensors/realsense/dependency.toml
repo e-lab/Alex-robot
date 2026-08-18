@@ -1,0 +1,46 @@
+[upstream]
+repository = "https://github.com/realsenseai/realsense-ros.git"
+tag = "4.58.3"
+commit = "60c850958d651130fc2cc3d10efb37ff5be93da5"
+package = "realsense2_description"
+version = "4.58.3"
+license = "Apache-2.0"
+
+[generation]
+xacro_repository = "https://github.com/ros/xacro.git"
+xacro_tag = "2.1.1"
+xacro_commit = "390772abfe1e068f54aed674ce43873229a7db4e"
+use_nominal_extrinsics = true
+d435_add_plug = false
+d435_use_mesh = true
+
+[source_sha256]
+"LICENSE" = "7092398b52290edddcb41c6e2297f4c6343eb315ea6c83edfdbeea2a73adfbdb"
+"source/realsense2_description/package.xml" = "7432ab5a1c6e490abb79ebd1ec44ba3800efc373d9f4d0ad38de48e037127848"
+"source/realsense2_description/urdf/_d405.urdf.xacro" = "81118e87388c06e4cf1b3dc8b114096de21c1b235bd283dafad84d2bd97aebb1"
+"source/realsense2_description/urdf/_d435.urdf.xacro" = "ae3f57e8d38b3a6d5cc9de059e4afe545e4b895717d638b75d2ad0642cfb7f1b"
+"source/realsense2_description/urdf/_materials.urdf.xacro" = "cd8a4b4ab488b57855318e68226329a80310ee45e3aa489dd75222f2c607d005"
+"source/realsense2_description/urdf/_usb_plug.urdf.xacro" = "22531ecdc0b09aa3ab4408641432617b000618933e98dc2f488ac31b88c8ad79"
+"source/realsense2_description/urdf/test_d405_camera.urdf.xacro" = "a0db6ae9ced56cd347be8f5909c598228860f7a1e5c6083af14b636087d28fc2"
+"source/realsense2_description/urdf/test_d435_camera.urdf.xacro" = "0964a39565f72a12645072503673f27545ab537680248e9f2958233c6df7ea8f"
+"d405/meshes/d405.stl" = "a248f41149d12b28311829feecbe7a80cf1481fd05e0f5df2c4c7ecd556edd48"
+
+[models.d405]
+urdf = "d405/urdf/realsense_d405.urdf"
+urdf_sha256 = "7e021a95143389e4acd41874e4dafba021a2eda2911d97b8827cea0223b6cb5f"
+mesh = "d405/meshes/d405.stl"
+official_mesh_sha256 = "a248f41149d12b28311829feecbe7a80cf1481fd05e0f5df2c4c7ecd556edd48"
+stored_mesh_sha256 = "a248f41149d12b28311829feecbe7a80cf1481fd05e0f5df2c4c7ecd556edd48"
+
+[models.d435]
+urdf = "d435/urdf/realsense_d435.urdf"
+urdf_sha256 = "cb42d207b10d54d69fee7ba7856a13939f794b41b31b9e310fb1443e96bb59fb"
+mesh = "d435/meshes/d435_isaac.dae"
+official_mesh_sha256 = "42f3b66f47a1f8f425a2e4dc07c1d9c283183167d8441f520a15623d98f9bf78"
+stored_mesh_sha256 = "d9b93efcbaacfb2a05a9430155441d66e606ec00949522fb78802936b3967fae"
+
+[models.d435.compatibility_patch]
+reason = "Isaac Sim 6 MeshConverter rejects the unnamed COLLADA material; its URDF importer also drops this DAE visual, so the runtime composes MeshConverter's USD output"
+original = "<material id=\"ID10\">"
+replacement = "<material id=\"ID10\" name=\"aluminum\">"
+geometry_changed = false

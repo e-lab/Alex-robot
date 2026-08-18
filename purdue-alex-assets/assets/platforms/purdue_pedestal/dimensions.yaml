@@ -1,0 +1,9 @@
+schema_version: 1
+asset: purdue_pedestal
+source_mesh: meshes/pedestal_purdue.obj
+units: m
+basis: mesh_axis_aligned_bounding_box
+status: geometry_derived_not_metrology
+minimum_xyz: [-0.082464, -0.083348, 0.015887]
+maximum_xyz: [0.082870, 0.082226, 0.026100]
+size_xyz: [0.165334, 0.165574, 0.010213]

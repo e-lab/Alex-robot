@@ -1,0 +1,857 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="AlexPurdue">
+  <!-- Alex Purdue WSG32 + UMI v1 simulation-training profile. The explicit 0.043 m axial mount component and model-reference transforms are accepted for simulation; physical calibration is optional and only required for calibrated sim-to-real claims. -->
+  <!-- NECK, & HEAD JOINTS -->
+  <joint name="PEDESTAL_F" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0" />
+    <parent link="PEDESTAL_LINK" />
+    <child link="TORSO_LINK" />
+    <limit effort="0.0" lower="0.0" upper="0.0" velocity="0.0" />
+    <dynamics damping="0.0" friction="0.0" />
+  </joint>
+  <joint name="NECK_Z" type="revolute">
+    <origin rpy="0 0 0" xyz="0.0072 0 0.4669" />
+    <axis xyz="0 0 1" />
+    <parent link="TORSO_LINK" />
+    <child link="NECK_Z_LINK" />
+    <limit effort="20.86" lower="-1.22173" upper="1.22173" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="NECK_Y" type="revolute">
+    <origin rpy="0 0 0" xyz="0.015 -0.013 0.130" />
+    <axis xyz="0 1 0" />
+    <parent link="NECK_Z_LINK" />
+    <child link="HEAD_LINK" />
+    <limit effort="20.86" lower="-0.488692" upper="0.488692" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- TORSO, NECK, & HEAD LINKS -->
+  <link name="PEDESTAL_LINK">
+    <inertial>
+      <mass value="0.72380912" />
+      <origin rpy="0 0 0" xyz="0.00000416 -9.214E-7 0.02113924" />
+      <inertia ixx="0.00176605" ixy="-1.625E-7" ixz="-2.679E-9" iyy="0.00176535" iyz="5.938E-10" izz="0.00351695" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../../../platforms/purdue_pedestal/meshes/pedestal_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0 0 0.0" />
+    </visual>
+  </link>
+  <link name="TORSO_LINK">
+    <inertial>
+      <mass value="15.12587484" />
+      <origin rpy="0 0 0" xyz="0.00387685 0.00076817 0.29513974" />
+      <inertia ixx="0.27907278" ixy="0.00038347" ixz="0.01940091" iyy="0.24300602" iyz="0.00098669" izz="0.17172871" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/torso_head/torso_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0 0 0" />
+    </visual>
+  </link>
+  <link name="NECK_Z_LINK">
+    <inertial>
+      <mass value="0.35018021" />
+      <origin rpy="0 0 0" xyz="0.00219772 -0.00061535 0.0631763" />
+      <inertia ixx="0.00083944" ixy="0.00001358" ixz="-0.00004823" iyy="0.00094957" iyz="0.0000706" izz="0.00037861" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/torso_head/neck_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0 0 0.0" />
+    </visual>
+  </link>
+  <link name="HEAD_LINK">
+    <inertial>
+      <mass value="2.53238993" />
+      <origin rpy="0 0 0" xyz="0.02203239 0.01559991 0.03487138" />
+      <inertia ixx="0.0099523" ixy="0.00038238" ixz="0.00059895" iyy="0.01235238" iyz="0.00044277" izz="0.01250517" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/torso_head/head_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+    <collision name="head_collision">
+      <origin xyz="0.03237 -0.013568 0.007163" rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.14" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- HEAD ZED X MINI -->
+  <joint name="HEAD_ZED_X_MINI_JOINT" type="fixed">
+    <origin rpy="0.0 0.3633 0.0" xyz="0.11603 0.009965 -0.02983" />
+    <parent link="HEAD_LINK" />
+    <child link="HEAD_ZED_X_MINI_LINK" />
+  </joint>
+  <link name="HEAD_ZED_X_MINI_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- HEAD IMU -->
+  <joint name="HEAD_IMU_JOINT" type="fixed">
+    <origin rpy="0.0 0.0 0.0" xyz="-0.02432603 -0.00225290 0.07425800" />
+    <axis xyz="0 0 1" />
+    <parent link="HEAD_LINK" />
+    <child link="HEAD_IMU_LINK" />
+  </joint>
+  <link name="HEAD_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- TORSO IMU -->
+  <joint name="TORSO_IMU_JOINT" type="fixed">
+    <origin rpy="-1.561264 -0.329453 -1.570796" xyz="0.094766 0.018319 0.255014" />
+    <!-- Added 0.009536 roll, 0.002147 pitch bias -->
+    <axis xyz="0 0 1" />
+    <parent link="TORSO_LINK" />
+    <child link="TORSO_IMU_LINK" />
+  </joint>
+  <link name="TORSO_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- Left Upper Arm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="LEFT_SHOULDER_Y" type="revolute">
+    <origin xyz="-0.00050000 0.12989023 0.38214403" rpy="0.698132 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="TORSO_LINK" />
+    <child link="LEFT_SHOULDER_Y_LINK" />
+    <limit effort="160.7" lower="-3.141592" upper="1.22173" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_SHOULDER_X" type="revolute">
+    <origin xyz="0.0 0.11791000 -0.01300000" rpy="-0.698132 0.0 0.0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <parent link="LEFT_SHOULDER_Y_LINK" />
+    <child link="LEFT_SHOULDER_X_LINK" />
+    <limit effort="160.7" lower="-0.261799" upper="2.87979" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_SHOULDER_Z" type="revolute">
+    <origin xyz="0.0 0.03500000 -0.10600000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="LEFT_SHOULDER_X_LINK" />
+    <child link="LEFT_SHOULDER_Z_LINK" />
+    <limit effort="71.28" lower="-1.91986" upper="1.22173" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Upper Arm Links -->
+  <link name="LEFT_SHOULDER_Y_LINK">
+    <inertial>
+      <mass value="2.05868192" />
+      <origin rpy="0 0 0" xyz="-0.00570706 0.0080361 0.09757156" />
+      <inertia ixx="0.00511665" ixy="-0.00000918" ixz="0.00003641" iyy="0.00561764" iyz="-0.00050629" izz="0.00322577" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_shoulder_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_SHOULDER_X_LINK">
+    <inertial>
+      <mass value="0.48051112" />
+      <origin rpy="0 0 0" xyz="-0.0037059 0.02589813 -0.05866592" />
+      <inertia ixx="0.00101844" ixy="-0.00005266" ixz="0.0001169" iyy="0.00111559" iyz="0.00016556" izz="0.00087278" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_shoulder_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_SHOULDER_Z_LINK">
+    <inertial>
+      <mass value="3.67445507" />
+      <origin rpy="0 0 0" xyz="0.0087191 -0.00275047 -0.14270206" />
+      <inertia ixx="0.035168" ixy="0.00004987" ixz="0.00284259" iyy="0.03490713" iyz="-0.00063372" izz="0.00493209" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_shoulder_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Left Upper Arm IMUs -->
+  <!-- LEFT SHOULDER Y (PITCH) -->
+  <joint name="LEFT_SHOULDER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="0.0 0.261799 1.5708" xyz="0.01382603 0.00201569 0.03728214" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_SHOULDER_Y_LINK" />
+    <child link="LEFT_SHOULDER_Y_IMU_LINK" />
+  </joint>
+  <link name="LEFT_SHOULDER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- LEFT SHOULDER Z (YAW) -->
+  <joint name="LEFT_SHOULDER_Z_IMU_JOINT" type="fixed">
+    <origin rpy="-1.570796 0.0 0.0" xyz="0.00395818 0.01324003 -0.12899368" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_SHOULDER_Z_LINK" />
+    <child link="LEFT_SHOULDER_Z_IMU_LINK" />
+  </joint>
+  <link name="LEFT_SHOULDER_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- Left Forearm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="LEFT_ELBOW_Y" type="revolute">
+    <origin xyz="0.02000000 0.0 -0.23400000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="LEFT_SHOULDER_Z_LINK" />
+    <child link="LEFT_ELBOW_Y_LINK" />
+    <limit effort="71.28" lower="-2.35619" upper="0.174533" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_WRIST_Z" type="revolute">
+    <origin xyz="-0.02000000 0.0 -0.08074000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="LEFT_ELBOW_Y_LINK" />
+    <child link="LEFT_WRIST_Z_LINK" />
+    <limit effort="20.86" lower="-2.61799" upper="2.61799" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_WRIST_X" type="revolute">
+    <origin xyz="0.0 -0.013 -0.19750000" rpy="0.0 0.0 0.0" />
+    <axis xyz="1 0 0" />
+    <parent link="LEFT_WRIST_Z_LINK" />
+    <child link="LEFT_WRIST_X_LINK" />
+    <limit effort="20.86" lower="-1.48353" upper="0.959931" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="LEFT_GRIPPER_Y" type="revolute">
+    <origin xyz="0.0 0.013 0.0" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="LEFT_WRIST_X_LINK" />
+    <child link="LEFT_GRIPPER_Y_LINK" />
+    <limit effort="20.86" lower="-0.785398" upper="0.785398" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Forearm Links -->
+  <link name="LEFT_ELBOW_Y_LINK">
+    <inertial>
+      <mass value="0.5292201" />
+      <origin rpy="0 0 0" xyz="-0.01650253 -0.00263815 -0.04773102" />
+      <inertia ixx="0.00114255" ixy="0.00001759" ixz="-0.00003691" iyy="0.00079366" iyz="0.00015824" izz="0.00087581" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_elbow_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_WRIST_Z_LINK">
+    <inertial>
+      <mass value="2.05080746" />
+      <origin rpy="0 0 0" xyz="-0.00443865 -0.00006299 -0.07235002" />
+      <inertia ixx="0.00509284" ixy="0.00004197" ixz="-0.00014021" iyy="0.00581358" iyz="-0.00008813" izz="0.00234961" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_wrist_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_WRIST_X_LINK">
+    <inertial>
+      <mass value="0.87091179" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="0.00025938 0.01208633 0.00037966" />
+      <inertia ixx="0.00066164" ixy="-0.00000242" ixz="-0.00000115" iyy="0.00064531" iyz="-0.00000916" izz="0.00065818" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_wrist_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="LEFT_GRIPPER_Y_LINK">
+    <inertial>
+      <mass value="0.184" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="-0.00002105 0.00511741 0.0424156" />
+      <inertia ixx="0.00026321" ixy="-1.429E-7" ixz="1.580E-8" iyy="0.00022394" iyz="0.00003975" izz="0.0002215" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/left_arm/l_gripper_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Left Forearm IMUs -->
+  <!-- LEFT WRIST Z (YAW) -->
+  <joint name="LEFT_WRIST_Z_IMU_JOINT" type="fixed">
+    <origin rpy="1.571 0.0 1.571" xyz="-0.03355000 0.01162100 -0.09292000" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_WRIST_Z_LINK" />
+    <child link="LEFT_WRIST_Z_IMU_LINK" />
+  </joint>
+  <link name="LEFT_WRIST_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- LEFT GRIPPER Y (PITCH) -->
+  <joint name="LEFT_GRIPPER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="3.14159 0 -1.571" xyz="0.01060620 -0.01122793 -0.06568644" />
+    <axis xyz="0 0 1" />
+    <parent link="LEFT_GRIPPER_Y_LINK" />
+    <child link="LEFT_GRIPPER_Y_IMU_LINK" />
+  </joint>
+  <link name="LEFT_GRIPPER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- Right Upper Arm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="RIGHT_SHOULDER_Y" type="revolute">
+    <origin xyz="-0.00050000 -0.12989023 0.38214403" rpy="-0.698132 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="TORSO_LINK" />
+    <child link="RIGHT_SHOULDER_Y_LINK" />
+    <limit effort="160.7" lower="-3.141592" upper="1.22173" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_SHOULDER_X" type="revolute">
+    <origin xyz="0.0 -0.11791000 -0.01300000" rpy="0.698132 0.0 0.0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <parent link="RIGHT_SHOULDER_Y_LINK" />
+    <child link="RIGHT_SHOULDER_X_LINK" />
+    <limit effort="160.7" lower="-2.87979" upper="0.261799" velocity="10.38" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_SHOULDER_Z" type="revolute">
+    <origin xyz="0.0 -0.03500000 -0.10400000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="RIGHT_SHOULDER_X_LINK" />
+    <child link="RIGHT_SHOULDER_Z_LINK" />
+    <limit effort="71.28" lower="-1.22173" upper="1.91986" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Upper Arm Links -->
+  <link name="RIGHT_SHOULDER_Y_LINK">
+    <inertial>
+      <mass value="2.05868192" />
+      <origin rpy="0 0 0" xyz="-0.00570706 -0.0080361 0.09757156" />
+      <inertia ixx="0.00511665" ixy="0.00000918" ixz="0.00003641" iyy="0.00561764" iyz="0.00050629" izz="0.00322577" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_shoulder_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_SHOULDER_X_LINK">
+    <inertial>
+      <mass value="0.48051112" />
+      <origin rpy="0 0 0" xyz="-0.0037059 -0.02589813 -0.05866592" />
+      <inertia ixx="0.00101844" ixy="0.00005266" ixz="0.0001169" iyy="0.00111559" iyz="-0.00016556" izz="0.00087278" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_shoulder_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_SHOULDER_Z_LINK">
+    <inertial>
+      <mass value="3.67445507" />
+      <origin rpy="0 0 0" xyz="0.0087191 0.00275047 -0.14270206" />
+      <inertia ixx="0.035168" ixy="-0.00004987" ixz="0.00284259" iyy="0.03490713" iyz="0.00063372" izz="0.00493209" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_shoulder_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Right Upper Arm IMUs -->
+  <!-- RIGHT SHOULDER Y (PITCH) -->
+  <joint name="RIGHT_SHOULDER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="0.0 -0.261799 1.5708" xyz="0.01382603 -0.00835826 0.06095292" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_SHOULDER_Y_LINK" />
+    <child link="RIGHT_SHOULDER_Y_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_SHOULDER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- RIGHT SHOULDER Z (YAW) -->
+  <joint name="RIGHT_SHOULDER_Z_IMU_JOINT" type="fixed">
+    <origin rpy="-1.570796 0.0 3.14159" xyz="-0.00395818 -0.01324003 -0.12899368" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_SHOULDER_Z_LINK" />
+    <child link="RIGHT_SHOULDER_Z_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_SHOULDER_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- Left Forearm Joints -->
+  <!-- NEED TO CHECK JOINT LIMITS, EFFORTS, AND BASE ROTATIONS -->
+  <joint name="RIGHT_ELBOW_Y" type="revolute">
+    <origin xyz="0.02000000 0.0 -0.23400000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="RIGHT_SHOULDER_Z_LINK" />
+    <child link="RIGHT_ELBOW_Y_LINK" />
+    <limit effort="71.28" lower="-2.35619" upper="0.174533" velocity="4.47" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_WRIST_Z" type="revolute">
+    <origin xyz="-0.02000000 0.0 -0.08074000" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <parent link="RIGHT_ELBOW_Y_LINK" />
+    <child link="RIGHT_WRIST_Z_LINK" />
+    <limit effort="20.86" lower="-2.61799" upper="2.61799" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_WRIST_X" type="revolute">
+    <origin xyz="0.0 0.013 -0.19750000" rpy="0.0 0.0 0.0" />
+    <axis xyz="1 0 0" />
+    <parent link="RIGHT_WRIST_Z_LINK" />
+    <child link="RIGHT_WRIST_X_LINK" />
+    <limit effort="20.86" lower="-0.959931" upper="1.48353" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <joint name="RIGHT_GRIPPER_Y" type="revolute">
+    <origin xyz="0.0 -0.013 0.0" rpy="0.0 0.0 0.0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <parent link="RIGHT_WRIST_X_LINK" />
+    <child link="RIGHT_GRIPPER_Y_LINK" />
+    <limit effort="20.86" lower="-0.785398" upper="0.785398" velocity="17.3" />
+    <dynamics damping="0.05" friction="0.0" />
+  </joint>
+  <!-- Left Forearm Links -->
+  <link name="RIGHT_ELBOW_Y_LINK">
+    <inertial>
+      <mass value="0.5292201" />
+      <origin rpy="0 0 0" xyz="-0.01650253 0.00263815 -0.04773102" />
+      <inertia ixx="0.00114255" ixy="-0.00001759" ixz="-0.00003691" iyy="0.00079366" iyz="-0.00015824" izz="0.00087581" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_elbow_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_WRIST_Z_LINK">
+    <inertial>
+      <mass value="2.05080746" />
+      <origin rpy="0 0 0" xyz="-0.00443865 0.00006299 -0.07235002" />
+      <inertia ixx="0.00509284" ixy="-0.00004197" ixz="-0.00014021" iyy="0.00581358" iyz="0.00008813" izz="0.00234961" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_wrist_z_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_WRIST_X_LINK">
+    <inertial>
+      <mass value="0.87091179" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="0.00025938 -0.01208633 0.00037966" />
+      <inertia ixx="0.00066164" ixy="0.00000242" ixz="-0.00000115" iyy="0.00064531" iyz="0.00000916" izz="0.00065818" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_wrist_x_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <link name="RIGHT_GRIPPER_Y_LINK">
+    <inertial>
+      <mass value="0.184" />
+      <!-- Needs updated twitter+carrier mass -->
+      <origin rpy="0 0 0" xyz="0.00002105 0.00511741 0.0424156" />
+      <inertia ixx="0.00026321" ixy="-1.429E-7" ixz="1.580E-8" iyy="0.00022394" iyz="-0.00003975" izz="0.0002215" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="../../meshes/right_arm/r_gripper_y_purdue.obj" />
+      </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+    </visual>
+  </link>
+  <!-- Left Forearm IMUs -->
+  <!-- LEFT WRIST Z (YAW) -->
+  <joint name="RIGHT_WRIST_Z_IMU_JOINT" type="fixed">
+    <origin rpy="1.571 0.0 1.571" xyz="-0.03355000 0.01162100 -0.09292000" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_WRIST_Z_LINK" />
+    <child link="RIGHT_WRIST_Z_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_WRIST_Z_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <!-- RIGHT GRIPPER Y (PITCH) -->
+  <joint name="RIGHT_GRIPPER_Y_IMU_JOINT" type="fixed">
+    <origin rpy="-3.14159 0 1.571" xyz="0.01060620 -0.01122793 -0.06568644" />
+    <axis xyz="0 0 1" />
+    <parent link="RIGHT_GRIPPER_Y_LINK" />
+    <child link="RIGHT_GRIPPER_Y_IMU_LINK" />
+  </joint>
+  <link name="RIGHT_GRIPPER_Y_IMU_LINK">
+    <inertial>
+      <mass value="0" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+    </inertial>
+  </link>
+  <material name="WSG_ALUMINUM">
+    <color rgba="0.792157 0.819608 0.933333 1" />
+  </material>
+  <material name="UMI_BLACK">
+    <color rgba="0.025 0.025 0.025 1" />
+  </material>
+  <link name="left_WSG32_BASE_LINK" />
+  <link name="left_WSG32_BODY_LINK">
+    <inertial>
+      <origin xyz="0.0000585924 -0.0033544592 0.0278036948" rpy="0 0 0" />
+      <mass value="0.460692942" />
+      <inertia ixx="0.0006714992" ixy="0.0000003753" ixz="0.0000001826" iyy="0.0001644281" iyz="-0.0000223832" izz="0.0005790097" />
+    </inertial>
+    <visual name="WSG32_BODY_VISUAL">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/wsg_32_description/meshes/hand_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_BODY_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/hand_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_WSG32_NEGATIVE_JAW_LINK">
+    <inertial>
+      <origin xyz="-0.0104832601 -0.0101616477 0.0052207788" rpy="0 0 0" />
+      <mass value="0.044653529" />
+      <inertia ixx="0.0000067885" ixy="-0.0000020988" ixz="0.0000015063" iyy="0.0000071185" iyz="0.0000013202" izz="0.0000080905" />
+    </inertial>
+    <visual name="WSG32_NEGATIVE_JAW_VISUAL">
+      <origin xyz="-0.00725 0 0.0004" rpy="0 1.57079 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/wsg_32_description/meshes/left_finger_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_NEGATIVE_JAW_CONVEX">
+      <origin xyz="-0.00725 0 0.0004" rpy="0 1.57079 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/jaw_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_WSG32_POSITIVE_JAW_LINK">
+    <inertial>
+      <origin xyz="-0.0104832634 -0.0048208466 -0.0097616145" rpy="0 0 0" />
+      <mass value="0.044653529" />
+      <inertia ixx="0.0000067885" ixy="-0.0000015064" ixz="-0.0000020987" iyy="0.0000080905" iyz="-0.0000013202" izz="0.0000071186" />
+    </inertial>
+    <visual name="WSG32_POSITIVE_JAW_VISUAL">
+      <origin xyz="-0.00725 0 0.0004" rpy="-1.57079 3.14159 -1.57079" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/wsg_32_description/meshes/right_finger_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_POSITIVE_JAW_CONVEX">
+      <origin xyz="-0.00725 0 0.0004" rpy="-1.57079 3.14159 -1.57079" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/jaw_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_WSG32_NEGATIVE_UMI_V1_FINGER_LINK">
+    <inertial>
+      <origin xyz="0.0176341323 -0.0128999996 -0.0431689831" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="0.0001073730" ixy="0" ixz="-0.0000123783" iyy="0.0001154502" iyz="0" izz="0.0000191712" />
+    </inertial>
+    <visual name="WSG32_NEGATIVE_UMI_V1_VISUAL">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/actuated_umi/3d-printables/actuated-UMI-v1/UMI-gripper-soft-gripper-finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="UMI_BLACK" />
+    </visual>
+    <collision name="WSG32_NEGATIVE_UMI_V1_MOUNT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_mount_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <collision name="WSG32_NEGATIVE_UMI_V1_CONTACT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_contact_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_WSG32_POSITIVE_UMI_V1_FINGER_LINK">
+    <inertial>
+      <origin xyz="0.0176341323 -0.0128999996 -0.0431689831" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="0.0001073730" ixy="0" ixz="-0.0000123783" iyy="0.0001154502" iyz="0" izz="0.0000191712" />
+    </inertial>
+    <visual name="WSG32_POSITIVE_UMI_V1_VISUAL">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/actuated_umi/3d-printables/actuated-UMI-v1/UMI-gripper-soft-gripper-finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="UMI_BLACK" />
+    </visual>
+    <collision name="WSG32_POSITIVE_UMI_V1_MOUNT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_mount_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <collision name="WSG32_POSITIVE_UMI_V1_CONTACT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_contact_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_WSG32_TCP_LINK" />
+  <joint name="left_WSG32_BASE_TO_BODY" type="fixed">
+    <origin xyz="0 0 0" rpy="0 1.5707963268 0" />
+    <parent link="left_WSG32_BASE_LINK" />
+    <child link="left_WSG32_BODY_LINK" />
+  </joint>
+  <joint name="left_WSG32_JAW_OPENING" type="prismatic">
+    <origin xyz="-0.0003903 -0.0078 0.069014" rpy="3.1415926536 -1.5707963268 0" />
+    <parent link="left_WSG32_BODY_LINK" />
+    <child link="left_WSG32_NEGATIVE_JAW_LINK" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="0.034" effort="25" velocity="0.4" />
+    <dynamics damping="0.05" friction="0" />
+  </joint>
+  <joint name="left_WSG32_JAW_FOLLOWER" type="prismatic">
+    <origin xyz="-0.0003903 0.0078 0.069012" rpy="-1.5707963268 -1.5707963268 0" />
+    <parent link="left_WSG32_BODY_LINK" />
+    <child link="left_WSG32_POSITIVE_JAW_LINK" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.034" effort="25" velocity="0.4" />
+    <dynamics damping="0.05" friction="0" />
+    <mimic joint="left_WSG32_JAW_OPENING" multiplier="1" offset="0" />
+  </joint>
+  <joint name="left_WSG32_NEGATIVE_UMI_V1_MOUNT" type="fixed">
+    <origin xyz="0.009621605 -0.0068 0.0203834107" rpy="3.1415926536 1.5707963268 0" />
+    <parent link="left_WSG32_NEGATIVE_JAW_LINK" />
+    <child link="left_WSG32_NEGATIVE_UMI_V1_FINGER_LINK" />
+  </joint>
+  <joint name="left_WSG32_POSITIVE_UMI_V1_MOUNT" type="fixed">
+    <origin xyz="0.009623605 -0.0196028107 -0.0068" rpy="-1.5707963268 0 1.5707963268" />
+    <parent link="left_WSG32_POSITIVE_JAW_LINK" />
+    <child link="left_WSG32_POSITIVE_UMI_V1_FINGER_LINK" />
+  </joint>
+  <joint name="left_WSG32_TCP" type="fixed">
+    <origin xyz="0.1305 0 0" rpy="0 0 0" />
+    <parent link="left_WSG32_BASE_LINK" />
+    <child link="left_WSG32_TCP_LINK" />
+  </joint>
+  <joint name="LEFT_WSG32_MOUNT" type="fixed">
+    <origin xyz="0 0 -0.043" rpy="3.1415926536 1.5707963268 0" />
+    <parent link="LEFT_GRIPPER_Y_LINK" />
+    <child link="left_WSG32_BASE_LINK" />
+  </joint>
+  <link name="right_WSG32_BASE_LINK" />
+  <link name="right_WSG32_BODY_LINK">
+    <inertial>
+      <origin xyz="0.0000585924 -0.0033544592 0.0278036948" rpy="0 0 0" />
+      <mass value="0.460692942" />
+      <inertia ixx="0.0006714992" ixy="0.0000003753" ixz="0.0000001826" iyy="0.0001644281" iyz="-0.0000223832" izz="0.0005790097" />
+    </inertial>
+    <visual name="WSG32_BODY_VISUAL">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/wsg_32_description/meshes/hand_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_BODY_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/hand_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_WSG32_NEGATIVE_JAW_LINK">
+    <inertial>
+      <origin xyz="-0.0104832601 -0.0101616477 0.0052207788" rpy="0 0 0" />
+      <mass value="0.044653529" />
+      <inertia ixx="0.0000067885" ixy="-0.0000020988" ixz="0.0000015063" iyy="0.0000071185" iyz="0.0000013202" izz="0.0000080905" />
+    </inertial>
+    <visual name="WSG32_NEGATIVE_JAW_VISUAL">
+      <origin xyz="-0.00725 0 0.0004" rpy="0 1.57079 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/wsg_32_description/meshes/left_finger_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_NEGATIVE_JAW_CONVEX">
+      <origin xyz="-0.00725 0 0.0004" rpy="0 1.57079 0" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/jaw_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_WSG32_POSITIVE_JAW_LINK">
+    <inertial>
+      <origin xyz="-0.0104832634 -0.0048208466 -0.0097616145" rpy="0 0 0" />
+      <mass value="0.044653529" />
+      <inertia ixx="0.0000067885" ixy="-0.0000015064" ixz="-0.0000020987" iyy="0.0000080905" iyz="-0.0000013202" izz="0.0000071186" />
+    </inertial>
+    <visual name="WSG32_POSITIVE_JAW_VISUAL">
+      <origin xyz="-0.00725 0 0.0004" rpy="-1.57079 3.14159 -1.57079" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/wsg_32_description/meshes/right_finger_link.STL" />
+      </geometry>
+      <material name="WSG_ALUMINUM" />
+    </visual>
+    <collision name="WSG32_POSITIVE_JAW_CONVEX">
+      <origin xyz="-0.00725 0 0.0004" rpy="-1.57079 3.14159 -1.57079" />
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/jaw_link_convex.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_WSG32_NEGATIVE_UMI_V1_FINGER_LINK">
+    <inertial>
+      <origin xyz="0.0176341323 -0.0128999996 -0.0431689831" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="0.0001073730" ixy="0" ixz="-0.0000123783" iyy="0.0001154502" iyz="0" izz="0.0000191712" />
+    </inertial>
+    <visual name="WSG32_NEGATIVE_UMI_V1_VISUAL">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/actuated_umi/3d-printables/actuated-UMI-v1/UMI-gripper-soft-gripper-finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="UMI_BLACK" />
+    </visual>
+    <collision name="WSG32_NEGATIVE_UMI_V1_MOUNT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_mount_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <collision name="WSG32_NEGATIVE_UMI_V1_CONTACT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_contact_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_WSG32_POSITIVE_UMI_V1_FINGER_LINK">
+    <inertial>
+      <origin xyz="0.0176341323 -0.0128999996 -0.0431689831" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="0.0001073730" ixy="0" ixz="-0.0000123783" iyy="0.0001154502" iyz="0" izz="0.0000191712" />
+    </inertial>
+    <visual name="WSG32_POSITIVE_UMI_V1_VISUAL">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/source/actuated_umi/3d-printables/actuated-UMI-v1/UMI-gripper-soft-gripper-finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="UMI_BLACK" />
+    </visual>
+    <collision name="WSG32_POSITIVE_UMI_V1_MOUNT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_mount_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <collision name="WSG32_POSITIVE_UMI_V1_CONTACT_CONVEX">
+      <geometry>
+        <mesh filename="../../../../end_effectors/weiss_wsg32/meshes/collision/umi_v1_contact_convex.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_WSG32_TCP_LINK" />
+  <joint name="right_WSG32_BASE_TO_BODY" type="fixed">
+    <origin xyz="0 0 0" rpy="0 1.5707963268 0" />
+    <parent link="right_WSG32_BASE_LINK" />
+    <child link="right_WSG32_BODY_LINK" />
+  </joint>
+  <joint name="right_WSG32_JAW_OPENING" type="prismatic">
+    <origin xyz="-0.0003903 -0.0078 0.069014" rpy="3.1415926536 -1.5707963268 0" />
+    <parent link="right_WSG32_BODY_LINK" />
+    <child link="right_WSG32_NEGATIVE_JAW_LINK" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="0.034" effort="25" velocity="0.4" />
+    <dynamics damping="0.05" friction="0" />
+  </joint>
+  <joint name="right_WSG32_JAW_FOLLOWER" type="prismatic">
+    <origin xyz="-0.0003903 0.0078 0.069012" rpy="-1.5707963268 -1.5707963268 0" />
+    <parent link="right_WSG32_BODY_LINK" />
+    <child link="right_WSG32_POSITIVE_JAW_LINK" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.034" effort="25" velocity="0.4" />
+    <dynamics damping="0.05" friction="0" />
+    <mimic joint="right_WSG32_JAW_OPENING" multiplier="1" offset="0" />
+  </joint>
+  <joint name="right_WSG32_NEGATIVE_UMI_V1_MOUNT" type="fixed">
+    <origin xyz="0.009621605 -0.0068 0.0203834107" rpy="3.1415926536 1.5707963268 0" />
+    <parent link="right_WSG32_NEGATIVE_JAW_LINK" />
+    <child link="right_WSG32_NEGATIVE_UMI_V1_FINGER_LINK" />
+  </joint>
+  <joint name="right_WSG32_POSITIVE_UMI_V1_MOUNT" type="fixed">
+    <origin xyz="0.009623605 -0.0196028107 -0.0068" rpy="-1.5707963268 0 1.5707963268" />
+    <parent link="right_WSG32_POSITIVE_JAW_LINK" />
+    <child link="right_WSG32_POSITIVE_UMI_V1_FINGER_LINK" />
+  </joint>
+  <joint name="right_WSG32_TCP" type="fixed">
+    <origin xyz="0.1305 0 0" rpy="0 0 0" />
+    <parent link="right_WSG32_BASE_LINK" />
+    <child link="right_WSG32_TCP_LINK" />
+  </joint>
+  <joint name="RIGHT_WSG32_MOUNT" type="fixed">
+    <origin xyz="0 0 -0.043" rpy="3.1415926536 1.5707963268 0" />
+    <parent link="RIGHT_GRIPPER_Y_LINK" />
+    <child link="right_WSG32_BASE_LINK" />
+  </joint>
+</robot>

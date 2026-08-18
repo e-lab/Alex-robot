@@ -1,0 +1,27 @@
+[upstream]
+repository = "https://github.com/stereolabs/zed-isaac-sim.git"
+commit = "504b183117560d19060fdeb6e531bec0ef510e0d"
+extension_path = "exts/sl.sensor.camera"
+extension_version = "5.2.0"
+kit_version = "110.1.2"
+
+[asset]
+path = "exts/sl.sensor.camera/data/usd/ZED_XM.usdc"
+sha256 = "972c7e4dc0f8091b2ccde22ee5def228f3370b72d38139c79e656666371a45fa"
+model = "ZED_XM"
+lens = "Wide"
+lens_focal_length_mm = 2.2
+mass_kg = 0.151
+baseline_m = 0.050
+
+[resolutions]
+SVGA = [960, 600]
+HD1080 = [1920, 1080]
+HD1200 = [1920, 1200]
+
+[legacy_alignment]
+official_usd_root_from_legacy_frame_xyz_m = [-0.00793892, -0.00032650, -0.01552351]
+official_usd_root_from_legacy_frame_rpy_rad = [0.0, 0.0, 0.0]
+legacy_obj_extents_m = [0.047757, 0.093543, 0.032229]
+official_usd_extents_m = [0.047400, 0.0935523564, 0.0318180181]
+maximum_extent_difference_m = 0.0005

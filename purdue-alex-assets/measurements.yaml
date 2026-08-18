@@ -1,0 +1,74 @@
+schema:
+  name: purdue_alex003_physical_measurements
+  version: 2
+
+setup:
+  id: purdue_alex003
+  robot_family: IHMC Alex
+  robot_variant: Alex Purdue
+  physical_location: Purdue University
+  record_maintainer: Purdue eLab
+  collaboration:
+    parties:
+      - Purdue eLab
+      - Purdue MARS Lab
+  collection_date: "2026-08-14"
+  coordinate_convention:
+    x: forward
+    y: left
+    z: up
+    handedness: right_handed
+  units:
+    length: m
+    angle: rad
+    mass: kg
+
+robot:
+  right_shoulder_y_world_z_m:
+    value: 1.266
+    method: tape_measure
+    reference_from: floor
+    reference_to: center_of_RIGHT_SHOULDER_Y_axis
+
+pedestal:
+  model_id: purdue_alex003_pedestal
+  mounting_plane_world_z_m:
+    value: 0.900
+    method: tape_measure
+    reference_from: floor
+    reference_to: physical_Alex_mounting_plane
+  parts:
+    lower_base:
+      size_m: {x: 0.565, y: 0.600, z: 0.120}
+    column:
+      size_m: {x: 0.175, y: 0.160, z: 0.760}
+    upper_mount:
+      size_m: {x: 0.220, y: 0.300, z: 0.020}
+
+end_effectors:
+  weiss_wsg32_068:
+    identification:
+      manufacturer: WEISS Robotics
+      model: WSG 32-068
+      observed_quantity: 2
+      observed_unit:
+        serial_number: "001379"
+        hardware_revision: 2
+    flange:
+      manufacturer: WEISS Robotics
+      model: FL-ISO50-WSG32
+      part_number: "5020024"
+    alex_wrist_adapter:
+      axial_length_m:
+        value: 0.043
+        method: tape_measure
+    custom_fingers:
+      geometry_m:
+        length: 0.143
+        thickness: 0.029
+        width_base: 0.040
+        width_tip: 0.005
+      internal_gap_fully_open_m:
+        value: 0.070
+        condition: wsg_completely_open
+        reference: inner_contact_surface_to_inner_contact_surface

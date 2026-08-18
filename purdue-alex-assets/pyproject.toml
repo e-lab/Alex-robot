@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools<82.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ihmc-alex-isaaclab"
+version = "0.10.0"
+description = "Reusable Isaac Lab configurations for IHMC Alex robots and components."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE-BSD-3-Clause" }
+keywords = ["robotics", "assets", "humanoid", "isaaclab"]
+classifiers = [
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.12",
+    "Isaac Sim :: 6.0.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ihmc_alex_isaaclab*"]

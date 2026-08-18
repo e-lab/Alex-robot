@@ -1,0 +1,65 @@
+[import]
+date = "2026-08-17"
+source_of_truth = "URDF"
+generated_usd_policy = "ignored build/isaac/leap_hand_v1 only"
+
+[upstream.sim]
+repository = "https://github.com/leap-hand/LEAP_Hand_Sim.git"
+commit = "150bc3d4b61fd6619193ba5a8ef209f3609ced89"
+revision_date = "2024-05-18"
+right_path = "assets/leap_hand"
+left_archive_path = "assets/leap_left_urdf.zip"
+left_archive_sha256 = "57729de555d8ab5d3940dfdeef4ae822a442868da97f311df83f622fc28a9114"
+
+[upstream.isaac_lab]
+repository = "https://github.com/leap-hand/LEAP_Hand_Isaac_Lab.git"
+commit = "c576e6a83183ba504aef8f57015f2899b799db1a"
+revision_date = "2025-09-04"
+use = "actuator, contact, material, and self-collision baseline"
+
+[upstream.api]
+repository = "https://github.com/leap-hand/LEAP_Hand_API.git"
+commit = "b0d00c881d0119077b2cab771a6de44f5aaec904"
+revision_date = "2025-10-20"
+use = "motor-ID order, limits, and hardware semantics reference"
+
+[licensing]
+asset_classification = "CC BY-NC-SA (version unspecified upstream)"
+official_cad_statement_url = "https://v1.leaphand.com/leap_cad"
+sim_repository_root_license = "MIT"
+sim_repository_license_file = "LICENSE_LEAP_HAND_SIM_MIT.txt"
+status = "upstream statements conflict; conservative CAD/URDF classification applied"
+
+[generated.left]
+path = "urdf/leap_hand_v1_left.urdf"
+sha256 = "f59ba7cf39fd358b2da5cd9912ef34c9b6ebc8c91e6b2eda3f2bd36d9d37d3a8"
+rewrite_from = "filename=\"package:///NAME.stl\""
+rewrite_to = "filename=\"../source/left/NAME.stl\""
+
+[generated.right]
+path = "urdf/leap_hand_v1_right.urdf"
+sha256 = "26eb788f6dd9bf52f452ffca363416b7c641c78e3afe1a7444c04de13d84dcfa"
+rewrite_from = "filename=\"NAME.stl\""
+rewrite_to = "filename=\"../source/right/NAME.stl\""
+
+[source_sha256]
+"LICENSE_LEAP_HAND_SIM_MIT.txt" = "5a91c3d709c2ee3a71f166b46e3208cebd83c0c7a870746c729b31a01f156984"
+"source/left/dip.stl" = "9222f0ee1fa0077c70a219f7952df6f4208b003ad06a608e006cd0d8057d4b1c"
+"source/left/fingertip.stl" = "e149e01e395b58950332dc2e2bda4b51b5557328a73c80b990d184c2e84dcc53"
+"source/left/mcp_joint.stl" = "56af82c57b469d491f544d6de12e2696b4284b50e89ca271502aaa0631f04b59"
+"source/left/palm_lower_left.stl" = "2add77176d2bdcf62421c51a38886e36dac46efdb8d9dcbff29610df73407fca"
+"source/left/pip.stl" = "b778405c95127023c8b110e6e2f5a181ad8a46dadc2ac98d3f038debae52ef33"
+"source/left/robot.urdf" = "745a8360fe1038339e3324f55ef64ded89aab4de8883538bf7ed41bd45757412"
+"source/left/thumb_dip.stl" = "7261cf99cd44ae42360dc72a417c2526a73ec8ff4c446858042d6d0675b4f2bf"
+"source/left/thumb_fingertip.stl" = "b43c5a13cf67a25da5ea64afafdcae2179b53971f940375c94656919d717dfb0"
+"source/left/thumb_left_temp_base.stl" = "2b905075394e4fd4e3c862fdfb4d0786c6145629862ce9f20652525042b8f1a8"
+"source/left/thumb_pip.stl" = "40532d5d555e150748f8563fb378ab3d0839b9221eb5ef108e86fde01a98dfe0"
+"source/right/dip.stl" = "9222f0ee1fa0077c70a219f7952df6f4208b003ad06a608e006cd0d8057d4b1c"
+"source/right/fingertip.stl" = "e149e01e395b58950332dc2e2bda4b51b5557328a73c80b990d184c2e84dcc53"
+"source/right/mcp_joint.stl" = "56af82c57b469d491f544d6de12e2696b4284b50e89ca271502aaa0631f04b59"
+"source/right/palm_lower.stl" = "eae47756f1a1978b255a36c0b75c24c0af886d10026c2950a2b0acef66f09c8c"
+"source/right/pip.stl" = "b778405c95127023c8b110e6e2f5a181ad8a46dadc2ac98d3f038debae52ef33"
+"source/right/robot.urdf" = "b3f29881e1c013f8b4eda85e9afecc6b2f4b89b5b49b643183ef6031422ed7f4"
+"source/right/thumb_dip.stl" = "7261cf99cd44ae42360dc72a417c2526a73ec8ff4c446858042d6d0675b4f2bf"
+"source/right/thumb_fingertip.stl" = "b43c5a13cf67a25da5ea64afafdcae2179b53971f940375c94656919d717dfb0"
+"source/right/thumb_pip.stl" = "40532d5d555e150748f8563fb378ab3d0839b9221eb5ef108e86fde01a98dfe0"
